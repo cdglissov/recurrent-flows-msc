@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from utils import *
+from .utils import *
 
 def visualize_2d_data(train_data, test_data, train_labels=None, test_labels=None):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.6, 4.8))
@@ -38,10 +38,10 @@ def show_2d_densities(densities, title='Densities'):
     plt.ylabel('z2')
     plt.show()
 
-def show_2d_heatmap(fun, device, x_lim=(-1.5, 2.5), y_lim=(-1, 1.5)):
+def show_2d_heatmap(fun, device, x_lim=(-1.5, 2.5), y_lim=(-1, 1.5), title="Densities"):
     dx, dy = 0.025, 0.025
     y, x = np.mgrid[slice(y_lim[0], y_lim[1] + dy, dy),
                     slice(x_lim[0], x_lim[1] + dx, dx)]
     mesh_xs = torch.FloatTensor(np.stack([x, y], axis=2).reshape(-1, 2)).to(device)
     densities = np.exp(get_numpy(fun(mesh_xs)))
-    show_2d_densities(densities)
+    show_2d_densities(densities, title)
