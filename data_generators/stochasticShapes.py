@@ -123,3 +123,6 @@ class VideoStochasticShapes():
 
                 yield {"frame": frame, "frame_number": [frame_number]}
                 counter += 1
+               
+# TODO: allow for storing data, .h5 file is the better way to go. Make another function to use the data file and store
+# it into dataloaders
