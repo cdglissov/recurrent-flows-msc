@@ -50,3 +50,5 @@ def get_joint_conditioned_data(data, box_size = (8, 24)):
   y[:, :, get_ids, :] = 0
   y[:, :, :, get_ids] = 0
 
+  return np.concatenate((x, y), axis=1)
+
