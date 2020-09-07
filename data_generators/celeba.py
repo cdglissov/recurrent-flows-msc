@@ -10,7 +10,7 @@ def get_celeba(plot_sample=True):
     url = "https://github.com/rll/deepul/raw/master/homeworks/hw2/data/celeb.pkl"
     urllib.request.urlretrieve(url, filename="data\celeba.pkl")
 
-    with open("celeb.pkl", 'rb') as f:
+    with open("data\celeba.pkl", 'rb') as f:
         data = pickle.load(f)
 
     train_data, test_data = data['train'], data['test']
