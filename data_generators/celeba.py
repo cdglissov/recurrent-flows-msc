@@ -32,6 +32,20 @@ def get_celeba(plot_sample=True):
     test_data = np.transpose(test_data, axes=[0, 3, 1, 2]) # NCHW 6838 x 3 x 32 x 32
     return train_data, test_data
 
-def condition_celeba():
-    return "Not implemented yet"
+'''
+Function transforming CelebA data to conditioned CelebA dataset
+'''
+def get_joint_conditioned_data(data, box_size = (8, 24)):
+  i, j = box_size
+  x = data.copy()
+  y = data.copy()
+  h, w=data.shape[-2:]
+
+  # Set the inner square to 0
+  x[:, :, i:j, i:j] = 0
+  
+  # Set the outer square to 0
+  get_ids = np.concatenate((np.arange(0, i, 1),np.arange(j, w, 1)))
+  y[:, :, get_ids, :] = 0
+  y[:, :, :, get_ids] = 0
 
