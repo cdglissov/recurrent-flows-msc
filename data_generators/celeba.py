@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import torch
 
 def get_celeba(plot_sample=True):
+    # TODO: Make assert here in case it is already downloaded
     url = "https://github.com/rll/deepul/raw/master/homeworks/hw2/data/celeb.pkl"
     urllib.request.urlretrieve(url, filename="data\celeba.pkl")
 
