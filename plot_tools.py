@@ -36,10 +36,16 @@ def show_2d_densities(densities, x_lim, y_lim, title='Densities'):
     plt.ylabel('z2')
     plt.show()
 
-def show_2d_heatmap(fun, device, x_lim=(-2.4, 2.4), y_lim=(-1.5, 1.5), title="Densities"):
+def show_2d_heatmap(fun, device, r=None, x_lim=(-2.4, 2.4), y_lim=(-1.5, 1.5), title="Densities"):
     dx, dy = 0.025, 0.025
     y, x = np.mgrid[slice(y_lim[0], y_lim[1] + dy, dy),
                     slice(x_lim[0], x_lim[1] + dx, dx)]
     mesh_xs = torch.FloatTensor(np.stack([x, y], axis=2).reshape(-1, 2)).to(device)
-    densities = np.exp(get_numpy(fun(mesh_xs)))
+
+    if r == None:
+      densities = np.exp(get_numpy(fun(mesh_xs)))
+    else:
+      dims=y.shape[0]*y.shape[1]
+      u=(torch.zeros(dims, 1)+r).to(device)
+      densities = np.exp(get_numpy(fun(mesh_xs, u)))
     show_2d_densities(densities, x_lim, y_lim, title)
