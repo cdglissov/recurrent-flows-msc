@@ -1,10 +1,15 @@
 import torch.utils.data as Data
+import torch
+import torch.distributions as td
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_moons
 
 class RotatingTwoMoonsConditionalSampler(object):
     def __init__(self, noise=0.1):
         self.noise = noise
-        self.rotation_sampler = torch.distributions.uniform.Uniform(low=0, high=2*np.pi)
-        self.translation_sampler = torch.distributions.uniform.Uniform(low=-4, high=4)
+        self.rotation_sampler = td.Uniform(low=0, high=2*np.pi)
+        self.translation_sampler = td.Uniform(low=-4, high=4)
 
     def conditioned_sample(self, n_samples=1000, theta=torch.tensor([0])):
         # Draw two moon samples and translate
