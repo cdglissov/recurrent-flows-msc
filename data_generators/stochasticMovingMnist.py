@@ -90,6 +90,7 @@ class MovingMNIST(object):
                 sx += dx
 
         x[x>1] = 1. # When the digits are overlapping.
-        x=x.reshape(self.seq_len,self.image_size,self.image_size)
-        x=np.repeat(x,3,axis=0)
+        n_channels = 1
+        x=x.reshape(self.seq_len, n_channels, self.image_size, self.image_size)
+        x=np.repeat(x,3,axis=1)
         return x # This should be changed to something else if seqence lenght of more than 1
