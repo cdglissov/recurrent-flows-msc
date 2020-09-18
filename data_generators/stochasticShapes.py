@@ -3,7 +3,7 @@
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-
+import torch
 
 class VideoStochasticShapes():
     """Shapes moving in a stochastic way."""
@@ -12,11 +12,11 @@ class VideoStochasticShapes():
 
     @property
     def frame_height(self):
-        return 64
+        return 32
 
     @property
     def frame_width(self):
-        return 64
+        return 32
 
     @property
     def total_number_of_frames(self):
@@ -113,16 +113,20 @@ class VideoStochasticShapes():
 
     def generate_samples(self):
         counter = 0
+        counter_while = 0
         done = False
         while not done:
+            tensors_list = []
             for frame_number, frame in enumerate(
                     self.generate_stochastic_shape_instance()):
                 if counter >= self.total_number_of_frames:
                     done = True
                     break
-
-                yield {"frame": frame, "frame_number": [frame_number]}
+                frame = torch.tensor(frame).permute(2,1,0)
+                tensors_list.append(frame)
                 counter += 1
-               
-# TODO: allow for storing data, .h5 file is the better way to go. Make another function to use the data file and store
-# it into dataloaders
+            counter_while += 1
+            if counter_while <= self.n_videos:
+              time_seq_tensor=torch.stack(tensors_list, 0)
+              yield time_seq_tensor
+              
