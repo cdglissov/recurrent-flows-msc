@@ -135,7 +135,7 @@ class VideoStochasticShapes():
                 yield time_seq_tensor
 
 ''' Takes around 10 mins, 150 mb for 10000 videos '''
-def create_Shapes(hdf5_dir, name = "movingShapes.h5", n_videos=10000)
+def create_Shapes(hdf5_dir, name = "movingShapes.h5", n_videos=10000):
     shapes_class = VideoStochasticShapes(n_videos)
     file = h5py.File(hdf5_dir + name, "w")
     count = 0
