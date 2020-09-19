@@ -4,12 +4,16 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+from PIL import Image
+import h5py
+import torch
 
 class VideoStochasticShapes():
     """Shapes moving in a stochastic way."""
     def __init__(self, n_videos=10):
         self.n_videos = n_videos
-
+        self.counter_while = 0 #to enter subdirs
+        
     @property
     def frame_height(self):
         return 32
@@ -127,6 +131,36 @@ class VideoStochasticShapes():
                 counter += 1
             counter_while += 1
             if counter_while <= self.n_videos:
-              time_seq_tensor=torch.stack(tensors_list, 0)
-              yield time_seq_tensor
-              
+                time_seq_tensor=torch.stack(tensors_list, 0)
+                yield time_seq_tensor
+
+''' Takes around 10 mins, 150 mb for 10000 videos '''
+def create_Shapes(hdf5_dir, name = "movingShapes.h5", n_videos=10000)
+    shapes_class = VideoStochasticShapes(n_videos)
+    file = h5py.File(hdf5_dir + name, "w")
+    count = 0
+    for i in shapes_class.generate_samples():
+        dataset = file.create_dataset(
+            "v_"+str(count), img.shape, h5py.h5t.STD_U8BE, data=i
+        )
+        count+=1
+    file.close()
+    
+
+class MovingShapes(torch.utils.data.Dataset):    
+    def __init__(self, root_dir, transform=None):
+        self.root_dir = root_dir
+        self.file = h5py.File(self.root_dir, 'r')
+        self.keys = list(self.file.keys())
+        self.N = len(self.keys)
+        
+    def __len__(self):
+        return self.N
+
+    def __getitem__(self, idx):
+        img = np.array(self.file.get(self.keys[idx])).astype(np.float32) / 255
+        time_seq_tensor = torch.tensor(img).permute(0, 3, 2, 1)
+        return time_seq_tensor
+    
+#trainset = MovingShapes()
+#train_loader = DataLoader(trainset, batch_size=10, shuffle=True)
