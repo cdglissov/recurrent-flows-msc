@@ -52,3 +52,15 @@ class PrintLayer(nn.Module):
     def forward(self, x):
         print(x.size())
         return x
+
+def get_layer_size(dims, kernels, paddings, strides, dilations, uneven_format = False):
+    out_h, out_w = dims
+    if uneven_format == True:
+      for kernel, padding, stride, dilation in zip(kernels, paddings, strides, dilations):
+        out_h = (out_h + 2*padding[0] - dilation[0] * (kernel[0]-1) - 1) // stride[0] + 1
+        out_h = (out_w + 2*padding[1] - dilation[1] * (kernel[1]-1) - 1) // stride[1] + 1
+    else:
+      for kernel, padding, stride, dilation in zip(kernels, paddings, strides, dilations):
+        out_h = (out_h + 2*padding - dilation * (kernel-1) - 1) // stride + 1
+        out_w = (out_w + 2*padding - dilation * (kernel-1) - 1) // stride + 1
+    return out_h, out_w
