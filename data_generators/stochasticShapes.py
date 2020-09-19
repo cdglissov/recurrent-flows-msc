@@ -159,7 +159,7 @@ class MovingShapes(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         img = np.array(self.file.get(self.keys[idx])).astype(np.float32) / 255
-        time_seq_tensor = torch.tensor(img).permute(0, 3, 2, 1)
+        time_seq_tensor = torch.tensor(img)
         return time_seq_tensor
     
 #trainset = MovingShapes()
