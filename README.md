@@ -2,10 +2,10 @@
 
 This repository will contain the following implementations:
 
-IAF - 2D
-RealNVP - 2D and 3D
-Glow - 3D
-Conditional Glow - 3D
-Autoregressive Glow - 3D
-Recurrent Flow Networks - 4D (Video generation)
+IAF - 2D <br>
+RealNVP - 2D and 3D <br>
+Glow - 3D <br>
+Conditional Glow - 3D <br>
+Autoregressive Glow - 3D <br>
+Recurrent Flow Networks - 4D (Video generation) <br>
 
