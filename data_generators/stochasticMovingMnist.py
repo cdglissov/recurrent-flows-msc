@@ -7,7 +7,7 @@ class MovingMNIST(object):
     
     """Data Handler that creates Bouncing MNIST dataset on the fly."""
 
-    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=64,digit_size=32, deterministic=True):
+    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=64,digit_size=32, deterministic=True, three_channels = True):
         path = data_root
         self.seq_len = seq_len
         self.num_digits = num_digits  
@@ -92,5 +92,6 @@ class MovingMNIST(object):
         x[x>1] = 1. # When the digits are overlapping.
         n_channels = 1
         x=x.reshape(self.seq_len, n_channels, self.image_size, self.image_size)
-        #x=np.repeat(x,3,axis=1)
+        if three_channels:
+            x=np.repeat(x, 3, axis=1)
         return x # This should be changed to something else if seqence lenght of more than 1
