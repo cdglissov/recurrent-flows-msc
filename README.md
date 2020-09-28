@@ -9,3 +9,5 @@ Conditional Glow - 3D <br>
 Autoregressive Glow - 3D <br>
 Recurrent Flow Networks - 4D (Video generation) <br>
 
+
+TODO: Make batchnorm for glow when batchsize is large. Actnorm for small batches
