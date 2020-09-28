@@ -17,7 +17,8 @@ class MovingMNIST(object):
         self.deterministic = deterministic
         self.seed_is_set = False # multi threaded loading
         self.channels = 1 
-
+        self.three_channels = three_channels
+        
         self.data = datasets.MNIST(
             path,
             train=train,
@@ -92,6 +93,6 @@ class MovingMNIST(object):
         x[x>1] = 1. # When the digits are overlapping.
         n_channels = 1
         x=x.reshape(self.seq_len, n_channels, self.image_size, self.image_size)
-        if three_channels:
+        if self.three_channels:
             x=np.repeat(x, 3, axis=1)
         return x # This should be changed to something else if seqence lenght of more than 1
