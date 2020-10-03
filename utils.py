@@ -39,9 +39,15 @@ class Flatten(nn.Module):
 
 # Unflatten layer to dimensions
 class UnFlatten(nn.Module):
-    def forward(self, input, C_x, H_x, W_x):
+    def __init__(self, C_x, H_x, W_x):
+        super(PrintLayer, self).__init__()
+        self.C_x = C_x
+        self.H_x = H_x
+        self.W_x = W_x
+        
+    def forward(self, input):
         dims = input.size(0)
-        return input.view(dims, C_x, H_x, W_x)
+        return input.view(dims, self.C_x, self.H_x, self.W_x)
 
 
 # Print the output dimensions of layer
