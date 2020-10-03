@@ -53,7 +53,7 @@ class PrintLayer(nn.Module):
         print(x.size())
         return x
 
-def get_layer_size(dims, kernels, paddings, strides, dilations, uneven_format = False, transpose=False):
+def get_layer_size(dims, kernels, paddings, strides, dilations, output_paddings = [], uneven_format = False, transpose=False):
     out_h, out_w = dims
     if transpose == False:
       if uneven_format == True:
@@ -64,15 +64,16 @@ def get_layer_size(dims, kernels, paddings, strides, dilations, uneven_format = 
         for kernel, padding, stride, dilation in zip(kernels, paddings, strides, dilations):
           out_h = (out_h + 2*padding - dilation * (kernel-1) - 1) // stride + 1
           out_w = (out_w + 2*padding - dilation * (kernel-1) - 1) // stride + 1
-    else
+    else:
+      assert len(output_paddings) == len(paddings), "Please specify output_padding when using transpose"
       if uneven_format == True:
-        for kernel, padding, stride, dilation in zip(kernels, paddings, strides, dilations):
-          out_h = (out_h - 1) * stride[0] - 2*padding[0] + dilation[0] * (kernel_size[0] - 1) + output_padding[0] + 1
-          out_w = (out_w - 1) * stride[1] - 2*padding[1] + dilation[1] * (kernel_size[1] - 1) + output_padding[1] + 1
+        for kernel, padding, stride, dilation, output_padding in zip(kernels, paddings, strides, dilations, output_paddings):
+          out_h = (out_h - 1) * stride[0] - 2*padding[0] + dilation[0] * (kernel[0] - 1) + output_padding[0] + 1
+          out_w = (out_w - 1) * stride[1] - 2*padding[1] + dilation[1] * (kernel[1] - 1) + output_padding[1] + 1
       else:
-        for kernel, padding, stride, dilation in zip(kernels, paddings, strides, dilations):
-          out_h = (out_h - 1) * stride - 2*padding + dilation * (kernel_size - 1) + output_padding + 1
-          out_w = (out_w - 1) * stride - 2*padding + dilation * (kernel_size - 1) + output_padding + 1
+        for kernel, padding, stride, dilation, output_padding in zip(kernels, paddings, strides, dilations, output_paddings):
+          out_h = (out_h - 1) * stride - 2*padding + dilation * (kernel - 1) + output_padding + 1
+          out_w = (out_w - 1) * stride - 2*padding + dilation * (kernel - 1) + output_padding + 1
     return out_h, out_w
 
 def split_feature(tensor, type="split"):
