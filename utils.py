@@ -64,3 +64,10 @@ def get_layer_size(dims, kernels, paddings, strides, dilations, uneven_format = 
         out_h = (out_h + 2*padding - dilation * (kernel-1) - 1) // stride + 1
         out_w = (out_w + 2*padding - dilation * (kernel-1) - 1) // stride + 1
     return out_h, out_w
+
+def split_feature(tensor, type="split"):
+    C = tensor.size(1)
+    if type == "split":
+        return tensor[:, :C // 2, ...], tensor[:, C // 2:, ...]
+    elif type == "cross":
+        return tensor[:, 0::2, ...], tensor[:, 1::2, ...]
