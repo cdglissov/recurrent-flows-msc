@@ -49,7 +49,6 @@ class MovingMNIST(object):
             idx = np.random.randint(self.N)
             digit, _ = self.data[idx]
             digit=digit.numpy()
-            #digit = resize(digit, (1,self.digit_size, self.digit_size))
             ds=digit.shape[1]
             sx = np.random.randint(image_size-ds)
             sy = np.random.randint(image_size-ds)
@@ -95,4 +94,4 @@ class MovingMNIST(object):
         x=x.reshape(self.seq_len, n_channels, self.image_size, self.image_size)
         if self.three_channels:
             x=np.repeat(x, 3, axis=1)
-        return x # This should be changed to something else if seqence length of more than 1
+        return x
