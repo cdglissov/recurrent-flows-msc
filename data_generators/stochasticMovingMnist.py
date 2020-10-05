@@ -6,7 +6,7 @@ class MovingMNIST(object):
     
     """Data Handler that creates Bouncing MNIST dataset on the fly."""
 
-    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=64,digit_size=32, deterministic=True, three_channels = True,step_length=1):
+    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=64,digit_size=32, deterministic=True, three_channels = True,step_length=4):
         path = data_root
         self.seq_len = seq_len
         self.num_digits = num_digits  
@@ -52,42 +52,42 @@ class MovingMNIST(object):
             ds=digit.shape[1]
             sx = np.random.randint(image_size-ds)
             sy = np.random.randint(image_size-ds)
-            dx = np.random.randint(-4, 5)
-            dy = np.random.randint(-4, 5)
+            dx = np.random.randint(-self.step_length, self.step_length+1)
+            dy = np.random.randint(-self.step_length, self.step_length+1)
             for t in range(self.seq_len):
                 if sy < 0:
                     sy = 0 
                     if self.deterministic:
                         dy = -dy
                     else:
-                        dy = np.random.randint(1, 5)
-                        dx = np.random.randint(-4, 5)
+                        dy = np.random.randint(1, self.step_length+1)
+                        dx = np.random.randint(-self.step_length, self.step_length+1)
                 elif sy >= image_size-ds:
                     sy = image_size-ds-1
                     if self.deterministic:
                         dy = -dy
                     else:
-                        dy = np.random.randint(-4, 0)
-                        dx = np.random.randint(-4, 5)
+                        dy = np.random.randint(-self.step_length, 0)
+                        dx = np.random.randint(-self.step_length, self.step_length+1)
                     
                 if sx < 0:
                     sx = 0 
                     if self.deterministic:
                         dx = -dx
                     else:
-                        dx = np.random.randint(1, 5)
-                        dy = np.random.randint(-4, 5)
+                        dx = np.random.randint(1, self.step_length+1)
+                        dy = np.random.randint(-self.step_length, self.step_length+1)
                 elif sx >= image_size-ds:
                     sx = image_size-ds-1
                     if self.deterministic:
                         dx = -dx
                     else:
-                        dx = np.random.randint(-4, 0)
-                        dy = np.random.randint(-4, 5)
+                        dx = np.random.randint(-self.step_length, 0)
+                        dy = np.random.randint(-self.step_length, self.step_length+1)
                    
                 x[t, sy:sy+ds, sx:sx+ds, 0] += digit.squeeze()
-                sy += dy*self.step_length
-                sx += dx*self.step_length
+                sy += dy
+                sx += dx
 
         x[x>1] = 1. # When the digits are overlapping.
         n_channels = 1
