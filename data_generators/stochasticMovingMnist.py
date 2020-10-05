@@ -1,14 +1,12 @@
 import socket
 import numpy as np
 from torchvision import datasets, transforms
-from skimage.transform import resize
 
 class MovingMNIST(object):
     
     """Data Handler that creates Bouncing MNIST dataset on the fly."""
 
-    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=64, 
-                 digit_size=32, deterministic=True, three_channels = True, step_length = 1):
+    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=64,digit_size=32, deterministic=True, three_channels = True,step_length=1):
         path = data_root
         self.seq_len = seq_len
         self.num_digits = num_digits  
@@ -50,7 +48,8 @@ class MovingMNIST(object):
         for n in range(self.num_digits):
             idx = np.random.randint(self.N)
             digit, _ = self.data[idx]
-            digit = resize(digit, (1,16, 16))
+            digit=digit.numpy()
+            #digit = resize(digit, (1,self.digit_size, self.digit_size))
             ds=digit.shape[1]
             sx = np.random.randint(image_size-ds)
             sy = np.random.randint(image_size-ds)
@@ -88,12 +87,12 @@ class MovingMNIST(object):
                         dy = np.random.randint(-4, 5)
                    
                 x[t, sy:sy+ds, sx:sx+ds, 0] += digit.squeeze()
-                sy += dy + self.step_length
-                sx += dx + self.step_length
+                sy += dy*self.step_length
+                sx += dx*self.step_length
 
         x[x>1] = 1. # When the digits are overlapping.
         n_channels = 1
         x=x.reshape(self.seq_len, n_channels, self.image_size, self.image_size)
         if self.three_channels:
             x=np.repeat(x, 3, axis=1)
-        return x
+        return x # This should be changed to something else if seqence length of more than 1
