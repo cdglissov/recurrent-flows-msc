@@ -6,7 +6,7 @@ class MovingMNIST(object):
     
     """Data Handler that creates Bouncing MNIST dataset on the fly."""
 
-    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=64,digit_size=32, deterministic=True, three_channels = True,step_length=4):
+    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=64,digit_size=32, deterministic=True, three_channels = True, step_length=4, normalize = True):
         path = data_root
         self.seq_len = seq_len
         self.num_digits = num_digits  
@@ -18,7 +18,7 @@ class MovingMNIST(object):
         self.channels = 1 
         self.three_channels = three_channels
         
-        if Normalize = True
+        if normalize = True
             self.data = datasets.MNIST(
                 path,
                 train=train,
