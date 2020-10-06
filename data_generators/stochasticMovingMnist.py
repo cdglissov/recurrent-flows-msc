@@ -18,7 +18,7 @@ class MovingMNIST(object):
         self.channels = 1 
         self.three_channels = three_channels
         
-        if normalize == True
+        if normalize == True:
             self.data = datasets.MNIST(
                 path,
                 train=train,
