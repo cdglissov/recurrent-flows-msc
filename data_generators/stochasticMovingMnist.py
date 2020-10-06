@@ -17,8 +17,8 @@ class MovingMNIST(object):
         self.seed_is_set = False # multi threaded loading
         self.channels = 1 
         self.three_channels = three_channels
-        
-        if normalize == True:
+        self.normalize = normalize
+        if self.normalize == True:
             self.data = datasets.MNIST(
                 path,
                 train=train,
@@ -49,11 +49,18 @@ class MovingMNIST(object):
         self.set_seed(index)
         image_size = self.image_size
         digit_size = self.digit_size
-        x = np.zeros((self.seq_len,
-                      image_size, 
-                      image_size, 
-                      self.channels),
-                    dtype=np.float32)
+        if self.normalize:
+            x = (np.zeros((self.seq_len,
+                          image_size, 
+                          image_size, 
+                          self.channels),
+                        dtype=np.float32)-0.1307) / 0.3081
+        else:
+            x = (np.zeros((self.seq_len,
+                          image_size, 
+                          image_size, 
+                          self.channels),
+                        dtype=np.float32)
         for n in range(self.num_digits):
             idx = np.random.randint(self.N)
             digit, _ = self.data[idx]
