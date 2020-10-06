@@ -56,7 +56,7 @@ class MovingMNIST(object):
                           self.channels),
                         dtype=np.float32)-0.1307) / 0.3081
         else:
-            x = (np.zeros((self.seq_len,
+            x = np.zeros((self.seq_len,
                           image_size, 
                           image_size, 
                           self.channels),
