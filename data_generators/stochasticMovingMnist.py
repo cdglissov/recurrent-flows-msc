@@ -18,16 +18,8 @@ class MovingMNIST(object):
         self.channels = 1 
         self.three_channels = three_channels
         self.normalize = normalize
-        if self.normalize == True:
-            self.data = datasets.MNIST(
-                path,
-                train=train,
-                download=True,
-                transform=transforms.Compose(
-                    [transforms.Resize(self.digit_size),
-                     transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]))
-        else:
-            self.data = datasets.MNIST(
+        
+        self.data = datasets.MNIST(
                 path,
                 train=train,
                 download=True,
@@ -49,18 +41,13 @@ class MovingMNIST(object):
         self.set_seed(index)
         image_size = self.image_size
         digit_size = self.digit_size
-        if self.normalize:
-            x = (np.zeros((self.seq_len,
-                          image_size, 
-                          image_size, 
-                          self.channels),
-                        dtype=np.float32)-0.1307) / 0.3081
-        else:
-            x = np.zeros((self.seq_len,
+       
+        x = np.zeros((self.seq_len,
                           image_size, 
                           image_size, 
                           self.channels),
                         dtype=np.float32)
+        
         for n in range(self.num_digits):
             idx = np.random.randint(self.N)
             digit, _ = self.data[idx]
@@ -106,6 +93,10 @@ class MovingMNIST(object):
                 sx += dx
 
         x[x>1] = 1. # When the digits are overlapping.
+        
+        if self.normalize:
+          x = (x - 0.1307) / 0.3081
+        
         n_channels = 1
         x=x.reshape(self.seq_len, n_channels, self.image_size, self.image_size)
         if self.three_channels:
