@@ -18,13 +18,22 @@ class MovingMNIST(object):
         self.channels = 1 
         self.three_channels = three_channels
         
-        self.data = datasets.MNIST(
-            path,
-            train=train,
-            download=True,
-            transform=transforms.Compose(
-                [transforms.Resize(self.digit_size),
-                 transforms.ToTensor()]))
+        if Normalize = True
+            self.data = datasets.MNIST(
+                path,
+                train=train,
+                download=True,
+                transform=transforms.Compose(
+                    [transforms.Resize(self.digit_size),
+                     transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]))
+        else:
+            self.data = datasets.MNIST(
+                path,
+                train=train,
+                download=True,
+                transform=transforms.Compose(
+                    [transforms.Resize(self.digit_size),
+                     transforms.ToTensor()]))
 
         self.N = len(self.data) 
 
