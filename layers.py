@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+from .utils import *
+device = set_gpu(True)
 
 class LinearNorm(nn.Module):
     def __init__(self, in_channels, out_channels):
