@@ -7,15 +7,13 @@ device = None
 
 
 # Set the gpu if available
-def set_gpu(mode):
+def set_gpu(mode, verbose = False):
     global use_gpu
     global device
     use_gpu = mode & torch.cuda.is_available()
     device = torch.device("cuda" if use_gpu else "cpu")
-    if torch.cuda.is_available():
-        print("Note: GPU is available")
-    else:
-        print("Note: GPU is not available")
+    if verbose:
+      print("Device set to: ", device)
     return device
 
 
