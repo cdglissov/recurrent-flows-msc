@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from .utils import *
+device = set_gpu(True)
 
 def visualize_2d_data(train_data, test_data, train_labels=None, test_labels=None):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.6, 4.8))
