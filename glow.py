@@ -208,7 +208,7 @@ class Split2d(nn.Module):
       Bx, Cx, Hx, Wx = x_size
       self.conv = nn.Sequential(
           Conv2dZeros(Cx // 2, Cx),
-          nn.Tanh()
+          #nn.Tanh()
           )
       
 
@@ -223,7 +223,7 @@ class Split2d(nn.Module):
             return z1, logdet
         else:
             mean, log_scale = split_feature(self.conv(x), "cross")
-            z2 = td.Normal(mean, torch.exp(log_scale)).rsample()
+            z2 = td.Normal(mean, torch.exp(log_scale)).sample()#.rsample()
             z = torch.cat((x, z2), dim=1)
             return z, logdet
 
