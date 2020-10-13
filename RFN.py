@@ -146,7 +146,7 @@ class Model(nn.Module):
         # Sample zt from prior
         out = self.prior(torch.cat((zprev, ht), dim = 1))
         prior_mean = self.prior_mean(out)
-        prior_std = self.prior_std(out) + 0.000001
+        prior_std = self.prior_std(out)
 
         zt = td.Independent(td.Normal(prior_mean, prior_std), 0).rsample()
         
@@ -155,14 +155,14 @@ class Model(nn.Module):
         encoder_input = torch.cat((zprev_enc, ht, x_feature), dim = 1)
         out = self.encoder(encoder_input)
         enc_mean = self.encoder_mean(out)
-        enc_std = self.encoder_std(out) + 0.000001
+        enc_std = self.encoder_std(out)
         zt_enc = td.Independent(td.Normal(enc_mean, enc_std), 0).rsample()
         
 
         # eq. 13
         out = self.conditional_prior(torch.cat((zt, ht), dim = 1))
         b_mean = self.conditional_prior_mean(out)
-        b_std = self.conditional_prior_std(out) + 0.000001
+        b_std = self.conditional_prior_std(out)
         
         
         # set prior for Glow
@@ -225,14 +225,14 @@ class Model(nn.Module):
         # Sample zt from prior
         out = self.prior(torch.cat((zprev, ht), dim = 1))
         prior_mean = self.prior_mean(out)
-        prior_std = self.prior_std(out)+ 0.000001
+        prior_std = self.prior_std(out)
 
         zt = td.Independent(td.Normal(prior_mean, prior_std),0).sample()
         
         # eq. 13
         out = self.conditional_prior(torch.cat((zt, ht), dim = 1))
         b_mean = self.conditional_prior_mean(out)
-        b_std = self.conditional_prior_std(out)*temperature+ 0.000001
+        b_std = self.conditional_prior_std(out)*temperature
 
         # set prior for Glow
         self.flow.set_prior(b_mean, b_std)
@@ -258,11 +258,11 @@ class Model(nn.Module):
           _, ht, ct = self.lstm(u_feature.unsqueeze(1), hprev, cprev) 
           out = self.prior(torch.cat((zprev, ht), dim = 1))
           prior_mean = self.prior_mean(out)
-          prior_std = self.prior_std(out)+ 0.000001
+          prior_std = self.prior_std(out)
           zt = td.Independent(td.Normal(prior_mean, prior_std), 0).sample()
           out = self.conditional_prior(torch.cat((zt, ht), dim = 1))
           b_mean = self.conditional_prior_mean(out)
-          b_std = self.conditional_prior_std(out)*temperature+ 0.000001
+          b_std = self.conditional_prior_std(out)*temperature
           self.flow.set_prior(b_mean, b_std)
           flow_conditions = torch.cat((zt, ht), dim = 1)
           prediction, _ = self.flow.sample(None, flow_conditions)
