@@ -232,22 +232,30 @@ class SimpleResnet(nn.Module):
 #### LSTM ####
 class ConvLSTMLayer(nn.Module):
     # Only works with 3x3 kernels
-    def __init__(self, in_channels, hidden_channels, kernel_size, bias, dropout = 0, peephole=True):
+    def __init__(self, in_channels, hidden_channels, kernel_size, bias, dropout = 0, peephole=True, norm = False):
         super(ConvLSTMLayer, self).__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
-        self.kernel_size = kernel_size
-        self.dropout = dropout
+        self.kernel_size = kernel_size 
         self.peephole = peephole
-        self.padding = (kernel_size[0] // 2, kernel_size[1] // 2)
+        self.padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
         self.bias = bias
-        self.conv = nn.Sequential(nn.Conv2d(in_channels = self.in_channels + self.hidden_channels,
+        layers = []
+
+        layers.append(nn.Conv2d(in_channels = self.in_channels + self.hidden_channels,
                               out_channels = 4 * self.hidden_channels,
                               kernel_size = self.kernel_size,
+                              stride = 1,
                               padding = self.padding,
                               bias = self.bias))
-        
-        self.dropout = nn.Dropout2d(p = dropout)
+
+        if norm == True:
+          layers.append(nn.GroupNorm(4 * self.hidden_channels // 32, 4 * self.hidden_channels))
+        if dropout != 0:
+          layers.append(nn.Dropout2d(p = dropout))
+
+        self.conv = nn.Sequential(*layers)
+
         self.init_done = False
         self.apply(self.initialize_weights)
 
@@ -265,7 +273,6 @@ class ConvLSTMLayer(nn.Module):
 
         combined = torch.cat([input_tensor, h_cur], dim=1)
         combined_conv = self.conv(combined)
-        combined_conv = self.dropout(combined_conv)
 
         cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_channels, dim=1)
         i = torch.sigmoid(cc_i + self.Wci * c_cur)
@@ -293,19 +300,21 @@ class ConvLSTMLayer(nn.Module):
         self.Wco = 0
         
 class ConvLSTM(nn.Module):
-    def __init__(self, in_channels, hidden_channels, kernel_size, bias=True, dropout = 0, peephole=True):
+    def __init__(self, in_channels, hidden_channels, kernel_size, bias=True, dropout = 0, peephole=True, norm = False):
         super(ConvLSTM, self).__init__()
         self.hidden_channels = hidden_channels
         self.LSTMlayer = ConvLSTMLayer(in_channels=in_channels,
                                           hidden_channels=hidden_channels,
                                           kernel_size=kernel_size,
-                                          bias=bias, dropout=dropout, peephole = peephole)
+                                          bias=bias, dropout=dropout, peephole = peephole,
+                                          norm = norm)
     
     def forward(self, x, ht=None, ct=None):
         b, seq_len, channel, h, w = x.size()
         output = []
+
         for t in range(seq_len):
             ht, ct = self.LSTMlayer(input_tensor=x[:, t, :, :, :],
                                               cur_state=[ht, ct])
             output.append(ht)
-        return torch.stack(output), ht, ct
+        return torch.stack(output,1), ht, ct
