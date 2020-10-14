@@ -6,7 +6,7 @@ class MovingMNIST(object):
     
     """Data Handler that creates Bouncing MNIST dataset on the fly."""
 
-    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=64,digit_size=32, deterministic=True, three_channels = True, step_length=4, normalize = True):
+    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=32,digit_size=28, deterministic=True, three_channels = True, step_length=4, normalize = True, make_target = False):
         path = data_root
         self.seq_len = seq_len
         self.num_digits = num_digits  
@@ -18,13 +18,13 @@ class MovingMNIST(object):
         self.channels = 1 
         self.three_channels = three_channels
         self.normalize = normalize
-        
+        self.make_target = make_target
         self.data = datasets.MNIST(
                 path,
                 train=train,
                 download=True,
                 transform=transforms.Compose(
-                    [transforms.Resize(self.digit_size),
+                    [transforms.Resize(self.digit_size, interpolation=1),
                      transforms.ToTensor()]))
 
         self.N = len(self.data) 
@@ -91,14 +91,19 @@ class MovingMNIST(object):
                 x[t, sy:sy+ds, sx:sx+ds, 0] += digit.squeeze()
                 sy += dy
                 sx += dx
+                
 
-        x[x>1] = 1. # When the digits are overlapping.
-        
         if self.normalize:
           x = (x - 0.1307) / 0.3081
         
         n_channels = 1
         x=x.reshape(self.seq_len, n_channels, self.image_size, self.image_size)
+        x[x>1] = 1. # When the digits are overlapping.
+        
         if self.three_channels:
             x=np.repeat(x, 3, axis=1)
+        
+        if self.make_target == True:
+          # splits data into two, a one for training and another one for target, output will be a LIST with 2 elements 
+          x = np.split(x, 2, axis=0)
         return x
