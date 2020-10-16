@@ -104,8 +104,8 @@ class ConditionalInvConv(nn.Module):
         W = W.view(Bx, Cx, Cx)
         
         # Bug in pytorch for QR with small matrices using cuda. Move to CPU
-        #W = torch.qr(W.cpu())[0]
-        #W=W.cuda()
+        W = torch.qr(W.cpu())[0]
+        W=W.cuda()
 
         dlogdet = Hx*Wx*torch.slogdet(W.double())[1].float()
 
