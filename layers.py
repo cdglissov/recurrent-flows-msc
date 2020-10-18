@@ -3,76 +3,6 @@ import torch.nn as nn
 from .utils import *
 device = set_gpu(True)
 
-class LinearNorm(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-
-        self.linear = nn.Linear(in_channels, out_channels)
-        self.linear.weight.data.normal_(mean=0.0, std=0.1)
-        self.linear.bias.data.normal_(mean=0.0, std=0.1)
-  
-    def forward(self, input):
-      output = self.linear(input)
-      return output 
-
-
-class LinearZeros(nn.Module):
-    def __init__(self, in_channels, out_channels, use_logscale=False):
-        super().__init__()
-
-        self.linear = nn.Linear(in_channels, out_channels)
-        self.linear.weight.data.zero_()
-        self.linear.bias.data.zero_()
-
-        
-        self.use_logscale = use_logscale
-
-        if use_logscale:
-          self.logscale_factor = 3
-          self.logs = nn.Parameter(torch.zeros(out_channels))
-
-    def forward(self, input):
-      if self.use_logscale:
-        output = self.linear(input) * torch.exp(self.logs * self.logscale_factor)
-      else:
-        output = self.linear(input)
-      return output 
-
-
-class Conv2dResize(nn.Module):
-    def __init__(self, in_size, out_size):
-        super().__init__()
-        
-        stride = [in_size[1]//out_size[1], in_size[2]//out_size[2]]
-        kernel_size = Conv2dResize.compute_kernel_size(in_size, out_size, stride)
-        
-        self.conv = nn.Conv2d(in_channels=in_size[0], out_channels=out_size[0], kernel_size=kernel_size, stride=stride)
-        self.conv.weight.data.zero_()
-        self.conv.bias.data.zero_()
-
-    @staticmethod
-    def compute_kernel_size(in_size, out_size, stride):
-        k0 = in_size[1] - (out_size[1] - 1) * stride[0]
-        k1 = in_size[2] - (out_size[2] - 1) * stride[1]
-        return[k0,k1]
-
-    def forward(self, input):
-      output = self.conv(input)
-      return output 
-
-class Conv2dZeros(nn.Module):
-    def __init__(self, in_channel, out_channel, kernel_size=[3,3], stride=[1,1]):
-        super().__init__()
-        
-        padding = (kernel_size[0] - 1) // 2
-        self.conv = nn.Conv2d(in_channels=in_channel, out_channels=out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
-        self.conv.weight.data.zero_()
-        self.conv.bias.data.zero_()
-    
-    def forward(self, input):
-      output = self.conv(input)
-      return output 
-
 
 class ActNorm(nn.Module):
 
@@ -87,21 +17,92 @@ class ActNorm(nn.Module):
         self.register_parameter("logs", nn.Parameter(torch.Tensor(logs), requires_grad=True))
 
 
-    def forward(self, x, logdet=0, reverse=False):
-        dims = x.size(2) * x.size(3)
+    def forward(self, input, logdet=0, reverse=False):
+        dims = input.size(2) * input.size(3)
         if reverse == False:
-            x = x + self.bias
-            x = x * torch.exp(self.logs)
+            input = input + self.bias
+            input = input * torch.exp(self.logs)
             dlogdet = torch.sum(self.logs) * dims
             logdet = logdet + dlogdet
-        else:
-            x = x * torch.exp(-self.logs)
-            x = x - self.bias
+
+        if reverse == True:
+            input = input * torch.exp(-self.logs)
+            input = input - self.bias
             dlogdet = - torch.sum(self.logs) * dims
             logdet = logdet + dlogdet
 
-        return x, logdet
+        return input, logdet
 
+
+class Conv2dResize(nn.Module):
+    def __init__(self, in_size, out_size):
+        super().__init__()
+        
+        stride = [in_size[1]//out_size[1], in_size[2]//out_size[2]]
+        kernel_size = Conv2dResize.compute_kernel_size(in_size, out_size, stride)
+        
+        self.conv = nn.Conv2d(in_channels=in_size[0], out_channels=out_size[0], kernel_size=kernel_size, stride=stride)
+        self.conv.weight.data.zero_()
+
+    @staticmethod
+    def compute_kernel_size(in_size, out_size, stride):
+        k0 = in_size[1] - (out_size[1] - 1) * stride[0]
+        k1 = in_size[2] - (out_size[2] - 1) * stride[1]
+        return[k0, k1]
+
+    def forward(self, input):
+      output = self.conv(input)
+      return output 
+
+
+class Conv2dZeros(nn.Module):
+    def __init__(self, in_channel, out_channel, kernel_size=[3,3], stride=[1,1]):
+        super().__init__()
+        
+        padding = (kernel_size[0] - 1) // 2
+        self.conv = nn.Conv2d(in_channels=in_channel, out_channels=out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
+        self.conv.weight.data.normal_(mean=0.0, std=0.1)
+    
+    def forward(self, input):
+      output = self.conv(input)
+      return output 
+
+
+class LinearZeros(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+
+        self.linear = nn.Linear(in_channels, out_channels)
+        self.linear.weight.data.zero_()
+        self.linear.bias.data.zero_()
+
+    def forward(self, input):
+      output = self.linear(input)
+      return output 
+
+
+class LinearNorm(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+
+        self.linear = nn.Linear(in_channels, out_channels)
+        self.linear.weight.data.normal_(mean=0.0, std=0.1)
+        self.linear.bias.data.normal_(mean=0.0, std=0.1)
+  
+    def forward(self, input):
+      output = self.linear(input)
+      return output
+
+class WeightNormConv2d(nn.Module):
+    def __init__(self, in_dim, out_dim, kernel_size, stride=1, padding=0,
+                 bias=True):
+        super(WeightNormConv2d, self).__init__()
+        self.conv = nn.utils.weight_norm(
+            nn.Conv2d(in_dim, out_dim, kernel_size,
+                      stride=stride, padding=padding, bias=bias))
+
+    def forward(self, x):
+        return self.conv(x)
 
 class Conv2dNormy(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=[3, 3], stride=[1, 1]):
@@ -120,30 +121,25 @@ class Conv2dNormy(nn.Module):
 
 class Conv2dZerosy(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size=[3, 3], stride=[1, 1], use_logscale = True):
+    def __init__(self, in_channels, out_channels, kernel_size=[3, 3], stride=[1, 1]):
         super().__init__()
 
         padding = [(kernel_size[0]-1)//2, (kernel_size[1]-1)//2]
         
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
 
-        self.use_logscale = use_logscale
-
-        if use_logscale:
-          self.logscale_factor = 3.0
-          self.register_parameter("logs", nn.Parameter(torch.zeros(out_channels, 1, 1)))
-          #self.register_parameter("newbias", nn.Parameter(torch.zeros(out_channels, 1, 1)))
+        self.logscale_factor = 3.0
+        self.register_parameter("logs", nn.Parameter(torch.zeros(out_channels, 1, 1)))
+        self.register_parameter("newbias", nn.Parameter(torch.zeros(out_channels, 1, 1)))
         
         self.conv.weight.data.zero_()
         self.conv.bias.data.zero_()
 
     def forward(self, input):
-      if self.use_logscale:
-        #output = output + self.newbias
-        output = self.conv(input)* torch.exp(self.logs * self.logscale_factor)
-      else:
         output = self.conv(input)
-      return output
+        output = output + self.newbias
+        output = output * torch.exp(self.logs * self.logscale_factor)
+        return output
 
 
 
