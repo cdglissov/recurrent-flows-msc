@@ -23,7 +23,6 @@ class ActFun(nn.Module):
   def forward(self,x):
     return self.net(x)
 
-non_lin = "leakyrelu"
 
 class ConditionalActNorm(nn.Module):
     def __init__(self, x_size, condition_size):
@@ -239,13 +238,11 @@ class Split2d(nn.Module):
       Bx, Cx, Hx, Wx = x_size
       self.conv = nn.Sequential(
           Conv2dZeros(Cx // 2, Cx),
-          ActFun(non_lin),  # Some include tanh or none here, we found leakyrelu to work better
+          #ActFun(non_lin),  # Some include tanh or none here, we found leakyrelu to work better
           )
       
 
     def forward(self, x, logdet=0.0, reverse=False):
-        
-        
         if reverse == False:
             z1, z2 = utils.split_feature(x, "split")
             out = self.conv(z1)
@@ -321,31 +318,36 @@ class GlowConditional(nn.Module):
         return z, logdet
     
     def log_prob(self, x, condition):
-        x, nll_discretization = self.uniform_binning_correction(x)
-        #condition, _ = self.uniform_binning_correction(condition)
+        x, log_det = self.uniform_binning_correction(x)
+        condition, _ = self.uniform_binning_correction(condition)
+
         dims = torch.prod(torch.tensor(x.shape[1:]))
-        z, obj = self.f(x, condition, 0.0)
+        z, obj = self.f(x, condition, log_det)
         mean, scale = self.set_prior()
         prior = td.Normal(mean, scale)
+
         obj += torch.sum(prior.log_prob(z), [1, 2, 3]) #p_z
         obj = torch.mean(obj)
-        nll = -(obj) / float(np.log(2.) * dims) #+ nll_discretization.mean(0)
+
+        nll = (-obj) / float(np.log(2.) * dims)
+
         return z, nll
 
     def sample(self, z, condition, num_samples):
+        temperature = 0.8
         with torch.no_grad():
           mean, scale = self.set_prior()
-          prior = td.Normal(mean, scale)
+          prior = td.Normal(mean, scale*temperature)
           if z == None:
             z = prior.sample([num_samples]).to(device)
           x, logdet = self.g(z, condition)
         return x, logdet
 
     def uniform_binning_correction(self, x, n_bits=8):
-      n_bins = 2**n_bits
-      batch_size, n_channels, height, width = x.shape
-      hwc = float(height * width * n_channels)
-
-      x += torch.distributions.Uniform(0.0, 1/n_bins).sample(x.shape).to(device)
-      objective = -(np.log(1/n_bins) / hwc ) * torch.ones(batch_size).to(device)
+        b, c, h, w = x.size()
+        n_bins = 2 ** n_bits
+        chw = c * h * w
+        x += torch.zeros_like(x).uniform_(0, 1.0 / n_bins)
+        objective = -np.log(n_bins) * chw * torch.ones(b, device=x.device)
+        return x, objectives) / hwc ) * torch.ones(batch_size).to(device)
       return x, objective
