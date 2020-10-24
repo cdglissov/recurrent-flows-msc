@@ -3,7 +3,6 @@ import torch.nn as nn
 from .utils import *
 device = set_gpu(True)
 
-
 class ActNorm(nn.Module):
 
     def __init__(self, num_channels):
@@ -141,7 +140,27 @@ class Conv2dZerosy(nn.Module):
         output = output * torch.exp(self.logs * self.logscale_factor)
         return output
 
+class ActFun(nn.Module):
+  def __init__(self, non_lin):
+    super(ActFun, self).__init__()
+    if non_lin=='relu':
+      self.net=nn.ReLU()
+    if non_lin=='leakyrelu':
+      self.net=nn.LeakyReLU(negative_slope=0.20)
 
+  def forward(self,x):
+    return self.net(x)
+
+class WeightNormConv2d(nn.Module):
+    def __init__(self, in_dim, out_dim, kernel_size, stride=1, padding=0,
+                 bias=True):
+        super(WeightNormConv2d, self).__init__()
+        self.conv = nn.utils.weight_norm(
+            nn.Conv2d(in_dim, out_dim, kernel_size,
+                      stride=stride, padding=padding, bias=bias))
+
+    def forward(self, x):
+        return self.conv(x)
 
 #### RESNETS ####
 class WeightNormConv2d(nn.Module):
