@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from math import log, pi, exp
 from .utils import *
-from .layers import ConvLSTM
+from .modules import *
 import torch.distributions as td
 
 device = set_gpu(True)
