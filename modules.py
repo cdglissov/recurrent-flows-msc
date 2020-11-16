@@ -109,7 +109,7 @@ class VGG_upscaler(nn.Module):
 class SimpleParamNet(nn.Module):
   def __init__(self, structure, in_channels, out_channels, norm_type = "batchnorm", non_lin = "leakyrelu", scale = 2):
     super(SimpleParamNet, self).__init__()
-
+ 
     layers = []
     for i in structure:
         if i == 'pool':
@@ -125,18 +125,16 @@ class SimpleParamNet(nn.Module):
             conv2d = nn.Conv2d(in_channels, i, kernel_size=3, padding=1)
             layers += [conv2d, NormLayer(i, norm_type = norm_type), ActFun(non_lin, in_place=True)]
             in_channels = i
-    
+ 
     self.net = nn.Sequential(*layers)
-    self.loc = nn.Conv2d(in_channels, out_channels,  kernel_size=3, stride=1, padding=1)
-    self.scale = nn.Sequential(nn.Conv2d(in_channels, out_channels,  kernel_size=3, stride=1, padding=1), nn.Softplus())
-    
+    self.param_net = nn.Conv2d(in_channels, 2*out_channels,  kernel_size=3, stride=1, padding=1)
+    self.softplus = nn.Softplus()
+ 
   def forward(self, x):
     output = self.net(x)
-    loc = self.loc(output)
-    scale = self.scale(output)
+    loc, log_scale = self.param_net(output).chunk(2, 1)
+    scale = self.softplus(log_scale)
     return loc, scale
-
-
 
 class ConvLSTMLayer(nn.Module):
     def __init__(self, in_channels, hidden_channels, kernel_size, bias, dropout = 0, peephole=True, norm = False):
