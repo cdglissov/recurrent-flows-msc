@@ -1,10 +1,11 @@
 import torch
 import torch.nn as nn
-from .utils import *
+from utils import *
 from math import log, pi, exp
 import torch.distributions as td
-from .glow_modules import (ActNorm,Conv2dZeros,Conv2dNorm,InvConv, AffineCoupling,Squeeze2d,Split2d)
+from glow_modules import (ActNorm,Conv2dZeros,Conv2dNorm,InvConv, AffineCoupling,Squeeze2d,Split2d)
 import torch.nn.functional as F
+from modules import ActFun
 
 device = set_gpu(True)
 
@@ -112,9 +113,9 @@ class ListGlow(nn.Module):
         z_in = base_condition
 
         if self.learn_prior:
-          mean, log_scale = utils.split_feature(self.prior(z_in), type="split")
+          mean, log_scale = split_feature(self.prior(z_in), type="split")
         else:
-          mean, log_scale = utils.split_feature(self.prior_in.repeat(x.shape[0],1,1,1), type="split")
+          mean, log_scale = split_feature(self.prior_in.repeat(x.shape[0],1,1,1), type="split")
           
         prior = td.Normal(mean, torch.exp(log_scale))
         obj = obj + torch.sum(prior.log_prob(z), dim=(1,2,3)) #p_z
@@ -129,9 +130,9 @@ class ListGlow(nn.Module):
 
             z_in = base_condition
             if self.learn_prior:
-              mean, log_scale = utils.split_feature(self.prior(z_in), type="split")
+              mean, log_scale = split_feature(self.prior(z_in), type="split")
             else:
-              mean, log_scale = utils.split_feature(self.prior_in.repeat(num_samples,1,1,1), type="split")
+              mean, log_scale = split_feature(self.prior_in.repeat(num_samples,1,1,1), type="split")
 
             prior = td.Normal(mean, torch.exp(log_scale)*temperature)
             z = prior.sample().to(device)
