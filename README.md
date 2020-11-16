@@ -2,12 +2,12 @@
 
 This repository will contain the following implementations:
 
-IAF - 2D <br>
-RealNVP - 2D and 3D <br>
-Glow - 3D (Update) <br>
-VRNN - 3D <br>
-SRNN - 3D (Update) <br>
-Conditional Glow - 3D (Update) <br>
-Recurrent Flow Networks - 4D (Video generation) <br>
+IAF <br>
+RealNVP <br>
+Glow <br>
+VRNN <br>
+SRNN (Missing) <br>
+Conditional Glow <br>
+Recurrent Flow Networks - (Video generation) <br>
 
 Examples can be found in the notebook folder.
