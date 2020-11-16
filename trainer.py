@@ -2,7 +2,6 @@
 import numpy as np
 import pickle
 import time
-from tqdm.notebook import trange, tqdm
 import torch
 import torch.nn as nn
 import torch.utils.data
