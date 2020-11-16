@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 from .utils import *
-device = set_gpu(True)
+
+import torch.distributions as td
 
 
 ## Glow Modules
