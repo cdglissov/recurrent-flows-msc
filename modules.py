@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-
+from utils import set_gpu
+device = set_gpu(True)
 
 class ActFun(nn.Module):
   def __init__(self, non_lin, in_place = False):
@@ -116,7 +117,7 @@ class SimpleParamNet(nn.Module):
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
         elif i == "conv":
             conv_channels = int(scale*in_channels)
-            conv2d = nn.Conv2d(in_channels, conv_channels, kernel_size=3, stride = 2, padding=1)
+            conv2d = nn.Conv2d(in_channels, conv_channels, kernel_size=3, stride = 2, padding=1).to(device)
             layers += [conv2d,
                        NormLayer(conv_channels, norm_type = norm_type), 
                        ActFun(non_lin, in_place=True)]
