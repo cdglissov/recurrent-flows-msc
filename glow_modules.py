@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 from utils import *
 from modules import ActFun
-
 import torch.distributions as td
+import torch.nn.functional as F
 
 
 ## Glow Modules
@@ -175,7 +175,7 @@ class AffineCoupling(nn.Module):
         
         B, C, H, W = condition_size
         channels = Cx // 2 + C
-
+        non_lin = 'leakyrelu'
         hidden_channels = 128
         self.net = nn.Sequential(
             Conv2dNorm(channels, hidden_channels),
@@ -189,12 +189,12 @@ class AffineCoupling(nn.Module):
         self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
         
     def forward(self, x, condition, logdet, reverse): 
-        z1, z2 = utils.split_feature(x, "split")
+        z1, z2 = split_feature(x, "split")
 
         assert condition.shape[2:4] == x.shape[2:4], "condition and x in affine needs to match"
         h = torch.cat([z1, condition], dim=1)
 
-        shift, log_scale = utils.split_feature(self.net(h), "cross")
+        shift, log_scale = split_feature(self.net(h), "cross")
 
         # Here we could try to use the exponential as suggested in arXiv:1907.02392v3
         log_scale = self.scale * torch.tanh(log_scale) + self.scale_shift
@@ -247,16 +247,16 @@ class Split2d(nn.Module):
     def forward(self, x, condition, logdet, reverse):
 
         if reverse == False:
-            z1, z2 = utils.split_feature(x, "split")
+            z1, z2 = split_feature(x, "split")
             h = torch.cat([z1, condition], dim=1)
             out = self.conv(h)
-            mean, log_scale = utils.split_feature(out, "cross")
+            mean, log_scale = split_feature(out, "cross")
             if logdet is not None:
               logdet = logdet + torch.sum(td.Normal(mean, torch.exp(log_scale)).log_prob(z2), dim=(1,2,3))
             return z1, logdet
         else:
             h = torch.cat([x, condition], dim=1)
-            mean, log_scale = utils.split_feature(self.conv(h), "cross")
+            mean, log_scale = split_feature(self.conv(h), "cross")
             z2 = td.Normal(mean, torch.exp(log_scale)).rsample()
             z = torch.cat((x, z2), dim=1)
             return z, logdet
