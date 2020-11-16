@@ -9,8 +9,3 @@ Conditional Glow - 3D <br>
 Autoregressive Glow - 4D <br>
 Recurrent Flow Networks - 4D (Video generation) <br>
 
-TODO: Add VRNN<br>
-TODO: Fix inverse weighting in conditional glow. Maybe also add zero init in norm layers? See if we can reduce noise.<br>
-TODO: Two phase training, encoder then glow.<br>
-TODO: Longer roll out. <br>
-TODO: Make batchnorm for glow when batchsize is large. Actnorm for small batches <br>
