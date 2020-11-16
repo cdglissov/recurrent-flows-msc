@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from utils import *
+from modules import ActFun
 
 import torch.distributions as td
 
