@@ -3,7 +3,7 @@ import torch.nn as nn
 from .utils import *
 from math import log, pi, exp
 import torch.distributions as td
-from .layers import (Conv2dZeros,Conv2dZerosy,ActNorm,Conv2dNormy, ConvLSTM)
+from .glow_modules import (ActNorm,Conv2dZeros,Conv2dNorm,InvConv, AffineCoupling,Squeeze2d,Split2d)
 import torch.nn.functional as F
 
 device = set_gpu(True)
