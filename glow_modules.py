@@ -4,7 +4,53 @@ from .utils import *
 device = set_gpu(True)
 
 
-## Nets for the functions
+## Glow Modules
+class ActNorm(nn.Module):
+
+    def __init__(self, num_channels):
+        super().__init__()
+
+        size = [1, num_channels, 1, 1]
+        self.register_parameter("bias", nn.Parameter(torch.zeros(*size), requires_grad=True))
+        self.register_parameter("logs", nn.Parameter(torch.zeros(*size), requires_grad=True))
+        
+        # Buffer to register if initialization has been performed
+        self.register_buffer("initialized", torch.tensor(0, dtype=torch.uint8))
+
+    def initialize(self, input):
+      if not self.training:
+        return
+
+      with torch.no_grad():
+          bias = input.clone().mean(dim=[0, 2, 3], keepdim=True)
+          std_input = input.clone().std(dim=[0, 2, 3], keepdim=True)
+          logs = (1.0 / (std_input + 1e-6)).log()
+          self.bias.data.copy_(-bias)
+          self.logs.data.copy_(logs)
+
+    def forward(self, input, logdet, reverse):
+        if self.initialized.item() == 0:
+            self.initialize(input)
+            self.initialized.fill_(1)
+            
+        dims = input.size(2) * input.size(3)
+
+        if reverse == False:
+            input = input + self.bias
+            input = input * self.logs.exp()
+            dlogdet = torch.sum(self.logs) * dims
+            if logdet is not None:
+              logdet = logdet + dlogdet
+
+        if reverse == True:
+            input = input * self.logs.mul(-1).exp()
+            input = input - self.bias
+            dlogdet = - torch.sum(self.logs) * dims
+            if logdet is not None:
+              logdet = logdet + dlogdet
+
+        return input, logdet
+
 class Conv2dZeros(nn.Module):
     def __init__(self, in_channel, out_channel, kernel_size=[3,3], stride=[1,1]):
         super().__init__()
@@ -124,13 +170,9 @@ class AffineCoupling(nn.Module):
         super(AffineCoupling, self).__init__()
         
         Bx, Cx, Hx, Wx = x_size
-        if condition_size is not None:
-          B, C, H, W = condition_size
-          temp = torch.zeros(condition_size)
-          temp = temp.view(Bx, -1, Hx, Wx)
-          channels = Cx // 2 + temp.shape[1]
-        else:
-          channels = Cx // 2
+        
+        B, C, H, W = condition_size
+        channels = Cx // 2 + C
 
         hidden_channels = 128
         self.net = nn.Sequential(
@@ -144,17 +186,14 @@ class AffineCoupling(nn.Module):
         self.scale = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
         self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
         
-    def forward(self, x, condition, logdet, reverse): # how to match condition here for L>1
+    def forward(self, x, condition, logdet, reverse): 
         z1, z2 = utils.split_feature(x, "split")
 
-        if condition is not None:
-          condition = condition.view(x.shape[0], -1, x.shape[2], x.shape[3])
-          assert condition.shape[2:4] == x.shape[2:4], "condition and x in affine needs to match"
-          h = torch.cat([z1, condition], dim=1)
-        else:
-          h = z1
-        
+        assert condition.shape[2:4] == x.shape[2:4], "condition and x in affine needs to match"
+        h = torch.cat([z1, condition], dim=1)
+
         shift, log_scale = utils.split_feature(self.net(h), "cross")
+
         # Here we could try to use the exponential as suggested in arXiv:1907.02392v3
         log_scale = self.scale * torch.tanh(log_scale) + self.scale_shift
 
@@ -171,3 +210,51 @@ class AffineCoupling(nn.Module):
 
         output = torch.cat((z1, z2), dim=1)
         return output, logdet
+
+
+class Squeeze2d(nn.Module):
+    def __init__(self):
+        super(Squeeze2d, self).__init__()
+        
+    def forward(self, x, undo_squeeze):
+      B, C, H, W = x.shape
+      if undo_squeeze == False:
+        # C x H x W -> 4C x H/2 x W/2
+        x = x.reshape(B, C, H // 2, 2, W // 2, 2)
+        x = x.permute(0, 1, 3, 5, 2, 4)
+        x = x.reshape(B, C * 4, H // 2, W // 2)
+      else:
+        # 4C x H/2 x W/2  ->  C x H x W
+        x = x.reshape(B, C // 4, 2, 2, H, W)
+        x = x.permute(0, 1, 4, 2, 5, 3)
+        x = x.reshape(B, C // 4, H * 2, W * 2)
+      return x
+
+class Split2d(nn.Module):
+    def __init__(self, x_size, condition_size):
+      super(Split2d, self).__init__()
+
+      Bx, Cx, Hx, Wx = x_size
+      B, C, H, W = condition_size
+      channels = Cx // 2 + C 
+        
+      self.conv = nn.Sequential(Conv2dZeros(channels, Cx),)
+
+    # TODO: We could try to use the Convnorm here, make more powerful (maybe)
+    # TODO: Make option to enable conditional.
+    def forward(self, x, condition, logdet, reverse):
+
+        if reverse == False:
+            z1, z2 = utils.split_feature(x, "split")
+            h = torch.cat([z1, condition], dim=1)
+            out = self.conv(h)
+            mean, log_scale = utils.split_feature(out, "cross")
+            if logdet is not None:
+              logdet = logdet + torch.sum(td.Normal(mean, torch.exp(log_scale)).log_prob(z2), dim=(1,2,3))
+            return z1, logdet
+        else:
+            h = torch.cat([x, condition], dim=1)
+            mean, log_scale = utils.split_feature(self.conv(h), "cross")
+            z2 = td.Normal(mean, torch.exp(log_scale)).rsample()
+            z = torch.cat((x, z2), dim=1)
+            return z, logdet
