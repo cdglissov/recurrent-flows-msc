@@ -10,3 +10,4 @@ SRNN - 3D (Update) <br>
 Conditional Glow - 3D (Update) <br>
 Recurrent Flow Networks - 4D (Video generation) <br>
 
+Examples can be found in the notebooks.
