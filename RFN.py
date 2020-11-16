@@ -4,11 +4,13 @@ import torch.nn as nn
 from math import log, pi, exp
 from utils import *
 from modules import *
+
 import torch.distributions as td
 
+#device = set_gpu(True)
 
 class RFN(nn.Module):
-    def __init__(self):
+    def __init__(self,batch_size=64):
       super(RFN, self).__init__()
 
       self.batch_size = batch_size
