@@ -31,54 +31,6 @@ class GlowStep(nn.Module):
             x, logdet = self.actnorm(x, logdet, reverse=True)
             return x, logdet
 
-
-class Squeeze2d(nn.Module):
-    def __init__(self):
-        super(Squeeze2d, self).__init__()
-        
-    def forward(self, x, undo_squeeze):
-      B, C, H, W = x.shape
-      if undo_squeeze == False:
-        # C x H x W -> 4C x H/2 x W/2
-        x = x.reshape(B, C, H // 2, 2, W // 2, 2)
-        x = x.permute(0, 1, 3, 5, 2, 4)
-        x = x.reshape(B, C * 4, H // 2, W // 2)
-      else:
-        # 4C x H/2 x W/2  ->  C x H x W
-        x = x.reshape(B, C // 4, 2, 2, H, W)
-        x = x.permute(0, 1, 4, 2, 5, 3)
-        x = x.reshape(B, C // 4, H * 2, W * 2)
-      return x
-
-class Split2d(nn.Module):
-    def __init__(self, x_size, condition_size):
-      super(Split2d, self).__init__()
-
-      Bx, Cx, Hx, Wx = x_size
-      B, C, H, W = condition_size
-      channels = Cx // 2 + C 
-        
-      self.conv = nn.Sequential(Conv2dZeros(channels, Cx),)
-
-    # TODO: We could try to use the Convnorm here, make more powerful (maybe)
-    # TODO: Make option to enable conditional.
-    def forward(self, x, condition, logdet, reverse):
-
-        if reverse == False:
-            z1, z2 = utils.split_feature(x, "split")
-            h = torch.cat([z1, condition], dim=1)
-            out = self.conv(h)
-            mean, log_scale = utils.split_feature(out, "cross")
-            if logdet is not None:
-              logdet = logdet + torch.sum(td.Normal(mean, torch.exp(log_scale)).log_prob(z2), dim=(1,2,3))
-            return z1, logdet
-        else:
-            h = torch.cat([x, condition], dim=1)
-            mean, log_scale = utils.split_feature(self.conv(h), "cross")
-            z2 = td.Normal(mean, torch.exp(log_scale)).rsample()
-            z = torch.cat((x, z2), dim=1)
-            return z, logdet
-
 class ListGlow(nn.Module):
     def __init__(self, x_size, condition_size, base_dist_size, K = 12, L = 2, learn_prior = True, LU_decompose = True):
         super(ListGlow, self).__init__()
