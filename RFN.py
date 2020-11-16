@@ -1,12 +1,11 @@
-from .glow import ListGlow
+from glow import ListGlow
 import torch
 import torch.nn as nn
 from math import log, pi, exp
-from .utils import *
-from .modules import *
+from utils import *
+from modules import *
 import torch.distributions as td
 
-device = set_gpu(True)
 
 class RFN(nn.Module):
     def __init__(self):
