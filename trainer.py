@@ -2,7 +2,7 @@
 import numpy as np
 import pickle
 import time
-
+from tqdm.notebook import trange, tqdm
 import torch
 import torch.nn as nn
 import torch.utils.data
@@ -16,7 +16,19 @@ from torch.utils.data import DataLoader
 import torchvision.datasets as datasets
 from torchvision import transforms
 import torch.distributions as td
+from data_generators import stochasticMovingMnist
+from RFN import RFN
+from utils import *
 n_bits = 7
+
+n_frames = 6
+three_channels=False
+batch_size=64
+testset = stochasticMovingMnist.MovingMNIST(False, 'Mnist', seq_len=n_frames, image_size=32, digit_size=24, num_digits=1, 
+                                            deterministic=False, three_channels=three_channels, step_length=2, normalize=False)
+trainset = stochasticMovingMnist.MovingMNIST(True, 'Mnist', seq_len=n_frames, image_size=32, digit_size=24, num_digits=1, 
+                                              deterministic=False, three_channels=three_channels, step_length=2, normalize=False)
+device = set_gpu(True)
 class Solver(object):
     def __init__(self, learning_rate=0.0001, n_epochs=128):
         self.train_loader, self.test_loader = self.create_loaders()
@@ -25,7 +37,7 @@ class Solver(object):
         self.n_batches_in_epoch = len(self.train_loader)
 
     def build(self):
-        self.model = RFN().to(device)
+        self.model = RFN(batch_size=batch_size).to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', patience=4, factor = 0.5)
 
@@ -82,13 +94,13 @@ class Solver(object):
         for epoch_i in range(self.n_epochs):
             epoch_i += 1
             self.batch_loss_history = []
-            for batch_i, image in enumerate(tqdm(self.train_loader, desc='Batch', leave=False)):
+            for batch_i, image in enumerate(self.train_loader):
                 image = image.to(device)
 
                 image = self.preprocess(image, n_bits = n_bits)
                 image, logdet = self.uniform_binning_correction(image, n_bits = n_bits)
                 self.model.beta = min(0.01, 0.0001 + (counter+1)/iterations)
-                loss = self.model.loss(image, logdet)
+                loss = self.model.loss(image, logdet.to(device))
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
