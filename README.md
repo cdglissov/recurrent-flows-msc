@@ -1,6 +1,6 @@
 # recurrent-flows-msc
 
-This repository will contain the following implementations:
+This repository contains the following implementations:
 
 IAF <br>
 RealNVP <br>
