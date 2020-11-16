@@ -135,3 +135,95 @@ class SimpleParamNet(nn.Module):
     loc = self.loc(output)
     scale = self.scale(output)
     return loc, scale
+
+
+
+class ConvLSTMLayer(nn.Module):
+    def __init__(self, in_channels, hidden_channels, kernel_size, bias, dropout = 0, peephole=True, norm = False):
+        super(ConvLSTMLayer, self).__init__()
+        self.in_channels = in_channels
+        self.hidden_channels = hidden_channels
+        self.kernel_size = kernel_size 
+        self.peephole = peephole
+        self.padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
+        self.bias = bias
+        layers = []
+
+        layers.append(nn.Conv2d(in_channels = self.in_channels + self.hidden_channels,
+                              out_channels = 4 * self.hidden_channels,
+                              kernel_size = self.kernel_size,
+                              stride = 1,
+                              padding = self.padding,
+                              bias = self.bias))
+
+        if norm == True:
+          # TODO: Groupnorm might not work, specify groups.
+          layers.append(nn.GroupNorm(4 * self.hidden_channels // 32, 4 * self.hidden_channels))
+        if dropout != 0:
+          layers.append(nn.Dropout2d(p = dropout))
+
+        self.conv = nn.Sequential(*layers)
+
+        self.init_done = False
+        self.apply(self.initialize_weights)
+
+    def forward(self, input_tensor, cur_state):
+        b, c, h, w = input_tensor.shape
+        if cur_state[0] == None:
+          h_cur = nn.Parameter(torch.zeros(b, self.hidden_channels, h, w)).to(device)
+          c_cur = nn.Parameter(torch.zeros(b, self.hidden_channels, h, w)).to(device)
+        else:
+          h_cur, c_cur = cur_state
+
+        if self.init_done == False:
+          self.initialize_peephole(h, w)
+          self.init_done = True
+
+        combined = torch.cat([input_tensor, h_cur], dim=1)
+        combined_conv = self.conv(combined)
+
+        cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_channels, dim=1)
+        i = torch.sigmoid(cc_i + self.Wci * c_cur)
+        f = torch.sigmoid(cc_f + self.Wcf * c_cur)
+        g = torch.tanh(cc_g)
+        c_next = f * c_cur + i * g
+        o = torch.sigmoid(cc_o + self.Wco*c_next)
+        h_next = o * torch.tanh(c_next)
+        return h_next, c_next
+    
+
+    def initialize_weights(self, layer):
+      if type(layer) == nn.Conv2d:
+        nn.init.xavier_normal_(layer.weight)
+        nn.init.uniform_(layer.bias)
+    
+    def initialize_peephole(self, height, width):
+      if self.peephole:
+        self.Wci = nn.Parameter(torch.zeros(1, self.hidden_channels, height, width)).to(device)
+        self.Wcf = nn.Parameter(torch.zeros(1, self.hidden_channels, height, width)).to(device)
+        self.Wco = nn.Parameter(torch.zeros(1, self.hidden_channels, height, width)).to(device)
+      else:
+        self.Wci = 0
+        self.Wcf = 0
+        self.Wco = 0
+
+        
+class ConvLSTM(nn.Module):
+    def __init__(self, in_channels, hidden_channels, kernel_size, bias=True, dropout = 0, peephole=True, norm = False):
+        super(ConvLSTM, self).__init__()
+        self.hidden_channels = hidden_channels
+        self.LSTMlayer = ConvLSTMLayer(in_channels=in_channels,
+                                          hidden_channels=hidden_channels,
+                                          kernel_size=kernel_size,
+                                          bias=bias, dropout=dropout, peephole = peephole,
+                                          norm = norm)
+    
+    def forward(self, x, ht=None, ct=None):
+        b, seq_len, channel, h, w = x.size()
+        output = []
+
+        for t in range(seq_len):
+            ht, ct = self.LSTMlayer(input_tensor=x[:, t, :, :, :],
+                                              cur_state=[ht, ct])
+            output.append(ht)
+        return torch.stack(output,1), ht, ct
