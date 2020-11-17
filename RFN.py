@@ -28,11 +28,11 @@ class RFN(nn.Module):
       
       # Tip: Use 2 convs between each pool and only 1 conv between each strided conv
       # Each 'conv' will multiply channels by 2 and each deconv will divide by 2.
-      down_structure = [32, 'conv', 32, 'conv', 64, 'conv', 64, 'conv',  context_dim]
-      up_structure = [[128], ['deconv', 64], ['deconv', 64], ['deconv', 32]]
+      down_structure = [32, 'conv', 32, 'conv', 64, 'conv', 64, 'conv'] + [context_dim]
+      up_structure = [[128], ['deconv', 64], ['deconv', 64], ['deconv',32]]
       
       # adjust channel dims to match up_structure. Reversed.
-      channel_dims = [32, 64, 64, 128]
+      channel_dims = [i[-1] for i in up_structure][::-1] #[32, 64, 64, 128]
       hu, wu = (self.u_dim[2], self.u_dim[3])
       for i in range(0, self.L):
         hu, wu = (hu//2, hu//2)
