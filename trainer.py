@@ -154,15 +154,14 @@ class Solver(object):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            if (batch_i) % 2 == 0:
-              self.plotter()   
+            
  
             store_loss = float(loss.data)
             self.losses.append(store_loss)
             self.kl_loss.append(self.model.book['kl'])
             self.recon_loss.append(self.model.book['nll'])
             counter += 1
- 
+          self.plotter()   
           epoch_loss = np.mean(self.losses)
  
           if self.epoch_i % 50 == 0:
@@ -292,7 +291,7 @@ class Solver(object):
       self.model.train()
  
  
-solver = Solver(n_epochs=60, learning_rate=0.001)
+solver = Solver(n_epochs=1000, learning_rate=0.005)
 solver.build()
 # uncomment this if we want to load a model
 #path_model = '/content/model_folder/rfn.pt'
