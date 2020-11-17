@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 from torch.utils.data import Dataset
 
-from conf import BAIRPUSH_PATH
+#from conf import BAIRPUSH_PATH
 
 
 FNAME_PATTERN = parse.compile('{frame_id:d}.png')
@@ -21,7 +21,7 @@ class PushDataset(Dataset):
 
     def __init__(
         self, split, seq_len, 
-        img_side=64, dataset_dir=BAIRPUSH_PATH, data_augmentation=True, normalize=True):
+        img_side=64, dataset_dir='', data_augmentation=True, normalize=True):
 
         self.split = split
         self.seq_len = seq_len
