@@ -17,6 +17,7 @@ from torchvision import transforms
 import torch.distributions as td
 from data_generators import stochasticMovingMnist
 from data_generators import bair_push
+import matplotlib.pyplot as plt
 #from tqdm.notebook import trange, tqdm
 from RFN import RFN
 from utils import *
