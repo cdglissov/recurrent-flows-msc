@@ -20,21 +20,21 @@ from data_generators import bair_push
 import matplotlib.pyplot as plt
 from RFN import RFN
 from utils import *
-n_bits = 7
-data='mnist'
-batch_size=64
 
-if data=='mnist':
-	n_frames = 6
+choose_data='mnist'
+batch_size=64
+n_frames = 6
+
+if choose_data=='mnist':
 	three_channels=False
 	testset = stochasticMovingMnist.MovingMNIST(False, 'Mnist', seq_len=n_frames, image_size=32, digit_size=24, num_digits=1, 
 												deterministic=False, three_channels=three_channels, step_length=2, normalize=False)
 	trainset = stochasticMovingMnist.MovingMNIST(True, 'Mnist', seq_len=n_frames, image_size=32, digit_size=24, num_digits=1, 
 												  deterministic=False, three_channels=three_channels, step_length=2, normalize=False)
-if data=='bair':
+if choose_data=='bair':
 	string=str(os.path.abspath(os.getcwd()))
-	trainset = bair_push.PushDataset(split='train',dataset_dir=string+'/bair_robot_data/processed_data/',seq_len=10)
-	testset = bair_push.PushDataset(split='test',dataset_dir=string+'/bair_robot_data/processed_data/',seq_len=10)
+	trainset = bair_push.PushDataset(split='train',dataset_dir=string+'/bair_robot_data/processed_data/',seq_len=n_frames)
+	testset = bair_push.PushDataset(split='test',dataset_dir=string+'/bair_robot_data/processed_data/',seq_len=n_frames)
 
 
 device = set_gpu(True)
@@ -134,22 +134,23 @@ class Solver(object):
  
     def train(self):
       counter = 0
-      iterations = 2000
- 
+      max_value = 0.01
+      min_value = 0.001
+      num_steps = 2000
+      
       for epoch_i in range(self.n_epochs):
           self.model.train()
           self.epoch_i += 1
           self.batch_loss_history = []
           for batch_i, image in enumerate(self.train_loader):
             batch_i += 1
-            if data=='bair':
+            if choose_data=='bair':
                 image = image[0].to(device)
             else:
                 image = image.to(device)
             image = self.preprocess(image, n_bits = self.n_bits)
             image, logdet = self.uniform_binning_correction(image, n_bits = self.n_bits)
- 
-            self.model.beta = min(0.01, 0.0001 + (counter+1)/iterations)
+            self.model.beta = min(max_value, min_value + counter*(max_value - min_value) / num_steps)
             loss = self.model.loss(image, logdet)
             self.optimizer.zero_grad()
             loss.backward()
@@ -165,15 +166,15 @@ class Solver(object):
           self.plotter()   
           epoch_loss = np.mean(self.losses)
  
-          if self.epoch_i % 50 == 0:
-            # Save model after 50 epochs
+          if self.epoch_i % 25 == 0:
+            # Save model after each 25 epochs
             self.checkpoint('rfn.pt', self.epoch_i, epoch_loss) 
  
           # Do early stopping, if above patience stop training, if better loss, save model
           stop = self.earlystopping.step(self.epoch_i, epoch_loss)
           if stop:
             break
-          if (self.earlystopping.best_loss < self.best_loss) and (self.epoch_i > 0):
+          if (self.earlystopping.best_loss < self.best_loss) and (self.epoch_i > 50):
             self.best_loss = self.earlystopping.best_loss
             self.checkpoint('rfn_best_model.pt', self.epoch_i, epoch_loss) 
           self.scheduler.step(loss)
