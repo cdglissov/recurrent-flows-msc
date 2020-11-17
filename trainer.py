@@ -22,7 +22,7 @@ from RFN import RFN
 from utils import *
 n_bits = 7
 data='mnist'
-batch_size=64*2*2*2
+batch_size=64
 
 if data=='mnist':
 	n_frames = 6
@@ -161,6 +161,7 @@ class Solver(object):
             self.kl_loss.append(self.model.book['kl'])
             self.recon_loss.append(self.model.book['nll'])
             counter += 1
+            
           self.plotter()   
           epoch_loss = np.mean(self.losses)
  
@@ -218,7 +219,7 @@ class Solver(object):
         samples  = self.preprocess(samples, reverse=True, n_bits = self.n_bits)
         samples_recon  = self.preprocess(samples_recon, reverse=True, n_bits = self.n_bits)
         predictions  = self.preprocess(predictions, reverse=True, n_bits = self.n_bits)
-        # With x.
+        # With x
         samples_x, samples_recon_x, predictions_x = self.model.sample(image, n_predictions = n_predictions,encoder_sample = True)
         samples_x  = self.preprocess(samples_x, reverse=True, n_bits = self.n_bits)
         samples_recon_x  = self.preprocess(samples_recon_x, reverse=True, n_bits = self.n_bits)
@@ -241,47 +242,39 @@ class Solver(object):
       ax[3].set_title("Reconstruction Loss")
       ax[3].grid()
       if not self.verbose:
-        fig.savefig(self.path + 'png_folder/losses' + n_plot + '.png', bbox_inches='tight')
+        fig.savefig(self.path + 'png_folder/losses' + '.png', bbox_inches='tight')
         plt.close(fig)
       
       fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
       for i in range(0, time_steps):
         ax[0,i].imshow(samples[0, i, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[0,i].set_title("Random Sample")
-      for i in range(0, time_steps):
         ax[1,i].imshow(samples[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[1,i].set_title("Sample at timestep t")
-      for i in range(0, time_steps):
         ax[2,i].imshow(image[0, i, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[2,i].set_title("True Image")
-      for i in range(0, time_steps):
         ax[3,i].imshow(samples_recon[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[3,i].set_title("Reconstructed Image")
-      for i in range(0, time_steps):
         ax[4,i].imshow(predictions[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[4,i].set_title("Prediction")
       if not self.verbose:
-        fig.savefig(self.path +'png_folder/pics' + n_plot + '.png', bbox_inches='tight')
+        fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')
         plt.close(fig)
 
       fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
       for i in range(0, time_steps):
-        ax[0,i].imshow(samples[0, i, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[0,i].imshow(samples_x[0, i, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[0,i].set_title("Random Sample")
-      for i in range(0, time_steps):
-        ax[1,i].imshow(samples[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[1,i].imshow(samples_x[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[1,i].set_title("Sample at timestep t")
-      for i in range(0, time_steps):
         ax[2,i].imshow(image[0, i, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[2,i].set_title("True Image")
-      for i in range(0, time_steps):
-        ax[3,i].imshow(samples_recon[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[3,i].imshow(samples_recon_x[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[3,i].set_title("Reconstructed Image")
-      for i in range(0, time_steps):
-        ax[4,i].imshow(predictions[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[4,i].imshow(predictions_x[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
         ax[4,i].set_title("Prediction")
       if not self.verbose:
-        fig.savefig(self.path +'png_folder/pics' + n_plot + '_with_x.png', bbox_inches='tight')
+        fig.savefig(self.path +'png_folder/samples_with_x'+ n_plot + '.png', bbox_inches='tight')
         plt.close(fig)
       if self.verbose:
         print("\tKL and Reconstruction loss: {:.4f}, {:.4f}".format(self.kl_loss[-1].data, self.recon_loss[-1].data))
