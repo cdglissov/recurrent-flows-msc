@@ -285,7 +285,7 @@ class Solver(object):
       self.model.train()
  
  
-solver = Solver(n_epochs=1000, learning_rate=0.005)
+solver = Solver(n_epochs=1000, learning_rate=0.0005)
 solver.build()
 # uncomment this if we want to load a model
 #path_model = '/content/model_folder/rfn.pt'
