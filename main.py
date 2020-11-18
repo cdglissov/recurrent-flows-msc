@@ -8,6 +8,7 @@ def main(args):
     solver.build()
     # TODO: Make the load smarter, i.e. give it as input to the argparser and define path
     # TODO: Test if loader works
+    # TODO: Make function that stores the kl and recon loss for experimental work
     # uncomment this if we want to load a model
     #path_model = '/content/model_folder/rfn.pt'
     #solver.load(path_model)
