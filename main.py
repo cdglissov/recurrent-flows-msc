@@ -4,14 +4,13 @@ import argparse
 from trainer import Solver
 
 def main(args):
-    
     solver = Solver(args)
     solver.build()
     # uncomment this if we want to load a model
     #path_model = '/content/model_folder/rfn.pt'
     #solver.load(path_model)
     solver.train()   
-    
+
     
 def add_bool_arg(parser, name, help, default=False):
     group = parser.add_mutually_exclusive_group(required=False)
@@ -89,7 +88,8 @@ if __name__ == "__main__":
                         default=2000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
                         default=6, type=int)
-    
+    add_bool_arg(parser, "multigpu", default=False, help="Specify if we want to use multi GPUs")
+ 
     # RFN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
                         default=[32, 1, 32, 32], type=int)
@@ -109,6 +109,9 @@ if __name__ == "__main__":
                         default= [32, 'conv', 32, 'conv', 64, 'conv', 64, 'conv'], type=convert_mixed_list)
     parser.add_argument('--norm_type', help="Specify normalization type of layers", 
                         default='none', choices=["instancenorm", "batchnorm", "none"], type=str)
+    # Upscaler structure can be a bit tricky to define. First the input does not need to be fully upscaled,
+    # so for L = 3 only 2 deconv's is required. Every block should end with an integer. I.e. 32-deconv-32 deconv-16
+    # and not 32-deconv 32-deconv
     parser.add_argument('--upscaler_structure', help="Specify upscaler structure, example writing, 32-32-deconv 32-32-upsample, creates 2 blocks",
                         nargs='+', default=[[128], ['deconv', 64], ['deconv', 64], ['deconv', 32]], type=convert_to_upscaler)
     parser.add_argument("--structure_scaler", help="Specify down/up-sampling channel factor", 

@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 import torch.utils.data
+import torch.nn as nn
 import os
 from torch.utils.data import DataLoader
 from data_generators import stochasticMovingMnist
@@ -9,6 +10,7 @@ from data_generators import bair_push
 import matplotlib.pyplot as plt
 from RFN import RFN
 from utils import *
+from tqdm import tqdm 
 device = set_gpu(True)
 
 class EarlyStopping():
@@ -69,6 +71,7 @@ class Solver(object):
         self.image_size = args.image_size
         self.preprocess_range = args.preprocess_range
         self.preprocess_scale = args.preprocess_scale
+        self.multigpu = args.multigpu
         
     def build(self):
         self.train_loader, self.test_loader = self.create_loaders()
@@ -78,7 +81,12 @@ class Solver(object):
         if not os.path.exists(self.path + 'model_folder'):
           os.makedirs(self.path + 'model_folder')
         
-        self.model = RFN(self.params).to(device)
+        if self.multigpu and torch.cuda.device_count() > 1:
+            print("Using:", torch.cuda.device_count(), "GPUs")
+            self.model = nn.DataParallel(RFN(self.params)).to(device)
+        else:
+            self.model = RFN(self.params).to(device)
+        
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', 
                                                                     patience=self.patience_lr, 
@@ -169,7 +177,7 @@ class Solver(object):
           self.model.train()
           self.epoch_i += 1
           self.batch_loss_history = []
-          for batch_i, image in enumerate(self.train_loader):
+          for batch_i, image in enumerate(tqdm(self.train_loader, desc="Epoch " + str(self.epoch_i), position=0, leave=False)):
             batch_i += 1
             if self.choose_data=='bair':
                 image = image[0].to(device)
@@ -178,7 +186,12 @@ class Solver(object):
             image = self.preprocess(image)
             image, logdet = self.uniform_binning_correction(image)
             self.model.beta = min(max_value, min_value + counter*(max_value - min_value) / num_steps)
-            loss = self.model.loss(image, logdet)
+            
+            if self.multigpu and torch.cuda.device_count() > 1:
+                loss = self.model.module.loss(image, logdet)
+            else:
+                loss = self.model.loss(image, logdet)
+                
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
