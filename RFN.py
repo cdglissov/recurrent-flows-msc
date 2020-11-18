@@ -1,8 +1,7 @@
 from glow import ListGlow
 import torch
 import torch.nn as nn
-from utils import *
-from modules import *
+from modules import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM
 import torch.distributions as td
 
 
