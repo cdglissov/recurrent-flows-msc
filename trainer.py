@@ -1,42 +1,14 @@
 '''Train script file'''
 import numpy as np
-import pickle
-import time
 import torch
-import torch.nn as nn
 import torch.utils.data
-import torch.nn.functional as F
-from torch.autograd import Variable
-
 import os
-
-from math import log, pi, exp
 from torch.utils.data import DataLoader
-import torchvision.datasets as datasets
-from torchvision import transforms
-import torch.distributions as td
 from data_generators import stochasticMovingMnist
 from data_generators import bair_push
 import matplotlib.pyplot as plt
 from RFN import RFN
 from utils import *
-
-choose_data='mnist'
-batch_size=64
-n_frames = 6
-
-if choose_data=='mnist':
-	three_channels=False
-	testset = stochasticMovingMnist.MovingMNIST(False, 'Mnist', seq_len=n_frames, image_size=32, digit_size=24, num_digits=1, 
-												deterministic=False, three_channels=three_channels, step_length=2, normalize=False)
-	trainset = stochasticMovingMnist.MovingMNIST(True, 'Mnist', seq_len=n_frames, image_size=32, digit_size=24, num_digits=1, 
-												  deterministic=False, three_channels=three_channels, step_length=2, normalize=False)
-if choose_data=='bair':
-	string=str(os.path.abspath(os.getcwd()))
-	trainset = bair_push.PushDataset(split='train',dataset_dir=string+'/bair_robot_data/processed_data/',seq_len=n_frames)
-	testset = bair_push.PushDataset(split='test',dataset_dir=string+'/bair_robot_data/processed_data/',seq_len=n_frames)
-
-
 device = set_gpu(True)
 
 class EarlyStopping():
@@ -68,37 +40,89 @@ class EarlyStopping():
 				self.wait += 1
  
 class Solver(object):
-    def __init__(self, learning_rate=0.001, n_epochs=40, verbose=False):
-        self.train_loader, self.test_loader = self.create_loaders()
-        self.n_bits = 7
-        self.n_epochs = n_epochs
-        self.learning_rate = learning_rate
-        self.verbose = verbose
+    def __init__(self, args):
+        self.params = args
+        self.n_bits = args.n_bits
+        self.n_epochs = args.n_epochs
+        self.learning_rate = args.learning_rate
+        self.verbose = args.verbose
         self.plot_counter = 0
-        self.path = str(os.path.abspath(os.getcwd()))+'/content/'
+        self.path = str(os.path.abspath(os.getcwd())) + args.path
         self.losses = []
         self.kl_loss = []
         self.recon_loss = []
+        self.epoch_i = 0
+        self.best_loss = 1e15
+        self.batch_size = args.batch_size
+        self.patience_lr = args.patience_lr
+        self.factor_lr = args.factor_lr
+        self.min_lr = args.min_lr
+        self.patience_es = args.patience_es
+        self.beta_max = args.beta_max
+        self.beta_min = args.beta_min
+        self.beta_steps = args.beta_steps
+        self.choose_data = args.choose_data
+        self.n_frames = args.n_frames
+        self.digit_size = args.digit_size
+        self.step_length = args.step_length
+        self.num_digits = args.num_digits
+        self.image_size = args.image_size
+        self.preprocess_range = args.preprocess_range
+        self.preprocess_scale = args.preprocess_scale
+        
+    def build(self):
+        self.train_loader, self.test_loader = self.create_loaders()
+        
         if not os.path.exists(self.path + 'png_folder'):
           os.makedirs(self.path + 'png_folder')
         if not os.path.exists(self.path + 'model_folder'):
           os.makedirs(self.path + 'model_folder')
-        self.epoch_i = 0
-        self.best_loss = 1e15
- 
-    def build(self):
-        self.model = RFN(batch_size=batch_size).to(device)
+        
+        self.model = RFN(self.params).to(device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', patience=4, 
-                                                                    factor=0.5, min_lr=self.learning_rate*0.001)
-        self.earlystopping = EarlyStopping(min_delta = 0, patience = 50, verbose = self.verbose)
- 
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', 
+                                                                    patience=self.patience_lr, 
+                                                                    factor=self.factor_lr, 
+                                                                    min_lr=self.min_lr)
+        self.earlystopping = EarlyStopping(min_delta = 0, patience = self.patience_es, 
+                                           verbose = self.verbose)
+        
+        
     def create_loaders(self):
-        train_loader = DataLoader(trainset,batch_size=batch_size, shuffle=True, drop_last=True)
-        test_loader = DataLoader(testset, batch_size=batch_size, shuffle=True, drop_last=True)
+        if self.choose_data=='mnist':
+            	testset = stochasticMovingMnist.MovingMNIST(False, 'Mnist', 
+                                                         seq_len=self.n_frames, 
+                                                         image_size=self.image_size, 
+                                                         digit_size=self.digit_size, 
+                                                         num_digits=self.num_digits, 
+            												 deterministic=False, 
+                                                         three_channels=False, 
+                                                         step_length=self.step_length, 
+                                                         normalize=False)
+            	trainset = stochasticMovingMnist.MovingMNIST(True, 'Mnist', 
+                                                          seq_len=self.n_frames, 
+                                                          image_size=self.image_size, 
+                                                          digit_size=self.digit_size, 
+                                                          num_digits=self.num_digits, 
+            												  deterministic=False, 
+                                                          three_channels=False, 
+                                                          step_length=self.step_length, 
+                                                          normalize=False)
+        if self.choose_data=='bair':
+            	string=str(os.path.abspath(os.getcwd()))
+            	trainset = bair_push.PushDataset(split='train',
+                                              dataset_dir=string+'/bair_robot_data/processed_data/',
+                                              seq_len=self.n_frames)
+            	testset = bair_push.PushDataset(split='test',
+                                             dataset_dir=string+'/bair_robot_data/processed_data/',
+                                             seq_len=self.n_frames)
+
+        train_loader = DataLoader(trainset,batch_size=self.batch_size, shuffle=True, drop_last=True)
+        test_loader = DataLoader(testset, batch_size=self.batch_size, shuffle=True, drop_last=True)
         return train_loader, test_loader
  
-    def uniform_binning_correction(self, x, n_bits=8):
+    def uniform_binning_correction(self, x):
+        n_bits = self.n_bits
         b, t, c, h, w = x.size()
         n_bins = 2 ** n_bits
         chw = c * h * w
@@ -106,10 +130,13 @@ class Solver(object):
         objective = -np.log(n_bins) * chw * torch.ones(b, device=x.device)
         return x_noise, objective
  
-    def preprocess(self, x, reverse = False, range = "0.5", n_bits = 8, scale = 255):
+    def preprocess(self, x, reverse = False):
         # Remember to change the scale parameter to make variable between 0..255
+        preprocess_range = self.preprocess_range
+        scale = self.preprocess_scale
+        n_bits = self.n_bits
         n_bins = 2 ** n_bits
-        if range == "0.5":
+        if preprocess_range == "0.5":
           if reverse == False:
             x = x * scale
             if n_bits < 8:
@@ -120,7 +147,7 @@ class Solver(object):
             x = x + 0.5
             x = x * n_bins
             x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
-        elif range == "1.0":
+        elif preprocess_range == "1.0":
           if reverse == False:
             x = x * scale
             if n_bits < 8:
@@ -134,9 +161,9 @@ class Solver(object):
  
     def train(self):
       counter = 0
-      max_value = 0.01
-      min_value = 0.001
-      num_steps = 2000
+      max_value = self.beta_max
+      min_value = self.beta_min
+      num_steps = self.beta_steps
       
       for epoch_i in range(self.n_epochs):
           self.model.train()
@@ -144,19 +171,18 @@ class Solver(object):
           self.batch_loss_history = []
           for batch_i, image in enumerate(self.train_loader):
             batch_i += 1
-            if choose_data=='bair':
+            if self.choose_data=='bair':
                 image = image[0].to(device)
             else:
                 image = image.to(device)
-            image = self.preprocess(image, n_bits = self.n_bits)
-            image, logdet = self.uniform_binning_correction(image, n_bits = self.n_bits)
+            image = self.preprocess(image)
+            image, logdet = self.uniform_binning_correction(image)
             self.model.beta = min(max_value, min_value + counter*(max_value - min_value) / num_steps)
             loss = self.model.loss(image, logdet)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
             
- 
             store_loss = float(loss.data)
             self.losses.append(store_loss)
             self.kl_loss.append(self.model.book['kl'])
@@ -178,9 +204,9 @@ class Solver(object):
             self.best_loss = self.earlystopping.best_loss
             self.checkpoint('rfn_best_model.pt', self.epoch_i, epoch_loss) 
           self.scheduler.step(loss)
- 
+          
           if self.verbose:
-            print(f'Epoch {self.epoch_i} Loss: {epoch_loss:.2f}')
+            print('Epoch {} Loss: {:.2f}'.format(self.epoch_i, epoch_loss))
           else:
             self.status()
  
@@ -198,7 +224,7 @@ class Solver(object):
       self.epoch_i += load_model['epoch']
       loss = load_model['loss']
       self.best_loss = loss
-      return (epoch, loss)
+      return (self.epoch_i, loss)
  
     def status(self):
       # Only works for python 3.x
@@ -206,26 +232,26 @@ class Solver(object):
       with open(self.path + 'model_folder/status.txt', 'a') as f:
         print("STATUS:", file=f)
         print("\tKL and Reconstruction loss: {:.4f}, {:.4f}".format(self.kl_loss[-1].data, self.recon_loss[-1].data), file=f)
-        print(f'\tEpoch {self.epoch_i}, Beta value {self.model.beta}, Learning rate {lr}', file=f)
+        print(f'\tEpoch {self.epoch_i}, Beta value {self.model.beta:.4f}, Learning rate {lr}', file=f)
  
     def plotter(self):
       n_plot = str(self.plot_counter)
       with torch.no_grad():
         self.model.eval()
         image = next(iter(self.test_loader)).to(device)
-        time_steps = 5
+        time_steps = self.n_frames - 1
         n_predictions = time_steps
-        image  = self.preprocess(image, reverse=False, n_bits = self.n_bits)
+        image  = self.preprocess(image, reverse=False)
         samples, samples_recon, predictions = self.model.sample(image, n_predictions = n_predictions,encoder_sample = False)
-        samples  = self.preprocess(samples, reverse=True, n_bits = self.n_bits)
-        samples_recon  = self.preprocess(samples_recon, reverse=True, n_bits = self.n_bits)
-        predictions  = self.preprocess(predictions, reverse=True, n_bits = self.n_bits)
+        samples  = self.preprocess(samples, reverse=True)
+        samples_recon  = self.preprocess(samples_recon, reverse=True)
+        predictions  = self.preprocess(predictions, reverse=True)
         # With x
         samples_x, samples_recon_x, predictions_x = self.model.sample(image, n_predictions = n_predictions,encoder_sample = True)
-        samples_x  = self.preprocess(samples_x, reverse=True, n_bits = self.n_bits)
-        samples_recon_x  = self.preprocess(samples_recon_x, reverse=True, n_bits = self.n_bits)
-        predictions_x  = self.preprocess(predictions_x, reverse=True, n_bits = self.n_bits)
-        image  = self.preprocess(image, reverse=True, n_bits = self.n_bits)
+        samples_x  = self.preprocess(samples_x, reverse=True)
+        samples_recon_x  = self.preprocess(samples_recon_x, reverse=True)
+        predictions_x  = self.preprocess(predictions_x, reverse=True)
+        image  = self.preprocess(image, reverse=True)
         
  
       fig, ax = plt.subplots(1, 4 , figsize = (20,5))
@@ -248,15 +274,15 @@ class Solver(object):
       
       fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
       for i in range(0, time_steps):
-        ax[0,i].imshow(samples[0, i, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[0,i].imshow(self.convert_to_numpy(samples[0, i, :, :, :]))
         ax[0,i].set_title("Random Sample")
-        ax[1,i].imshow(samples[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[1,i].imshow(self.convert_to_numpy(samples[i, 0, :, :, :]))
         ax[1,i].set_title("Sample at timestep t")
-        ax[2,i].imshow(image[0, i, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[2,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
         ax[2,i].set_title("True Image")
-        ax[3,i].imshow(samples_recon[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[3,i].imshow(self.convert_to_numpy(samples_recon[i, 0, :, :, :]))
         ax[3,i].set_title("Reconstructed Image")
-        ax[4,i].imshow(predictions[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[4,i].imshow(self.convert_to_numpy(predictions[i, 0, :, :, :]))
         ax[4,i].set_title("Prediction")
       if not self.verbose:
         fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')
@@ -264,15 +290,15 @@ class Solver(object):
 
       fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
       for i in range(0, time_steps):
-        ax[0,i].imshow(samples_x[0, i, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[0,i].imshow(self.convert_to_numpy(samples_x[0, i, :, :, :]))
         ax[0,i].set_title("Random Sample")
-        ax[1,i].imshow(samples_x[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[1,i].imshow(self.convert_to_numpy(samples_x[i, 0, :, :, :]))
         ax[1,i].set_title("Sample at timestep t")
-        ax[2,i].imshow(image[0, i, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[2,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
         ax[2,i].set_title("True Image")
-        ax[3,i].imshow(samples_recon_x[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[3,i].imshow(self.convert_to_numpy(samples_recon_x[i, 0, :, :, :]))
         ax[3,i].set_title("Reconstructed Image")
-        ax[4,i].imshow(predictions_x[i, 0, :, :, :].permute(1,2,0).squeeze().detach().cpu().numpy())
+        ax[4,i].imshow(self.convert_to_numpy(predictions_x[i, 0, :, :, :]))
         ax[4,i].set_title("Prediction")
       if not self.verbose:
         fig.savefig(self.path +'png_folder/samples_with_x'+ n_plot + '.png', bbox_inches='tight')
@@ -283,11 +309,6 @@ class Solver(object):
  
       self.plot_counter += 1
       self.model.train()
- 
- 
-solver = Solver(n_epochs=1000, learning_rate=0.0007)
-solver.build()
-# uncomment this if we want to load a model
-#path_model = '/content/model_folder/rfn.pt'
-#solver.load(path_model)
-solver.train()   
+
+    def convert_to_numpy(self, x):
+        return x.permute(1,2,0).squeeze().detach().cpu().numpy()

@@ -1,38 +1,38 @@
 from glow import ListGlow
 import torch
 import torch.nn as nn
-from math import log, pi, exp
 from utils import *
 from modules import *
-
 import torch.distributions as td
 
-#device = set_gpu(True)
 
 class RFN(nn.Module):
-    def __init__(self,batch_size=64):
+    def __init__(self, args):
       super(RFN, self).__init__()
-
-      self.batch_size = batch_size
-      self.u_dim = (batch_size, 1, 32, 32)
-      self.x_dim = (batch_size, 1, 32, 32)
-      self.h_dim = 100
-      self.z_dim = 30
+      self.params = args
+      batch_size = args.batch_size
+      self.u_dim = args.x_dim
+      self.x_dim = args.condition_dim
+      self.h_dim = args.h_dim
+      self.z_dim = args.z_dim
       self.beta = 1
-      scaler = 1 # Chooses the scaling of 'conv' and 'deconv' layers, default is 2
-      self.L = 4
-      self.K = 8
-      norm_type = "none"
-      context_dim = 128 # Channel output of feature extractor
+      scaler = args.structure_scaler # Chooses the scaling of 'conv' and 'deconv' layers, default is 2
+      self.L = args.L
+      self.K = args.K
+      norm_type = args.norm_type
+      self.temperature = args.temperature
+      self.prior_structure = args.prior_structure
+      self.encoder_structure = args.encoder_structure
+      c_features = args.c_features # Channel output of feature extractor
       condition_size_list = []
       
       # Tip: Use 2 convs between each pool and only 1 conv between each strided conv
       # Each 'conv' will multiply channels by 2 and each deconv will divide by 2.
-      down_structure = [32, 'conv', 32, 'conv', 64, 'conv', 64, 'conv'] + [context_dim]
-      up_structure = [[128], ['deconv', 64], ['deconv', 64], ['deconv',32]]
+      down_structure = args.extractor_structure + [c_features]
+      up_structure = args.upscaler_structure
       
       # adjust channel dims to match up_structure. Reversed.
-      channel_dims = [i[-1] for i in up_structure][::-1] #[32, 64, 64, 128]
+      channel_dims = [i[-1] for i in up_structure][::-1]
       hu, wu = (self.u_dim[2], self.u_dim[3])
       for i in range(0, self.L):
         hu, wu = (hu//2, hu//2)
@@ -52,22 +52,22 @@ class RFN(nn.Module):
                                    norm_type = norm_type, non_lin = "relu", scale = scaler)
 
       # ConvLSTM
-      self.lstm = ConvLSTM(in_channels = context_dim, hidden_channels=self.h_dim, 
+      self.lstm = ConvLSTM(in_channels = c_features, hidden_channels=self.h_dim, 
                            kernel_size=[3, 3], bias=True, peephole=True)
 
       # Prior
-      prior_struct = [128]
+      prior_struct = self.prior_structure
       self.prior = SimpleParamNet(prior_struct, in_channels = self.h_dim + self.z_dim, 
                                   out_channels = self.z_dim, norm_type = norm_type, non_lin = "leakyrelu")
       
       # Flow
       base_dim = (batch_size, self.h_dim + self.z_dim, hu, wu)
-      self.flow = ListGlow(self.x_dim, condition_size_list, base_dim, K=self.K, L=self.L, 
-                           learn_prior = True)
+      self.flow = ListGlow(self.x_dim, condition_size_list, base_dim, 
+                           args=self.params, K=self.K, L=self.L)
 
       # Variational encoder
-      enc_struct = [256, 128]
-      self.encoder = SimpleParamNet(enc_struct, in_channels = context_dim + self.h_dim + self.z_dim, 
+      enc_struct = self.encoder_structure
+      self.encoder = SimpleParamNet(enc_struct, in_channels = c_features + self.h_dim + self.z_dim, 
                                     out_channels = self.z_dim, norm_type = norm_type, non_lin = "leakyrelu")
       
       # Bookkeeping
@@ -127,7 +127,7 @@ class RFN(nn.Module):
       loss = (self.beta * kl_loss) + nll_loss
       return loss
 
-    def sample(self, x, n_predictions=6, temperature = 0.8, encoder_sample = False):
+    def sample(self, x, n_predictions=6, encoder_sample = False):
       assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
       hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()
       t = x.shape[1]
@@ -162,9 +162,9 @@ class RFN(nn.Module):
           base_conditions = torch.cat((zt, ht), dim = 1)
           zprev = zt
         
-        sample = self.flow.sample(None, flow_conditions, base_conditions, temperature)
+        sample = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
         z, _ = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, 0.0)
-        sample_recon = self.flow.sample(z, flow_conditions, base_conditions, temperature)
+        sample_recon = self.flow.sample(z, flow_conditions, base_conditions, self.temperature)
         
         hprev, cprev = ht, ct
 
@@ -173,7 +173,7 @@ class RFN(nn.Module):
       
       # Make predictions
       predictions = torch.zeros((n_predictions, *x[:,0,:,:,:].shape))
-      prediction = sample
+      prediction=sample
       for i in range(0, n_predictions):
         condition = self.extractor(prediction)
         _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
@@ -183,7 +183,7 @@ class RFN(nn.Module):
 
         flow_conditions = self.upscaler(torch.cat((zt, ht), dim = 1))
         base_conditions = torch.cat((zt, ht), dim = 1)
-        prediction = self.flow.sample(None, flow_conditions, base_conditions, temperature)
+        prediction = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
         predictions[i-1,:,:,:,:] = prediction.detach()
 
         hprev, cprev, zprev, zxprev = ht, ct, zt, zxt

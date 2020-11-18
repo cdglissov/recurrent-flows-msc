@@ -1,24 +1,23 @@
 import torch
 import torch.nn as nn
-from utils import *
-from math import log, pi, exp
+from utils import split_feature, set_gpu
 import torch.distributions as td
 from glow_modules import (ActNorm,Conv2dZeros,Conv2dNorm,InvConv, AffineCoupling,Squeeze2d,Split2d)
-import torch.nn.functional as F
 from modules import ActFun
+import numpy as np
 
 device = set_gpu(True)
 
-
 class GlowStep(nn.Module):
-    def __init__(self, x_size, condition_size, LU_decompose):
+    def __init__(self, x_size, condition_size, args):
       super(GlowStep, self).__init__()
-      
+      LU_decomposed = args.LU_decomposed
+      self.n_units_affine = args.n_units_affine
       b, c, h, w = x_size
       bc, cc, hc, wc = condition_size
       self.actnorm = ActNorm(c)
-      self.invconv =  InvConv(c, LU_decomposed = LU_decompose)
-      self.affine =  AffineCoupling(x_size, condition_size)
+      self.invconv =  InvConv(c, LU_decomposed = LU_decomposed)
+      self.affine =  AffineCoupling(x_size, condition_size, hidden_units = self.n_units_affine)
        
     def forward(self, x, condition, logdet, reverse):
         if reverse == False:
@@ -33,11 +32,13 @@ class GlowStep(nn.Module):
             return x, logdet
 
 class ListGlow(nn.Module):
-    def __init__(self, x_size, condition_size, base_dist_size, K = 12, L = 2, learn_prior = True, LU_decompose = True):
+    def __init__(self, x_size, condition_size, base_dist_size, args, K = 12, L = 2):
         super(ListGlow, self).__init__()
         
         assert isinstance(condition_size, list), "condition_size is not a list, make sure it fits L"
-
+        self.learn_prior = args.learn_prior
+        self.n_units_prior = args.n_units_prior
+        self.make_conditional = args.make_conditional
         self.L = L
         self.K = K
         Bx, Cx, Hx, Wx = x_size
@@ -52,24 +53,23 @@ class ListGlow(nn.Module):
             condition_size_cur = condition_size[l]
 
             for i in range(0, K):
-                layers.append(GlowStep(x_size, condition_size_cur, LU_decompose))
+                layers.append(GlowStep(x_size, condition_size_cur, args))
             
             if l < (L-1):
-                layers.append(Split2d(x_size, condition_size_cur)) 
+                layers.append(Split2d(x_size, condition_size_cur, self.make_conditional)) 
                 Cx = Cx // 2 
                 x_size = [Bx, Cx, Hx, Wx]
 
         self.glow_frame = nn.ModuleList(layers)
 
-        self.learn_prior = learn_prior
-        if learn_prior == True:
+        if self.learn_prior == True:
           # TODO: We could try to use the Convnorm here, make more powerful (maybe)
           self.prior = nn.Sequential(
-            Conv2dNorm(Cc, Cc//2),
+            Conv2dNorm(Cc, self.n_units_prior),
             ActFun("leakyrelu"),
-            Conv2dNorm(Cc//2, Cc//4),
+            Conv2dNorm(self.n_units_prior, self.n_units_prior//2),
             ActFun("leakyrelu"),
-            Conv2dZeros(in_channel=Cc//4, out_channel=2*Cx),
+            Conv2dZeros(in_channel=self.n_units_prior//2, out_channel=2*Cx),
             )
         else:
           self.prior_in = torch.zeros([1, 2*Cx, Hx, Wx,]).to(device)

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils import *
+from utils import split_feature
 from modules import ActFun
 import torch.distributions as td
 import torch.nn.functional as F
@@ -168,7 +168,7 @@ class InvConv(nn.Module):
             return z, logdet
 
 class AffineCoupling(nn.Module):
-    def __init__(self, x_size, condition_size):
+    def __init__(self, x_size, condition_size, hidden_units):
         super(AffineCoupling, self).__init__()
         
         Bx, Cx, Hx, Wx = x_size
@@ -176,7 +176,7 @@ class AffineCoupling(nn.Module):
         B, C, H, W = condition_size
         channels = Cx // 2 + C
         non_lin = 'leakyrelu'
-        hidden_channels = 128
+        hidden_channels = hidden_units
         self.net = nn.Sequential(
             Conv2dNorm(channels, hidden_channels),
             ActFun(non_lin),
@@ -233,13 +233,15 @@ class Squeeze2d(nn.Module):
       return x
 
 class Split2d(nn.Module):
-    def __init__(self, x_size, condition_size):
+    def __init__(self, x_size, condition_size, make_conditional = True):
       super(Split2d, self).__init__()
-
+      self.make_conditional = make_conditional
       Bx, Cx, Hx, Wx = x_size
-      B, C, H, W = condition_size
-      channels = Cx // 2 + C 
-        
+      if make_conditional:
+        B, C, H, W = condition_size
+        channels = Cx // 2 + C
+      else:
+        channels = Cx // 2
       self.conv = nn.Sequential(Conv2dZeros(channels, Cx),)
 
     # TODO: We could try to use the Convnorm here, make more powerful (maybe)
@@ -248,14 +250,20 @@ class Split2d(nn.Module):
 
         if reverse == False:
             z1, z2 = split_feature(x, "split")
-            h = torch.cat([z1, condition], dim=1)
+            if self.make_conditional:
+              h = torch.cat([z1, condition], dim=1)
+            else:
+              h = z1
             out = self.conv(h)
             mean, log_scale = split_feature(out, "cross")
             if logdet is not None:
               logdet = logdet + torch.sum(td.Normal(mean, torch.exp(log_scale)).log_prob(z2), dim=(1,2,3))
             return z1, logdet
         else:
-            h = torch.cat([x, condition], dim=1)
+            if self.make_conditional:
+              h = torch.cat([x, condition], dim=1)
+            else:
+              h = x
             mean, log_scale = split_feature(self.conv(h), "cross")
             z2 = td.Normal(mean, torch.exp(log_scale)).rsample()
             z = torch.cat((x, z2), dim=1)
