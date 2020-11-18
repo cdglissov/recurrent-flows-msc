@@ -6,6 +6,8 @@ from trainer import Solver
 def main(args):
     solver = Solver(args)
     solver.build()
+    # TODO: Make the load smarter, i.e. give it as input to the argparser and define path
+    # TODO: Test if loader works
     # uncomment this if we want to load a model
     #path_model = '/content/model_folder/rfn.pt'
     #solver.load(path_model)
