@@ -173,8 +173,9 @@ class RFN(nn.Module):
       
       # Make predictions
       predictions = torch.zeros((n_predictions, *x[:,0,:,:,:].shape))
+      prediction = sample
       for i in range(0, n_predictions):
-        condition = self.extractor(sample)
+        condition = self.extractor(prediction)
         _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
         prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
         dist_prior = td.Normal(prior_mean, prior_std)
