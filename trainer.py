@@ -9,7 +9,7 @@ from data_generators import stochasticMovingMnist
 from data_generators import bair_push
 import matplotlib.pyplot as plt
 from RFN import RFN
-from utils import *
+from utils import set_gpu
 from tqdm import tqdm 
 device = set_gpu(True)
 
@@ -205,7 +205,7 @@ class Solver(object):
           self.plotter()   
           epoch_loss = np.mean(self.losses)
  
-          if self.epoch_i % 25 == 0:
+          if self.epoch_i % 1 == 0:
             # Save model after each 25 epochs
             self.checkpoint('rfn.pt', self.epoch_i, epoch_loss) 
  
@@ -228,8 +228,10 @@ class Solver(object):
           'epoch': epoch,
           'model_state_dict': self.model.state_dict(),
           'optimizer_state_dict': self.optimizer.state_dict(),
-          'loss': loss,}, self.path + 'model_folder/' + model_name)
- 
+          'loss': loss,
+          'kl_loss': self.kl_loss,
+          'recon_loss': self.recon_loss}, self.path + 'model_folder/' + model_name)
+      
     def load(self, path):
       load_model = torch.load(path)
       self.model.load_state_dict(load_model['model_state_dict'])

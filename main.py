@@ -6,12 +6,10 @@ from trainer import Solver
 def main(args):
     solver = Solver(args)
     solver.build()
-    # TODO: Make the load smarter, i.e. give it as input to the argparser and define path
-    # TODO: Test if loader works
-    # TODO: Make function that stores the kl and recon loss for experimental work
-    # uncomment this if we want to load a model
-    #path_model = '/content/model_folder/rfn.pt'
-    #solver.load(path_model)
+    #TODO: Check if this loader works
+    if args.load_model:
+        path_model = args.path + '/model_folder/rfn.pt'
+        solver.load(path_model)
     solver.train()   
 
     
@@ -20,6 +18,7 @@ def add_bool_arg(parser, name, help, default=False):
     group.add_argument('--' + name, dest=name, action='store_true', help=help)
     group.add_argument('--no-' + name, dest=name, action='store_false', help=help)
     parser.set_defaults(**{name:default})
+
 
 def restricted_float(x):
     try:
@@ -31,11 +30,13 @@ def restricted_float(x):
         raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]"%(x,))
     return x
 
+
 def convert_mixed_list(x):
     if x.isdigit():
         return int(x)
     else:
         return x
+
 
 def convert_to_upscaler(x):
     block = [convert_mixed_list(i) for i in x.split("-")]
@@ -92,7 +93,8 @@ if __name__ == "__main__":
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
                         default=6, type=int)
     add_bool_arg(parser, "multigpu", default=False, help="Specify if we want to use multi GPUs")
- 
+    add_bool_arg(parser, "load_model", default=False, 
+                 help="Specify if we want to load a pre-existing model (boolean)")
     # RFN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
                         default=[32, 1, 32, 32], type=int)
