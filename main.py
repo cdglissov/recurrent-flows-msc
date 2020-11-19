@@ -124,9 +124,9 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", help="Specify temperature", 
                         default=0.8, type=restricted_float)
     parser.add_argument("--prior_structure", help="Specify the structure of the prior", 
-                        nargs="+" ,default=[128])
+                        nargs="+" ,default=[128],type=convert_mixed_list)
     parser.add_argument("--encoder_structure", help="Specify the structure of the encoder", 
-                        nargs="+" ,default=[256, 128])
+                        nargs="+" ,default=[256, 128],type=convert_mixed_list)
     #Glow
     add_bool_arg(parser, "learn_prior", default=True, help="Specify if we want a learned prior (boolean)")
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")
