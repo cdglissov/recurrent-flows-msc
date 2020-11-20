@@ -61,10 +61,14 @@ if __name__ == "__main__":
                         default=4, type=int)
     parser.add_argument("--num_digits", help="Specify the number of mnist digits", 
                         default=2, type=int)
+    parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
+                        default=0, type=int)
+    
     
     # Trainer
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
                         default=50, type=int)
+    
     parser.add_argument("--patience_lr", help="Specify patience for lr_scheduler", 
                         default=5, type=int)
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
