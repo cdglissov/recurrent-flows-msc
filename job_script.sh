@@ -1,6 +1,6 @@
 # !/bin/sh
 ###  Name of jobscript 
-#BSUB -J testL5
+#BSUB -J testL5_128_64
 ### -- GPU --
 #BSUB -q gpuv100
 ### -- How many gpus and how to run --
@@ -18,8 +18,10 @@
 #BSUB -R "select[gpu32gb]" 
 
 #BSUB -N Send an email when done
-#BSUB -o testL5/%J_log_fil.out Log file
-#BSUB -e testL5/%J_Error_file.err Error log file
+#BSUB -o testL5_64/%J_log_fil.out Log file
+#BSUB -e testL5_64/%J_Error_file.err Error log file
+
+echo "Starting:"
 
 
 
@@ -28,13 +30,15 @@ echo "Starting:"
 cd /work1/s144077/
 . train_env/bin/activate train_env
 
-CONTENTPATH=/testL5/
+CONTENTPATH=/testL5_64/
 LR=0.0001
+PATIENCE_LR=20
+
 NBITS=6
 
 BETA_MAX=0.01
 BETA_MIN=0.0001
-BETA_STEPS=4000
+BETA_STEPS=10000
 
 HDIM=200
 ZDIM=60
@@ -42,11 +46,13 @@ ZDIM=60
 DATASET=mnist
 
 BATCH_SIZE=128
-IMAGE_SIZE=32
+NUM_WORKERS=1
+IMAGE_SIZE=64
 
-DIGIT_SIZE=21
+DIGIT_SIZE=28
 NUM_DIGITS=2
-STEPLENGTH=2
+STEPLENGTH=4
+
 
 CHANNELS=1
 K_SIZE=10
@@ -70,11 +76,11 @@ EPOCHS=100000000
 
 
 # This is KINDA important #
-EXTRACTED_FEATURES=256 
+EXTRACTED_FEATURES=256  
 
 echo $CONTENTPATH
 
 nvidia-smi
 
 #I run my python script with all of the settings
-python3 deepflows/main.py --extractor_structure 8 conv 16 conv 32 conv 64 conv 128 conv --upscaler_structure 256 deconv-128 deconv-64 deconv-32 deconv-16 --prior_structure 128 --encoder_structure 256 128 --make_conditional --learn_prior --step_length $STEPLENGTH --structure_scaler $SCALER --choose_data $DATASET --n_units_affine $AFFINEHIDDEN --n_units_prior $N_UNITS_PRIOR --temperature $TEMPERATURE --norm_type $NORM_TYPE --c_features $EXTRACTED_FEATURES --z_dim $ZDIM --h_dim $HDIM --beta_min $BETA_MIN --beta_steps $BETA_STEPS --beta_max $BETA_MAX --learning_rate $LR --n_epochs $EPOCHS --n_bits $NBITS --n_frames $FRAMES --path $CONTENTPATH --image_size $IMAGE_SIZE --digit_size $DIGIT_SIZE --num_digits $NUM_DIGITS --K $K_SIZE --L $L_SIZE --x_dim $BATCH_SIZE $CHANNELS $IMAGE_SIZE $IMAGE_SIZE --condition_dim $BATCH_SIZE $CHANNELS $IMAGE_SIZE $IMAGE_SIZE --batch_size $BATCH_SIZE
+python3 deepflows/main.py --extractor_structure 8 conv 16 conv 32 conv 64 conv 128 conv --upscaler_structure 256 deconv-128 deconv-64 deconv-32 deconv-16 --prior_structure 128 --encoder_structure 256 128 --make_conditional --learn_prior --step_length $STEPLENGTH --structure_scaler $SCALER --choose_data $DATASET --n_units_affine $AFFINEHIDDEN --n_units_prior $N_UNITS_PRIOR --temperature $TEMPERATURE --norm_type $NORM_TYPE --c_features $EXTRACTED_FEATURES --z_dim $ZDIM --h_dim $HDIM --beta_min $BETA_MIN --beta_steps $BETA_STEPS --beta_max $BETA_MAX --learning_rate $LR --n_epochs $EPOCHS --n_bits $NBITS --n_frames $FRAMES --path $CONTENTPATH --image_size $IMAGE_SIZE --digit_size $DIGIT_SIZE --num_digits $NUM_DIGITS --K $K_SIZE --L $L_SIZE --x_dim $BATCH_SIZE $CHANNELS $IMAGE_SIZE $IMAGE_SIZE --condition_dim $BATCH_SIZE $CHANNELS $IMAGE_SIZE $IMAGE_SIZE --batch_size $BATCH_SIZE --num_workers $NUM_WORKERS --patience_lr $PATIENCE_LR
