@@ -8,7 +8,7 @@ def main(args):
     solver.build()
     #TODO: Check if this loader works
     if args.load_model:
-        path_model = args.path + '/model_folder/rfn.pt'
+        path_model = args.path + 'model_folder/rfn.pt'
         solver.load(path_model)
     solver.train()   
 
