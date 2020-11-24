@@ -6,8 +6,8 @@ from trainer import Solver
 def main(args):
     solver = Solver(args)
     solver.build()
-    #TODO: Check if this loader works
     if args.load_model:
+        # Remember to give full path in args.path
         path_model = args.path + 'model_folder/rfn.pt'
         solver.load(path_model)
     solver.train()   
