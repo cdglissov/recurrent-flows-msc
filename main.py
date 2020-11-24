@@ -5,7 +5,7 @@ def main(args):
     solver = Solver(args)
     solver.build()
     if args.load_model:
-        # Remember to give full path in args.path
+        # Need to fix this path, loss seems to be strange when loading model.
         path_model = args.path + 'model_folder/rfn.pt'
         solver.load(path_model)
     solver.train()   
