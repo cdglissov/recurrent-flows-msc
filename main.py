@@ -1,5 +1,3 @@
-'''Main file'''
-
 import argparse
 from trainer import Solver
 
