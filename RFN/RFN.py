@@ -166,7 +166,7 @@ class RFN(nn.Module):
       for i in range(0, n_predictions):
         condition = self.extractor(prediction)
         ht, hidden_state = self.lstm(condition.unsqueeze(1), hidden_state)
-        prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
+        prior_mean, prior_std = self.prior(torch.cat((zprev, ht), dim=1))
         dist_prior = td.Normal(prior_mean, prior_std)
         zt = dist_prior.rsample()
 
