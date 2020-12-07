@@ -53,6 +53,56 @@ class ActNorm(nn.Module):
 
         return input, logdet
 
+class BatchNormFlow(nn.Module):
+    """ An implementation of a batch normalization layer from
+    Density estimation using Real NVP
+    (https://arxiv.org/abs/1605.08803).
+    """
+    def __init__(self, x_size, momentum=0.1, eps=1e-5):
+        super(BatchNormFlow, self).__init__()
+        Bx, Cx, Hx, Wx = x_size
+        size = [1, Cx, Hx, Wx]
+        self.log_gamma = nn.Parameter(torch.zeros(size))
+        self.beta = nn.Parameter(torch.zeros(size))
+        self.momentum = momentum
+        self.eps = eps
+
+        self.register_buffer('running_mean', torch.zeros(size))
+        self.register_buffer('running_var', torch.ones(size))
+
+    def forward(self, input, logdet, reverse):
+        ## The reverse == False is only as failsafe, as we are only training
+        ## in the reverse == False direction.  
+        if self.training and reverse == False: 
+            self.batch_mean = input.mean(0)
+            self.batch_var = (
+                input - self.batch_mean).pow(2).mean(0) + self.eps
+    
+            self.running_mean.mul_(self.momentum)
+            self.running_var.mul_(self.momentum)
+    
+            self.running_mean.add_(self.batch_mean.data *
+                                   (1 - self.momentum))
+            self.running_var.add_(self.batch_var.data *
+                                  (1 - self.momentum))
+            mean = self.batch_mean
+            var = self.batch_var
+        else:
+            mean = self.running_mean
+            var = self.running_var
+        dlogdet = torch.sum(self.log_gamma - 0.5 * torch.log(var))
+        if reverse == False:
+            x_hat = (input - mean) / var.sqrt()
+            z = torch.exp(self.log_gamma) * x_hat + self.beta
+            if logdet is not None:
+                logdet = logdet + dlogdet
+        else:
+            x_hat = (input - self.beta) / torch.exp(self.log_gamma)
+            z = x_hat * var.sqrt() + mean
+            if logdet is not None:
+                logdet = logdet - dlogdet
+        return z, logdet
+
 class Conv2dZeros(nn.Module):
     def __init__(self, in_channel, out_channel, kernel_size=[3,3], stride=[1,1]):
         super().__init__()
@@ -60,11 +110,14 @@ class Conv2dZeros(nn.Module):
         padding = (kernel_size[0] - 1) // 2
         self.conv = nn.Conv2d(in_channels=in_channel, out_channels=out_channel, kernel_size=kernel_size, stride=stride, padding=padding)
         
+        self.logscale_factor = 3
+        self.register_parameter("logs", nn.Parameter(torch.zeros(out_channel, 1, 1)))
+        
         self.conv.weight.data.zero_()
         self.conv.bias.data.zero_()
 
     def forward(self, input):
-      output = self.conv(input)
+      output = self.conv(input) * torch.exp(self.logs * self.logscale_factor)
       return output 
 
 class Conv2dNorm(nn.Module):
@@ -168,7 +221,7 @@ class InvConv(nn.Module):
             return z, logdet
 
 class AffineCoupling(nn.Module):
-    def __init__(self, x_size, condition_size, hidden_units):
+    def __init__(self, x_size, condition_size, hidden_units=256):
         super(AffineCoupling, self).__init__()
         
         Bx, Cx, Hx, Wx = x_size
@@ -190,7 +243,6 @@ class AffineCoupling(nn.Module):
         
     def forward(self, x, condition, logdet, reverse): 
         z1, z2 = split_feature(x, "split")
-
         assert condition.shape[2:4] == x.shape[2:4], "condition and x in affine needs to match"
         h = torch.cat([z1, condition], dim=1)
 
@@ -223,12 +275,12 @@ class Squeeze2d(nn.Module):
       if undo_squeeze == False:
         # C x H x W -> 4C x H/2 x W/2
         x = x.reshape(B, C, H // 2, 2, W // 2, 2)
-        x = x.permute(0, 1, 3, 5, 2, 4)
+        x = x.permute(0, 1, 3, 5, 2, 4).contiguous()
         x = x.reshape(B, C * 4, H // 2, W // 2)
       else:
         # 4C x H/2 x W/2  ->  C x H x W
         x = x.reshape(B, C // 4, 2, 2, H, W)
-        x = x.permute(0, 1, 4, 2, 5, 3)
+        x = x.permute(0, 1, 4, 2, 5, 3).contiguous()
         x = x.reshape(B, C // 4, H * 2, W * 2)
       return x
 
@@ -245,7 +297,6 @@ class Split2d(nn.Module):
       self.conv = nn.Sequential(Conv2dZeros(channels, Cx),)
 
     # TODO: We could try to use the Convnorm here, make more powerful (maybe)
-    # TODO: Make option to enable conditional.
     def forward(self, x, condition, logdet, reverse):
 
         if reverse == False:
