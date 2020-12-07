@@ -5,11 +5,11 @@ import torch.utils.data
 import torch.nn as nn
 import os
 from torch.utils.data import DataLoader
-from data_generators import MovingMNIST
-from data_generators import PushDataset
+from data_generators import stochasticMovingMnist
+from data_generators import bair_push
 import matplotlib.pyplot as plt
-from .SVG import SVG
-from Utils import set_gpu
+from SVG import SVG
+from utils import set_gpu
 from tqdm import tqdm 
 device = set_gpu(True)
 
@@ -92,7 +92,7 @@ class Solver(object):
         
     def create_loaders(self):
         if self.choose_data=='mnist':
-            	testset = MovingMNIST(False, 'Mnist', 
+            	testset = stochasticMovingMnist.MovingMNIST(False, 'Mnist', 
                                                          seq_len=self.n_frames, 
                                                          image_size=self.image_size, 
                                                          digit_size=self.digit_size, 
@@ -101,7 +101,7 @@ class Solver(object):
                                                          three_channels=False, 
                                                          step_length=self.step_length, 
                                                          normalize=False)
-            	trainset = MovingMNIST(True, 'Mnist', 
+            	trainset = stochasticMovingMnist.MovingMNIST(True, 'Mnist', 
                                                           seq_len=self.n_frames, 
                                                           image_size=self.image_size, 
                                                           digit_size=self.digit_size, 
@@ -112,10 +112,10 @@ class Solver(object):
                                                           normalize=False)
         if self.choose_data=='bair':
             	string=str(os.path.abspath(os.getcwd()))
-            	trainset = PushDataset(split='train',
+            	trainset = bair_push.PushDataset(split='train',
                                               dataset_dir=string+'/bair_robot_data/processed_data/',
                                               seq_len=self.n_frames)
-            	testset = PushDataset(split='test',
+            	testset = bair_push.PushDataset(split='test',
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
 

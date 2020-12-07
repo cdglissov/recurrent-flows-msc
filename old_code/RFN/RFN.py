@@ -1,7 +1,8 @@
-from Flow import ListGlow
+from glow import ListGlow
 import torch
 import torch.nn as nn
-from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM
+
+from modules import VGG_upscaler, VGG_downscaler,VGG_downscaler_v2, SimpleParamNet, ConvLSTM
 import torch.distributions as td
 
 
@@ -36,7 +37,7 @@ class RFN(nn.Module):
       
       
       
-      self.extractor = VGG_downscaler(down_structure,L=self.L, in_channels = self.x_dim[1], 
+      self.extractor = VGG_downscaler_v2(down_structure,L=self.L, in_channels = self.x_dim[1], 
                                       norm_type = norm_type_coders, non_lin = "leakyrelu", scale = scaler,skip_con=self.skip_connection)
       # adjust channel dims to match up_structure. Reversed.
       channel_dims = [i[-1] for i in up_structure][::-1]

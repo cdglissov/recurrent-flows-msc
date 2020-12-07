@@ -1,4 +1,3 @@
-import socket
 import numpy as np
 from torchvision import datasets, transforms
 
@@ -40,7 +39,6 @@ class MovingMNIST(object):
     def __getitem__(self, index):
         self.set_seed(index)
         image_size = self.image_size
-        digit_size = self.digit_size
        
         x = np.zeros((self.seq_len,
                           image_size, 

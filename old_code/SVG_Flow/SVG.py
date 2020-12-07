@@ -1,9 +1,9 @@
-from Flow import ListGlow
+from glow import ListGlow
 import torch
 import torch.nn as nn
-from Utils import Encoder, Decoder, init_weights, gaussian_lstm, lstm_svg
+from modules import Encoder, Decoder, init_weights, gaussian_lstm, lstm_svg
 import torch.distributions as td
-from Utils import set_gpu
+from utils import set_gpu
 
 device = set_gpu(True)
 

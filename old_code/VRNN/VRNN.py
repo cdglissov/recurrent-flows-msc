@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-from Utils import get_layer_size, Flatten, UnFlatten, set_gpu
+from utils import get_layer_size, Flatten, UnFlatten, set_gpu
 from torch.autograd import Variable
 import torch.distributions as td
-from Utils import ConvLSTM, NormLayer
+from modules import ConvLSTM, NormLayer
 
 device = set_gpu(True)
 
