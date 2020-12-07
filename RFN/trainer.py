@@ -43,6 +43,7 @@ class EarlyStopping():
  
 class Solver(object):
     def __init__(self, args):
+        self.args = args
         self.params = args
         self.n_bits = args.n_bits
         self.n_epochs = args.n_epochs
@@ -100,30 +101,30 @@ class Solver(object):
         
     def create_loaders(self):
         if self.choose_data=='mnist':
-            	testset = MovingMNIST(False, 'Mnist', 
-                                     seq_len=self.n_frames, 
-                                     image_size=self.image_size, 
-                                     digit_size=self.digit_size, 
-                                     num_digits=self.num_digits, 
-												 deterministic=False, 
-                                     three_channels=False, 
-                                     step_length=self.step_length, 
-                                     normalize=False)
-            	trainset = MovingMNIST(True, 'Mnist', 
-                                      seq_len=self.n_frames, 
-                                      image_size=self.image_size, 
-                                      digit_size=self.digit_size, 
-                                      num_digits=self.num_digits, 
-												  deterministic=False, 
-                                      three_channels=False, 
-                                      step_length=self.step_length, 
-                                      normalize=False)
+            	testset = stochasticMovingMnist.MovingMNIST(False, 'Mnist', 
+                                                         seq_len=self.n_frames, 
+                                                         image_size=self.image_size, 
+                                                         digit_size=self.digit_size, 
+                                                         num_digits=self.num_digits, 
+            												 deterministic=False, 
+                                                         three_channels=False, 
+                                                         step_length=self.step_length, 
+                                                         normalize=False)
+            	trainset = stochasticMovingMnist.MovingMNIST(True, 'Mnist', 
+                                                          seq_len=self.n_frames, 
+                                                          image_size=self.image_size, 
+                                                          digit_size=self.digit_size, 
+                                                          num_digits=self.num_digits, 
+            												  deterministic=False, 
+                                                          three_channels=False, 
+                                                          step_length=self.step_length, 
+                                                          normalize=False)
         if self.choose_data=='bair':
             	string=str(os.path.abspath(os.getcwd()))
-            	trainset = PushDataset(split='train',
+            	trainset = bair_push.PushDataset(split='train',
                                               dataset_dir=string+'/bair_robot_data/processed_data/',
                                               seq_len=self.n_frames)
-            	testset = PushDataset(split='test',
+            	testset = bair_push.PushDataset(split='test',
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
 
@@ -236,6 +237,7 @@ class Solver(object):
           'losses': self.losses,
           'plot_counter': self.plot_counter,
           'annealing_counter': self.counter,
+          'args': self.args,
           }, self.path + 'model_folder/' + model_name)
       
     def load(self):
@@ -266,9 +268,14 @@ class Solver(object):
       n_plot = str(self.plot_counter)
       with torch.no_grad():
         self.model.eval()
-        image = next(iter(self.test_loader)).to(device)
+        image = next(iter(self.test_loader))
+        if self.choose_data=='bair':
+            image = image[0].to(device)
+        else:
+            image = image.to(device)
         time_steps = self.n_frames - 1
         n_predictions = time_steps
+
         image  = self.preprocess(image, reverse=False)
         samples, samples_recon, predictions = self.model.sample(image, n_predictions = n_predictions,encoder_sample = False)
         samples  = self.preprocess(samples, reverse=True)
@@ -363,3 +370,4 @@ class Solver(object):
 
     def convert_to_numpy(self, x):
         return x.permute(1,2,0).squeeze().detach().cpu().numpy()
+
