@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from utils import split_feature, set_gpu
 import torch.distributions as td
-from glow_modules import (ActNorm,Conv2dZeros,Conv2dNorm,InvConv, AffineCoupling,Squeeze2d,Split2d)
+from glow_modules import (ActNorm,Conv2dZeros,Conv2dNorm,InvConv, AffineCoupling,Squeeze2d,Split2d,BatchNormFlow)
 from modules import ActFun
 import numpy as np
 
@@ -13,22 +13,27 @@ class GlowStep(nn.Module):
       super(GlowStep, self).__init__()
       LU_decomposed = args.LU_decomposed
       self.n_units_affine = args.n_units_affine
+      norm_type = args.flow_norm
+      momentum = args.flow_batchnorm_momentum
       b, c, h, w = x_size
       bc, cc, hc, wc = condition_size
-      self.actnorm = ActNorm(c)
+      if norm_type == 'batchnorm':
+          self.norm = BatchNormFlow(x_size, momentum = momentum)
+      else:
+          self.norm = ActNorm(c)
       self.invconv =  InvConv(c, LU_decomposed = LU_decomposed)
       self.affine =  AffineCoupling(x_size, condition_size, hidden_units = self.n_units_affine)
        
     def forward(self, x, condition, logdet, reverse):
         if reverse == False:
-            x, logdet = self.actnorm(x, logdet, reverse=False)
+            x, logdet = self.norm(x, logdet, reverse=False)
             x, logdet = self.invconv(x, logdet, reverse=False)
             x, logdet = self.affine(x, condition, logdet, reverse=False)
             return x, logdet
         else:
             x, logdet = self.affine(x, condition, logdet, reverse=True)
             x, logdet = self.invconv(x, logdet, reverse=True)
-            x, logdet = self.actnorm(x, logdet, reverse=True)
+            x, logdet = self.norm(x, logdet, reverse=True)
             return x, logdet
 
 class ListGlow(nn.Module):
@@ -39,6 +44,7 @@ class ListGlow(nn.Module):
         self.learn_prior = args.learn_prior
         self.n_units_prior = args.n_units_prior
         self.make_conditional = args.make_conditional
+        self.base_norm = args.base_norm
         self.L = L
         self.K = K
         Bx, Cx, Hx, Wx = x_size
@@ -65,9 +71,9 @@ class ListGlow(nn.Module):
         if self.learn_prior == True:
           # TODO: We could try to use the Convnorm here, make more powerful (maybe)
           self.prior = nn.Sequential(
-            Conv2dNorm(Cc, self.n_units_prior),
+            Conv2dNorm(Cc, self.n_units_prior, norm = self.base_norm),
             ActFun("leakyrelu"),
-            Conv2dNorm(self.n_units_prior, self.n_units_prior//2),
+            Conv2dNorm(self.n_units_prior, self.n_units_prior//2, norm = self.base_norm),
             ActFun("leakyrelu"),
             Conv2dZeros(in_channel=self.n_units_prior//2, out_channel=2*Cx),
             )
