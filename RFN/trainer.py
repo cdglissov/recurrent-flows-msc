@@ -71,8 +71,8 @@ class Solver(object):
         self.image_size = args.image_size
         self.preprocess_range = args.preprocess_range
         self.preprocess_scale = args.preprocess_scale
+        self.num_workers=args.num_workers
         self.multigpu = args.multigpu
-        self.variable_beta = args.variable_beta
         
     def build(self):
         self.train_loader, self.test_loader = self.create_loaders()
@@ -88,7 +88,7 @@ class Solver(object):
         else:
             self.model = RFN(self.params).to(device)
         
-        # TODO: Experiment with different optimizers
+            
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', 
                                                                     patience=self.patience_lr, 
@@ -96,7 +96,7 @@ class Solver(object):
                                                                     min_lr=self.min_lr)
         self.earlystopping = EarlyStopping(min_delta = 0, patience = self.patience_es, 
                                            verbose = self.verbose)
-        
+        self.counter = 0
         
     def create_loaders(self):
         if self.choose_data=='mnist':
@@ -127,8 +127,8 @@ class Solver(object):
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
 
-        train_loader = DataLoader(trainset,batch_size=self.batch_size, shuffle=True, drop_last=True)
-        test_loader = DataLoader(testset, batch_size=self.batch_size, shuffle=True, drop_last=True)
+        train_loader = DataLoader(trainset,batch_size=self.batch_size,num_workers=self.num_workers, shuffle=True, drop_last=True)
+        test_loader = DataLoader(testset, batch_size=self.batch_size,num_workers=self.num_workers, shuffle=True, drop_last=True)
         return train_loader, test_loader
  
     def uniform_binning_correction(self, x):
@@ -170,7 +170,7 @@ class Solver(object):
         return x
  
     def train(self):
-      counter = 0
+      
       max_value = self.beta_max
       min_value = self.beta_min
       num_steps = self.beta_steps
@@ -187,28 +187,22 @@ class Solver(object):
                 image = image.to(device)
             image = self.preprocess(image)
             image, logdet = self.uniform_binning_correction(image)
-
-            if self.variable_beta: 
-                self.model.beta = min(max_value, min_value + counter*(max_value - min_value) / num_steps)
-            else:
-                self.model.beta = max_value
+            self.beta = min(max_value, min_value + self.counter*(max_value - min_value) / num_steps)
             
             if self.multigpu and torch.cuda.device_count() > 1:
-                kl, nll = self.model.module.loss(image, logdet)
+                kl_loss,nll_loss = self.model.module.loss(image, logdet)
             else:
-                kl, nll = self.model.loss(image, logdet)
-            
-            loss = nll + kl
+                kl_loss,nll_loss = self.model.loss(image, logdet)
+            loss=(self.beta * kl_loss) + nll_loss
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
             
-            # TODO: Change loss to be an average over the entire epoch
             store_loss = float(loss.data)
             self.losses.append(store_loss)
-            self.kl_loss.append(kl.data)
-            self.recon_loss.append(nll.data)
-            counter += 1
+            self.kl_loss.append(kl_loss.detach())
+            self.recon_loss.append(nll_loss.detach())
+            self.counter += 1
             
           self.plotter()   
           epoch_loss = np.mean(self.losses)
@@ -238,15 +232,26 @@ class Solver(object):
           'optimizer_state_dict': self.optimizer.state_dict(),
           'loss': loss,
           'kl_loss': self.kl_loss,
-          'recon_loss': self.recon_loss}, self.path + 'model_folder/' + model_name)
+          'recon_loss': self.recon_loss,
+          'losses': self.losses,
+          'plot_counter': self.plot_counter,
+          'annealing_counter': self.counter,
+          }, self.path + 'model_folder/' + model_name)
       
-    def load(self, path):
-      load_model = torch.load(path)
+    def load(self):
+      
+      load_model = torch.load(self.path + 'model_folder/rfn.pt')
       self.model.load_state_dict(load_model['model_state_dict'])
       self.optimizer.load_state_dict(load_model['optimizer_state_dict'])
       self.epoch_i += load_model['epoch']
       loss = load_model['loss']
+      self.kl_loss = load_model['kl_loss']
+      self.recon_loss = load_model['recon_loss']
+      self.losses = load_model['losses']
+      self.plot_counter = load_model['plot_counter']
+      self.counter = load_model['annealing_counter']
       self.best_loss = loss
+      self.model.to(device)
       return (self.epoch_i, loss)
  
     def status(self):
@@ -255,7 +260,7 @@ class Solver(object):
       with open(self.path + 'model_folder/status.txt', 'a') as f:
         print("STATUS:", file=f)
         print("\tKL and Reconstruction loss: {:.4f}, {:.4f}".format(self.kl_loss[-1].data, self.recon_loss[-1].data), file=f)
-        print(f'\tEpoch {self.epoch_i}, Beta value {self.model.beta:.4f}, Learning rate {lr}', file=f)
+        print(f'\tEpoch {self.epoch_i}, Beta value {self.beta:.4f}, Learning rate {lr}', file=f)
  
     def plotter(self):
       n_plot = str(self.plot_counter)
@@ -265,16 +270,22 @@ class Solver(object):
         time_steps = self.n_frames - 1
         n_predictions = time_steps
         image  = self.preprocess(image, reverse=False)
-        samples, samples_recon, predictions = self.model.prediction(image, n_predictions = n_predictions,encoder_sample = False)
+        samples, samples_recon, predictions = self.model.sample(image, n_predictions = n_predictions,encoder_sample = False)
         samples  = self.preprocess(samples, reverse=True)
         samples_recon  = self.preprocess(samples_recon, reverse=True)
         predictions  = self.preprocess(predictions, reverse=True)
-        
         # With x
-        samples_x, samples_recon_x, predictions_x = self.model.prediction(image, n_predictions = n_predictions,encoder_sample = True)
+        samples_x, samples_recon_x, predictions_x = self.model.sample(image, n_predictions = n_predictions,encoder_sample = True)
         samples_x  = self.preprocess(samples_x, reverse=True)
         samples_recon_x  = self.preprocess(samples_recon_x, reverse=True)
         predictions_x  = self.preprocess(predictions_x, reverse=True)
+        
+        
+        # Number 2 test for errors they need to be consist
+        samples_2, samples_recon_2, predictions_2 = self.model.sample(image, n_predictions = n_predictions,encoder_sample = False)
+        samples_2  = self.preprocess(samples_2, reverse=True)
+        samples_recon_2  = self.preprocess(samples_recon_2, reverse=True)
+        predictions_2  = self.preprocess(predictions_2, reverse=True)
         image  = self.preprocess(image, reverse=True)
         
  
@@ -302,7 +313,7 @@ class Solver(object):
         ax[0,i].set_title("Random Sample")
         ax[1,i].imshow(self.convert_to_numpy(samples[i, 0, :, :, :]))
         ax[1,i].set_title("Sample at timestep t")
-        ax[2,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
+        ax[2,i].imshow(self.convert_to_numpy(image[0, i+1, :, :, :]))
         ax[2,i].set_title("True Image")
         ax[3,i].imshow(self.convert_to_numpy(samples_recon[i, 0, :, :, :]))
         ax[3,i].set_title("Reconstructed Image")
@@ -311,6 +322,22 @@ class Solver(object):
       if not self.verbose:
         fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')
         plt.close(fig)
+      
+      fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
+      for i in range(0, time_steps):
+        ax[0,i].imshow(self.convert_to_numpy(samples_2[0, i, :, :, :]))
+        ax[0,i].set_title("Random Sample")
+        ax[1,i].imshow(self.convert_to_numpy(samples_2[i, 0, :, :, :]))
+        ax[1,i].set_title("Sample at timestep t")
+        ax[2,i].imshow(self.convert_to_numpy(image[0, i+1, :, :, :]))
+        ax[2,i].set_title("True Image")
+        ax[3,i].imshow(self.convert_to_numpy(samples_recon_2[i, 0, :, :, :]))
+        ax[3,i].set_title("Reconstructed Image")
+        ax[4,i].imshow(self.convert_to_numpy(predictions_2[i, 0, :, :, :]))
+        ax[4,i].set_title("Prediction")
+      if not self.verbose:
+        fig.savefig(self.path +'png_folder/samples' + n_plot + '_v2.png', bbox_inches='tight')
+        plt.close(fig)
 
       fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
       for i in range(0, time_steps):
@@ -318,14 +345,14 @@ class Solver(object):
         ax[0,i].set_title("Random Sample")
         ax[1,i].imshow(self.convert_to_numpy(samples_x[i, 0, :, :, :]))
         ax[1,i].set_title("Sample at timestep t")
-        ax[2,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
+        ax[2,i].imshow(self.convert_to_numpy(image[0, i+1, :, :, :]))
         ax[2,i].set_title("True Image")
         ax[3,i].imshow(self.convert_to_numpy(samples_recon_x[i, 0, :, :, :]))
         ax[3,i].set_title("Reconstructed Image")
         ax[4,i].imshow(self.convert_to_numpy(predictions_x[i, 0, :, :, :]))
         ax[4,i].set_title("Prediction")
       if not self.verbose:
-        fig.savefig(self.path +'png_folder/samples_with_x'+ n_plot + '.png', bbox_inches='tight')
+        fig.savefig(self.path +'png_folder/samples'+ n_plot + '_with_x.png', bbox_inches='tight')
         plt.close(fig)
       if self.verbose:
         print("\tKL and Reconstruction loss: {:.4f}, {:.4f}".format(self.kl_loss[-1].data, self.recon_loss[-1].data))
