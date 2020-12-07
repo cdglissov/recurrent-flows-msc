@@ -70,7 +70,7 @@ class PushDataset(Dataset):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         # Resize to desired image shape
-        if self.img_side != 128:
+        if self.img_side != 64:
             img = cv2.resize(img, (self.img_side, self.img_side))
 
 
