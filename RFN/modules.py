@@ -3,7 +3,6 @@ import torch.nn as nn
 from utils import set_gpu
 device = set_gpu(True)
 from torch.autograd import Variable
-
 class ActFun(nn.Module):
   def __init__(self, non_lin, in_place = False):
     super(ActFun, self).__init__()
@@ -38,6 +37,78 @@ class NormLayer(nn.Module):
     
     def forward(self, x):
       return self.norm(x)
+class VGG_downscaler_v2(nn.Module):
+  def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2,skip_con=False):
+    super(VGG_downscaler_v2, self).__init__()
+    assert len(structures) == L, "Please specify number of blocks = L"
+    self.l_nets = []
+    self.L = L
+    self.skip_con = skip_con
+    self.scale = scale
+    for l in range(0, L):
+      structure = structures[l]
+      layers = []
+      count = 0
+      for i in structure:
+          count = count + 1
+          if i == 'pool':
+              layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+          elif i == "conv":
+              conv_channels = int(in_channels*scale)
+              conv2d = nn.Conv2d(in_channels, conv_channels, kernel_size=3, stride = 2, padding=1,bias=False)
+              layers += [conv2d,
+                           NormLayer(conv_channels, norm_type = norm_type), 
+                           ActFun(non_lin, in_place=True)]
+              in_channels = conv_channels
+          elif i == "squeeze":
+              conv_channels = in_channels * 4
+              conv = Squeeze2dDecoder(undo_squeeze=False)
+              layers += [conv, 
+                        NormLayer(conv_channels, norm_type = norm_type),
+                        ActFun(non_lin, in_place=False)]
+              in_channels = conv_channels
+          else:
+              conv2d = nn.Conv2d(in_channels, i, kernel_size=3, stride=1, padding=1,bias=False)
+              if l == L-1 and len(structure) == count:
+                  layers += [conv2d, NormLayer(i, norm_type = norm_type), nn.Tanh()]
+              else:
+                  layers += [conv2d,  NormLayer(i, norm_type = norm_type), ActFun(non_lin, in_place=True)]
+              in_channels = i
+        
+      
+          self.net = nn.Sequential(*layers).to(device)
+      self.l_nets.append(self.net)
+  def get_layer_size(self,structures,x_size):
+      bs, c, hx, wx = x_size
+      layerdims = []
+      for l in range(0, len(structures)):
+          structure = structures[l]
+          for i in structure:
+              if i == 'pool':
+                  hx = hx // 2
+                  wx = wx // 2
+                  c = c
+              elif i == "conv":
+                  hx = hx // 2
+                  wx = wx // 2
+                  c = int(c*self.scale)
+              elif i == "squeeze":
+                  hx = hx // 2
+                  wx = wx // 2
+                  c = c * 4
+              else:
+                  c = i
+          layerdims.append([bs, c, hx, wx])
+      return layerdims
+  def forward(self, x, block_size=None):
+    outputs = []
+    for i in range(0, self.L):
+      x = self.l_nets[i](x)
+      if self.skip_con:
+          outputs.append(x)
+      else:
+          outputs=x
+    return outputs
 
 class VGG_downscaler(nn.Module):
   def __init__(self, structure, in_channels = 1, norm_type = "batchnorm", non_lin = "leakyrelu", scale=2):
@@ -47,23 +118,42 @@ class VGG_downscaler(nn.Module):
     for i in structure:
         if i == 'pool':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-        elif i == 'conv':
+        elif i == "conv":
             conv_channels = int(in_channels*scale)
-            conv2d = nn.Conv2d(in_channels, conv_channels, kernel_size=3, stride = 2, padding=1)
+            conv2d = nn.Conv2d(in_channels, conv_channels, kernel_size=3, stride = 2, padding=1,bias=False)
             layers += [conv2d,
                        NormLayer(conv_channels, norm_type = norm_type), 
                        ActFun(non_lin, in_place=True)]
             in_channels = conv_channels
         else:
-            conv2d = nn.Conv2d(in_channels, i, kernel_size=3, padding=1)
-            layers += [conv2d, NormLayer(i, norm_type = norm_type), ActFun(non_lin, in_place=True)]
+            conv2d = nn.Conv2d(in_channels, i, kernel_size=3, padding=1,bias=False)
+            layers += [conv2d, NormLayer(i, norm_type = norm_type), ActFun(non_lin, in_place=False)]
             in_channels = i
-    
+    # Last layer
+    conv2d = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1,bias=False)
+    layers += [conv2d, nn.Tanh()]
     self.net = nn.Sequential(*layers)
 
   def forward(self, x):
     return self.net(x)
 
+class Squeeze2dDecoder(nn.Module):
+    def __init__(self,undo_squeeze = False):
+        super(Squeeze2dDecoder, self).__init__()
+        self.undo_squeeze=undo_squeeze
+    def forward(self, x):
+      B, C, H, W = x.shape
+      if self.undo_squeeze == False:
+        # C x H x W -> 4C x H/2 x W/2
+        x = x.reshape(B, C, H // 2, 2, W // 2, 2)
+        x = x.permute(0, 1, 3, 5, 2, 4).contiguous()
+        x = x.reshape(B, C * 4, H // 2, W // 2)
+      else:
+        # 4C x H/2 x W/2  ->  C x H x W
+        x = x.reshape(B, C // 4, 2, 2, H, W)
+        x = x.permute(0, 1, 4, 2, 5, 3).contiguous()
+        x = x.reshape(B, C // 4, H * 2, W * 2)
+      return x
 
 class VGG_upscaler(nn.Module):
   def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2):
@@ -85,12 +175,26 @@ class VGG_upscaler(nn.Module):
                         NormLayer(deconv_channels, norm_type = norm_type),
                         ActFun(non_lin, in_place=True)]
               in_channels = deconv_channels
+          elif i == "squeeze":
+              deconv_channels = in_channels // 4
+              deconv = Squeeze2dDecoder(undo_squeeze=True)
+              layers += [deconv, 
+                        NormLayer(deconv_channels, norm_type = norm_type),
+                        ActFun(non_lin, in_place=False)]
+              in_channels = deconv_channels
           else:
-              conv2d = nn.Conv2d(in_channels, i, kernel_size=3, stride=1, padding=1)
+              conv2d = nn.Conv2d(in_channels, i, kernel_size=3, stride=1, padding=1,bias=False)
               layers += [conv2d,  NormLayer(i, norm_type = norm_type), ActFun(non_lin, in_place=True)]
               in_channels = i
       
           self.net = nn.Sequential(*layers).to(device)
+          # for m in self.modules():
+          #   if isinstance(m, nn.Conv2d):
+          #       m.weight.data.normal_(0, 0.05)
+          #       m.bias.data.zero_()
+          #   elif isinstance(m, nn.ConvTranspose2d):
+          #       m.weight.data.normal_(0, 0.05)
+
       self.l_nets.append(self.net)
 
   def forward(self, x, block_size=None):
@@ -130,6 +234,7 @@ class SimpleParamNet(nn.Module):
     loc, log_scale = self.param_net(output).chunk(2, 1)
     scale = self.softplus(log_scale)
     return loc, scale
+
 
 class ConvLSTMLayer(nn.Module):
     def __init__(self, in_channels, hidden_channels, kernel_size, bias, 
@@ -235,7 +340,7 @@ class ConvLSTM(nn.Module):
 
     def forward(self, x, hidden_states):
         b, seq_len, channel, h, w = x.size()
-        x=x.view(b*seq_len, channel, h, w)
+        x = x.view(b*seq_len, channel, h, w)
         cur_layer_input = x
         for layer in range(self.num_layers):
             ht, ct = hidden_states[layer]
