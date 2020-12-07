@@ -5,6 +5,7 @@ from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM
 import torch.distributions as td
 
 
+
 class RFN(nn.Module):
     def __init__(self, args):
       super(RFN, self).__init__()
@@ -147,10 +148,13 @@ class RFN(nn.Module):
         
       return flow_conditions_combined
   
-    def sample(self, x, n_predictions=6, encoder_sample = False):
+    def sample(self, x, n_predictions=6, encoder_sample = False, start_predictions = None):
       assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
       hidden_state, zprev, zxprev, _, _, _ = self.get_inits()
-      t = x.shape[1]
+      if start_predictions is not None:
+          t = start_predictions
+      else:
+          t = x.shape[1]
 
       samples = torch.zeros((t-1, *x[:,0,:,:,:].shape))
       samples_recon = torch.zeros((t-1, *x[:,0,:,:,:].shape))
@@ -219,3 +223,4 @@ class RFN(nn.Module):
         
         zprev = zt
       return samples, samples_recon, predictions
+
