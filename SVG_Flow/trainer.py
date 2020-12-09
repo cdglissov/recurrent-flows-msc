@@ -70,6 +70,7 @@ class Solver(object):
         self.preprocess_scale = args.preprocess_scale
         self.multigpu = args.multigpu
         self.variable_beta = args.variable_beta
+        self.counter = 0
         
     def build(self):
         self.train_loader, self.test_loader = self.create_loaders()
@@ -162,7 +163,6 @@ class Solver(object):
         return x
  
     def train(self):
-      counter = 0
       max_value = self.beta_max
       min_value = self.beta_min
       num_steps = self.beta_steps
@@ -189,7 +189,7 @@ class Solver(object):
             image, logdet = self.uniform_binning_correction(image)
 
             if self.variable_beta: 
-                self.model.beta = min(max_value, min_value + counter*(max_value - min_value) / num_steps)
+                self.model.beta = min(max_value, min_value + self.counter*(max_value - min_value) / num_steps)
             else:
                 self.model.beta = max_value
             
@@ -204,7 +204,7 @@ class Solver(object):
             self.losses.append(loss)
             self.kl_loss.append(kl)
             self.recon_loss.append(nll)
-            counter += 1
+            self.counter += 1
             
           self.plotter()
  
@@ -231,20 +231,42 @@ class Solver(object):
       torch.save({
           'epoch': epoch,
           'model_state_dict': self.model.state_dict(),
-          'optimizer_state_dict': self.optimizer.state_dict(),
+          'frame_optimizer_state_dict': self.model.frame_predictor.state_dict(),
+          'posterior_optimizer_state_dict': self.model.posterior.state_dict(),
+          'prior_optimizer_state_dict': self.model.prior.state_dict(),
+          'encoder_optimizer_state_dict': self.model.encoder.state_dict(),
+          'decoder_optimizer_state_dict': self.model.decoder.state_dict(),
+          'flow_optimizer_state_dict': self.model.flow.state_dict(),
           'loss': loss,
           'kl_loss': self.kl_loss,
-          'recon_loss': self.recon_loss}, self.path + 'model_folder/' + model_name)
+          'recon_loss': self.recon_loss,
+          'losses': self.losses,
+          'plot_counter': self.plot_counter,
+          'annealing_counter': self.counter,
+          'args': self.args,
+          }, self.path + 'model_folder/' + model_name)
       
-    def load(self, path):
-      load_model = torch.load(path)
+      
+    def load(self, load_model):
       self.model.load_state_dict(load_model['model_state_dict'])
-      self.optimizer.load_state_dict(load_model['optimizer_state_dict'])
+      self.model.frame_predictor.load_state_dict(load_model['frame_optimizer_state_dict'])
+      self.model.posterior.load_state_dict(load_model['posterior_optimizer_state_dict'])
+      self.model.prior.load_state_dict(load_model['prior_optimizer_state_dict'])
+      self.model.encoder.load_state_dict(load_model['encoder_optimizer_state_dict'])
+      self.model.decoder.load_state_dict(load_model['decoder_optimizer_state_dict'])
+      self.model.flow.load_state_dict(load_model['flow_optimizer_state_dict'])
       self.epoch_i += load_model['epoch']
       loss = load_model['loss']
+      self.kl_loss = load_model['kl_loss']
+      self.recon_loss = load_model['recon_loss']
+      self.losses = load_model['losses']
+      self.plot_counter = load_model['plot_counter']
+      self.counter = load_model['annealing_counter']
       self.best_loss = loss
+      self.model.to(device)
       return (self.epoch_i, loss)
- 
+  
+    
     def status(self, epoch_loss):
       # Only works for python 3.x
       # TODO: Fix LR

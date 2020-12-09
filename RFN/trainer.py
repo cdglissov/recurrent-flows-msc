@@ -1,4 +1,3 @@
-'''Train script file'''
 import numpy as np
 import torch
 import torch.utils.data
@@ -101,7 +100,7 @@ class Solver(object):
         
     def create_loaders(self):
         if self.choose_data=='mnist':
-            	testset = stochasticMovingMnist.MovingMNIST(False, 'Mnist', 
+            	testset = MovingMNIST(False, 'Mnist', 
                                                          seq_len=self.n_frames, 
                                                          image_size=self.image_size, 
                                                          digit_size=self.digit_size, 
@@ -110,7 +109,7 @@ class Solver(object):
                                                          three_channels=False, 
                                                          step_length=self.step_length, 
                                                          normalize=False)
-            	trainset = stochasticMovingMnist.MovingMNIST(True, 'Mnist', 
+            	trainset = MovingMNIST(True, 'Mnist', 
                                                           seq_len=self.n_frames, 
                                                           image_size=self.image_size, 
                                                           digit_size=self.digit_size, 
@@ -121,10 +120,10 @@ class Solver(object):
                                                           normalize=False)
         if self.choose_data=='bair':
             	string=str(os.path.abspath(os.getcwd()))
-            	trainset = bair_push.PushDataset(split='train',
+            	trainset = PushDataset(split='train',
                                               dataset_dir=string+'/bair_robot_data/processed_data/',
                                               seq_len=self.n_frames)
-            	testset = bair_push.PushDataset(split='test',
+            	testset = PushDataset(split='test',
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
 
@@ -143,13 +142,11 @@ class Solver(object):
  
     def preprocess(self, x, reverse = False):
         # Remember to change the scale parameter to make variable between 0..255
-        preprocess_range = self.preprocess_range
-        scale = self.preprocess_scale
         n_bits = self.n_bits
         n_bins = 2 ** n_bits
-        if preprocess_range == "0.5":
+        if self.preprocess_range == "0.5":
           if reverse == False:
-            x = x * scale
+            x = x * self.preprocess_scale
             if n_bits < 8:
               x = torch.floor( x/2 ** (8 - n_bits))
             x = x / n_bins  - 0.5
@@ -158,9 +155,9 @@ class Solver(object):
             x = x + 0.5
             x = x * n_bins
             x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
-        elif preprocess_range == "1.0":
+        elif self.preprocess_range == "1.0":
           if reverse == False:
-            x = x * scale
+            x = x * self.preprocess_scale
             if n_bits < 8:
               x = torch.floor( x/2 ** (8 - n_bits))
             x = x / n_bins  
@@ -191,20 +188,22 @@ class Solver(object):
             self.beta = min(max_value, min_value + self.counter*(max_value - min_value) / num_steps)
             
             if self.multigpu and torch.cuda.device_count() > 1:
-                kl_loss,nll_loss = self.model.module.loss(image, logdet)
+                kl_loss, nll_loss = self.model.module.loss(image, logdet)
             else:
-                kl_loss,nll_loss = self.model.loss(image, logdet)
+                kl_loss, nll_loss = self.model.loss(image, logdet)
             loss=(self.beta * kl_loss) + nll_loss
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+            dims = float(np.log(2.) * torch.prod(torch.tensor(image.shape[1:])))
+            bits_per_dim_loss =  loss.data/dims
             
-            store_loss = float(loss.data)
-            self.losses.append(store_loss)
-            self.kl_loss.append(kl_loss.detach())
-            self.recon_loss.append(nll_loss.detach())
+            self.losses.append(bits_per_dim_loss)
+            self.kl_loss.append(kl_loss.detach() / dims)
+            self.recon_loss.append(nll_loss.detach() / dims)
             self.counter += 1
-            
+            #if (batch_i % 5)==0:
+          
           self.plotter()   
           epoch_loss = np.mean(self.losses)
  
@@ -240,9 +239,7 @@ class Solver(object):
           'args': self.args,
           }, self.path + 'model_folder/' + model_name)
       
-    def load(self):
-      
-      load_model = torch.load(self.path + 'model_folder/rfn.pt')
+    def load(self, load_model):
       self.model.load_state_dict(load_model['model_state_dict'])
       self.optimizer.load_state_dict(load_model['optimizer_state_dict'])
       self.epoch_i += load_model['epoch']
@@ -281,20 +278,13 @@ class Solver(object):
         samples  = self.preprocess(samples, reverse=True)
         samples_recon  = self.preprocess(samples_recon, reverse=True)
         predictions  = self.preprocess(predictions, reverse=True)
+        
         # With x
         samples_x, samples_recon_x, predictions_x = self.model.sample(image, n_predictions = n_predictions,encoder_sample = True)
         samples_x  = self.preprocess(samples_x, reverse=True)
         samples_recon_x  = self.preprocess(samples_recon_x, reverse=True)
         predictions_x  = self.preprocess(predictions_x, reverse=True)
-        
-        
-        # Number 2 test for errors they need to be consist
-        samples_2, samples_recon_2, predictions_2 = self.model.sample(image, n_predictions = n_predictions,encoder_sample = False)
-        samples_2  = self.preprocess(samples_2, reverse=True)
-        samples_recon_2  = self.preprocess(samples_recon_2, reverse=True)
-        predictions_2  = self.preprocess(predictions_2, reverse=True)
-        image  = self.preprocess(image, reverse=True)
-        
+    
  
       fig, ax = plt.subplots(1, 4 , figsize = (20,5))
       ax[0].plot(self.losses)
@@ -330,22 +320,6 @@ class Solver(object):
         fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')
         plt.close(fig)
       
-      fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
-      for i in range(0, time_steps):
-        ax[0,i].imshow(self.convert_to_numpy(samples_2[0, i, :, :, :]))
-        ax[0,i].set_title("Random Sample")
-        ax[1,i].imshow(self.convert_to_numpy(samples_2[i, 0, :, :, :]))
-        ax[1,i].set_title("Sample at timestep t")
-        ax[2,i].imshow(self.convert_to_numpy(image[0, i+1, :, :, :]))
-        ax[2,i].set_title("True Image")
-        ax[3,i].imshow(self.convert_to_numpy(samples_recon_2[i, 0, :, :, :]))
-        ax[3,i].set_title("Reconstructed Image")
-        ax[4,i].imshow(self.convert_to_numpy(predictions_2[i, 0, :, :, :]))
-        ax[4,i].set_title("Prediction")
-      if not self.verbose:
-        fig.savefig(self.path +'png_folder/samples' + n_plot + '_v2.png', bbox_inches='tight')
-        plt.close(fig)
-
       fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
       for i in range(0, time_steps):
         ax[0,i].imshow(self.convert_to_numpy(samples_x[0, i, :, :, :]))

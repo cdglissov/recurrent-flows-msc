@@ -13,6 +13,8 @@ class GlowStep(nn.Module):
       super(GlowStep, self).__init__()
       LU_decomposed = args.LU_decomposed
       self.n_units_affine = args.n_units_affine
+      self.non_lin_affine = args.non_lin_affine
+      self.clamp_type = args.clamp_type
       norm_type = args.flow_norm
       momentum = args.flow_batchnorm_momentum
       b, c, h, w = x_size
@@ -22,7 +24,10 @@ class GlowStep(nn.Module):
       else:
           self.norm = ActNorm(c)
       self.invconv =  InvConv(c, LU_decomposed = LU_decomposed)
-      self.affine =  AffineCoupling(x_size, condition_size, hidden_units = self.n_units_affine)
+      self.affine =  AffineCoupling(x_size, condition_size, 
+                                    hidden_units = self.n_units_affine, 
+                                    non_lin = self.non_lin_affine, 
+                                    clamp_type = self.clamp_type)
        
     def forward(self, x, condition, logdet, reverse):
         if reverse == False:
@@ -113,7 +118,6 @@ class ListGlow(nn.Module):
     def log_prob(self, x, condition, base_condition, logdet = None):
         
         assert isinstance(condition, list), "Condition is not a list, make sure it fits L"
-        dims = torch.prod(torch.tensor(x.shape[1:]))
         z, obj = self.f(x, condition, logdet)
         
         z_in = base_condition
@@ -126,7 +130,7 @@ class ListGlow(nn.Module):
         prior = td.Normal(mean, torch.exp(log_scale))
         obj = obj + torch.sum(prior.log_prob(z), dim=(1,2,3)) #p_z
         obj = torch.mean(obj)
-        nll = (-obj) / float(np.log(2.) * dims)
+        nll = -obj
         return z, nll
 
     def sample(self, z, condition, base_condition, num_samples = 32, temperature=0.8):

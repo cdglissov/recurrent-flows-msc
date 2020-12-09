@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from .utils import *
+from .utils import set_gpu, get_numpy
+import torch
 device = set_gpu(True)
 
 def visualize_2d_data(train_data, test_data, train_labels=None, test_labels=None):

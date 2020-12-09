@@ -2,17 +2,21 @@
 
 import argparse
 from SVG_Flow.trainer import Solver
-
+from torch import load as tloader
 
 def main(args):
     
-    solver = Solver(args)
-    solver.build()
-    #TODO: Check if this loader works
     if args.load_model:
-        path_model = args.path + 'model_folder/svg.pt'
-        solver.load(path_model)
-    solver.train()   
+        load_model = tloader(args.path + 'model_folder/rfn.pt')
+        args = load_model['args']
+        solver = Solver(args)
+        solver.build()
+        solver.load(load_model)
+    else:
+        solver = Solver(args)
+        solver.build()
+        
+    solver.train()    
 
     
 def add_bool_arg(parser, name, help, default=False):
@@ -141,18 +145,21 @@ if __name__ == "__main__":
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")
     parser.add_argument("--n_units_affine", help="Specify hidden units in affine coupling", 
                         default=128, type=int)
+    parser.add_argument("--non_lin_affine", help="Specify activation in affine coupling", 
+                        default="relu", choices=["relu", "leakyrelu"], type=str)
     parser.add_argument("--n_units_prior", help="Specify hidden units in prior", 
                         default=256, type=int)
     add_bool_arg(parser, "make_conditional", default=True, 
                  help="Specify if split should be conditional or not (boolean)")
-    
-    
+    parser.add_argument('--flow_norm', help="Specify normalization type of glow-step", 
+                        default='actnorm', choices=["batchnorm", "actnorm"], type=str)
     parser.add_argument('--base_norm', help="Specify normalization type of base distribution", 
                         default='actnorm', choices=["batchnorm", "actnorm"], type=str)
     parser.add_argument("--flow_batchnorm_momentum", help="Running average batchnorm momentum for flow-step", 
                         default=0.0, type=float)
-    parser.add_argument('--flow_norm', help="Specify normalization type of glow-step", 
-                        default='actnorm', choices=["batchnorm", "actnorm"], type=str)
+    parser.add_argument('--clamp_type', help="Specify clamp type of affine coupling", 
+                        default='softclamp', choices=["glow", "realnvp", "softclamp"], type=str)
+    
     args = parser.parse_args()
     
     

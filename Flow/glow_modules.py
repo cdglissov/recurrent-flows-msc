@@ -221,14 +221,13 @@ class InvConv(nn.Module):
             return z, logdet
 
 class AffineCoupling(nn.Module):
-    def __init__(self, x_size, condition_size, hidden_units=256):
+    def __init__(self, x_size, condition_size, hidden_units=256, non_lin = 'relu', clamp_type = "glow"):
         super(AffineCoupling, self).__init__()
         
         Bx, Cx, Hx, Wx = x_size
         
         B, C, H, W = condition_size
         channels = Cx // 2 + C
-        non_lin = 'leakyrelu'
         hidden_channels = hidden_units
         self.net = nn.Sequential(
             Conv2dNorm(channels, hidden_channels),
@@ -238,9 +237,28 @@ class AffineCoupling(nn.Module):
             Conv2dZeros(hidden_channels, Cx),
         )
 
+        if "glow":
+            self.clamper = self.glow_clamp
+        elif "realnvp":
+            self.clamper = self.realnvp_clamp
+        else:
+            self.clamper = self.s_clamp
+        
         self.scale = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
         self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
-        
+    
+    def s_clamp(self, s):
+        #soft clamp from arXiv:1907.02392v3
+        clamp = 1.9
+        return torch.exp(clamp * 0.636 * torch.atan(s / clamp))
+    
+    def glow_clamp(self, s):
+        # Glow clamp from Openai code
+        return torch.sigmoid(s + 2.)
+    
+    def realnvp_clamp(self, s):
+        return torch.exp(self.scale * torch.tanh(s) + self.scale_shift)
+    
     def forward(self, x, condition, logdet, reverse): 
         z1, z2 = split_feature(x, "split")
         assert condition.shape[2:4] == x.shape[2:4], "condition and x in affine needs to match"
@@ -248,19 +266,18 @@ class AffineCoupling(nn.Module):
 
         shift, log_scale = split_feature(self.net(h), "cross")
 
-        # Here we could try to use the exponential as suggested in arXiv:1907.02392v3
-        log_scale = self.scale * torch.tanh(log_scale) + self.scale_shift
-
+        scale = self.clamper(log_scale)
+        
         if reverse == False:
             z2 = z2 + shift
-            z2 = z2 * torch.exp(log_scale)
+            z2 = z2 * scale
             if logdet is not None:
-              logdet = logdet + torch.sum(log_scale, dim=[1, 2, 3])
+              logdet = logdet + torch.sum(torch.log(scale), dim=[1, 2, 3])
         else:
-            z2 = z2 * log_scale.mul(-1).exp()
+            z2 = z2 * scale.mul(-1)
             z2 = z2 - shift
             if logdet is not None:
-              logdet = logdet - torch.sum(log_scale, dim=[1, 2, 3]) 
+              logdet = logdet - torch.sum(torch.log(scale), dim=[1, 2, 3]) 
 
         output = torch.cat((z1, z2), dim=1)
         return output, logdet
@@ -289,6 +306,7 @@ class Split2d(nn.Module):
       super(Split2d, self).__init__()
       self.make_conditional = make_conditional
       Bx, Cx, Hx, Wx = x_size
+      
       if make_conditional:
         B, C, H, W = condition_size
         channels = Cx // 2 + C
