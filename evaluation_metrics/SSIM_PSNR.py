@@ -1,13 +1,11 @@
 
 import torch 
 #!pip install pytorch-msssim
-from pytorch_msssim import ssim, ms_ssim, SSIM, MS_SSIM
-import numpy as np
+from pytorch_msssim import ssim
 import torch.utils.data
-import torch.nn as nn
 from torch.utils.data import DataLoader
 import sys
-
+from tqdm import tqdm 
 
 # insert at 1, 0 is the script path (or '' in REPL)
 sys.path.insert(1, '/work1/s144077/deepflows/')
@@ -29,9 +27,8 @@ import os
   
 # RFN
 # Path to model
- 
-
-path = '/work1/s144077/testermeget/model_folder/rfn.pt'
+path = '/work1/s144077/bairL4_64_128_skip_conditional_squeeze_batchnorm_v4/model_folder/rfn.pt'
+name_string = 'errormeasures_bair_something_trained_on_6_frames.pt'
 load_model = torch.load(path)
 args = load_model['args']
 solver = Solver(args)
@@ -78,7 +75,7 @@ class Evaluator(object):
             self.model = solver.model
         self.model.eval()
     def create_loaders(self):
-        self.n_frames = 10
+        self.n_frames = 20
         if self.choose_data=='mnist':
             	testset = stochasticMovingMnist.MovingMNIST(False, 'Mnist', 
                                                          seq_len=self.n_frames, 
@@ -129,8 +126,8 @@ class Evaluator(object):
       # Is communative so [X,Y]=0
       bs, cs, h, w = X.shape
       maxi = 2**n_bits-1
-      MSB = 1 / (cs * h * w) * torch.sum( (X - Y)**2, [1, 2, 3]) # Perbatch
-      PSNR = 10 * torch.log10(maxi / MSB).mean()
+      MSB = torch.mean( (X - Y)**2, dim = [1, 2, 3]) # Perbatch
+      PSNR = 10 * torch.log10(maxi**2 / MSB).mean()
       
       return PSNR
     
@@ -142,16 +139,17 @@ class Evaluator(object):
       return ssim_val
   
     def EvaluatorPSNR_SSIM(self):
-      start_predictions = 5 # After how many frames the the models starts condiitioning on itself.
+      start_predictions = 6 # After how many frames the the models starts condiitioning on itself.
       times = 1
       SSIM_values = []
       PSNR_values = []
       with torch.no_grad():
           for time in range(0, times):
-              SSIM_values_batch = []
-              PSNR_values_batch = []
-              for batch_i, image in enumerate(self.test_loader):
-                print(len(self.test_loader))
+          
+              
+              for batch_i, image in enumerate(tqdm(self.test_loader, desc="Tester", position=0, leave=True)):
+                SSIM_values_batch = []
+                PSNR_values_batch = []
                 batch_i += 1
                 if self.choose_data=='bair':
                     image_unprocessed = image[0].to(device)
@@ -159,25 +157,35 @@ class Evaluator(object):
                     image_unprocessed = image.to(device)
                 image = self.preprocess(image_unprocessed)
                 samples, samples_recon, predictions = self.model.sample(image, n_predictions=self.n_frames-start_predictions, encoder_sample = False, start_predictions = start_predictions)
-                samples  = self.preprocess(samples, reverse=True)
+                #samples  = self.preprocess(samples, reverse=True)
                 image  = self.preprocess(image, reverse=True)
-                samples_recon  = self.preprocess(samples_recon, reverse=True)
+                #samples_recon  = self.preprocess(samples_recon, reverse=True)
                 predictions  = self.preprocess(predictions, reverse=True)
                 true_predicted = image[:,start_predictions:,:,:,:].type(torch.FloatTensor).to(device)
                 predictions = predictions.permute(1,0,2,3,4).type(torch.FloatTensor).to(device)
                 for i in range(0,predictions.shape[1]):
                     SSIM_values_batch.append(self.ssim_val(predictions[:,i,:,:,:], true_predicted[:,i,:,:,:]))
                     PSNR_values_batch.append(self.PSNRbatch(predictions[:,i,:,:,:], true_predicted[:,i,:,:,:]))
-              SSIM_values = torch.stack(SSIM_values_batch, dim = 0)
-              PSNR_values = torch.stack(PSNR_values_batch, dim = 0)
-    
+                SSIM_values_batch = torch.stack(SSIM_values_batch, dim = 0)
+                PSNR_values_batch = torch.stack(PSNR_values_batch, dim = 0)
+                SSIM_values.append(SSIM_values_batch)
+                PSNR_values.append(PSNR_values_batch)
+      SSIM_values = torch.stack(SSIM_values)
+      PSNR_values = torch.stack(PSNR_values)
       return SSIM_values, PSNR_values
                 
                 
 MetricEvaluator = Evaluator(args)
 MetricEvaluator.build()
 
-SSIM_values, PSNR_values = MetricEvaluator.EvaluatorPSNR_SSIM()    
+SSIM_values, PSNR_values = MetricEvaluator.EvaluatorPSNR_SSIM()
+Savedict = {
+  "SSIM_values": SSIM_values,
+  "PSNR_values": PSNR_values,
+  "SSIM_values_mean": SSIM_values.mean(0),  # We dont need to save this, but w.e.
+  "PSNR_values_mean": PSNR_values.mean(0)
+}
+torch.save(Savedict,name_string)    
 print(SSIM_values)
 print(PSNR_values)       
             
