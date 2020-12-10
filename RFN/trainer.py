@@ -196,7 +196,7 @@ class Solver(object):
             loss.backward()
             self.optimizer.step()
             dims = float(np.log(2.) * torch.prod(torch.tensor(image.shape[1:])))
-            bits_per_dim_loss =  loss.data/dims
+            bits_per_dim_loss =  float(loss.data/dims)
             
             self.losses.append(bits_per_dim_loss)
             self.kl_loss.append(kl_loss.detach() / dims)
