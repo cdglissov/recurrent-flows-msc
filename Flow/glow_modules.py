@@ -228,13 +228,13 @@ class AffineCoupling(nn.Module):
         
         B, C, H, W = condition_size
         channels = Cx // 2 + C
-        hidden_channels = hidden_units
+
         self.net = nn.Sequential(
-            Conv2dNorm(channels, hidden_channels),
+            Conv2dNorm(channels, hidden_units),
             ActFun(non_lin),
-            Conv2dNorm(hidden_channels, hidden_channels, kernel_size=[1, 1]),
+            Conv2dNorm(hidden_units, hidden_units, kernel_size=[1, 1]),
             ActFun(non_lin),
-            Conv2dZeros(hidden_channels, Cx),
+            Conv2dZeros(hidden_units, Cx),
         )
 
         if "glow":
@@ -244,9 +244,11 @@ class AffineCoupling(nn.Module):
         else:
             self.clamper = self.s_clamp
         
-        self.scale = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
-        self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
-    
+        #self.scale = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
+        #self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
+        self.scale = nn.Parameter(torch.tensor([1]), requires_grad=True)
+        self.scale_shift = nn.Parameter(torch.tensor([0.]), requires_grad=True)
+        
     def s_clamp(self, s):
         #soft clamp from arXiv:1907.02392v3
         clamp = 1.9

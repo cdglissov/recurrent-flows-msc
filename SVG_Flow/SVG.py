@@ -34,9 +34,8 @@ class SVG(nn.Module):
           hx, wx = (hx//2, hx//2)
           condition_size_list.append([self.batch_size, channels_flow[i], hx, wx])
         condition_size_list
-    
-        base_dim = (self.batch_size, c_features, hx, wx)
-        
+
+        base_dim = (self.batch_size, 512, hx, wx)
         self.flow = ListGlow(x_dim, condition_size_list, base_dim, args)
         ###
         
@@ -51,7 +50,6 @@ class SVG(nn.Module):
         self.frame_predictor.apply(init_weights)
         self.posterior.apply(init_weights)
         self.prior.apply(init_weights)
-        
         
         learning_rate = args.learning_rate
         if args.optimizer == "rmsprop":
@@ -127,7 +125,7 @@ class SVG(nn.Module):
           h_pred = self.frame_predictor(torch.cat([h, z_t], 1))
           
           x_upscaled = self.decoder([h_pred, skip])[::-1]
-          base_conditions = h_pred.view(self.batch_size, -1, 1, 1)
+          base_conditions = x_upscaled[-1]#h_pred.view(self.batch_size, -1, 1, 1)
           _, nll = self.flow.log_prob(x[:, i, :, :, :], x_upscaled, base_conditions, logdet)
     
           dist_enc = td.Normal(mu, torch.exp(logvar))
@@ -177,7 +175,7 @@ class SVG(nn.Module):
             else:
                 h_pred = self.frame_predictor(torch.cat([h, z_t], 1))
                 x_upscaled = self.decoder([h_pred, skip])[::-1]
-                base_conditions = h_pred.view(self.batch_size, -1, 1, 1)
+                base_conditions = x_upscaled[-1]#h_pred.view(self.batch_size, -1, 1, 1)
                 sample = self.flow.sample(None, x_upscaled, base_conditions, temperature = self.temperature)
                 gen_seq.append(sample)
         

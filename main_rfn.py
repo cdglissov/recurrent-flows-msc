@@ -146,8 +146,8 @@ if __name__ == "__main__":
     add_bool_arg(parser, "learn_prior", default=True, help="Specify if we want a learned prior (boolean)")
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")
     parser.add_argument("--n_units_affine", help="Specify hidden units in affine coupling", 
-                        default=128, type=int)
-    parser.add_argument("--non_lin_affine", help="Specify activation in affine coupling", 
+                        default=256, type=int)
+    parser.add_argument("--non_lin_glow", help="Specify activation in glow", 
                         default="relu", choices=["relu", "leakyrelu"], type=str)
     parser.add_argument("--n_units_prior", help="Specify hidden units in prior", 
                         default=256, type=int)

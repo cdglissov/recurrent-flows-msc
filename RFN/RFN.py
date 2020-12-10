@@ -38,6 +38,7 @@ class RFN(nn.Module):
 
       dims_skip = self.extractor.get_layer_size(down_structure, self.x_dim)
       hu, wu = (self.u_dim[2], self.u_dim[3])
+      
       for i in range(0, self.L):
         hu, wu = (hu//2, hu//2)
         if self.skip_connection == True:
@@ -69,7 +70,7 @@ class RFN(nn.Module):
       # Flow
       base_dim = (batch_size, self.h_dim + self.z_dim, hu, wu)
       self.flow = ListGlow(self.x_dim, condition_size_list, base_dim, 
-                           args=self.params, K=self.K, L=self.L)
+                           args=self.params)
 
       # Variational encoder
       enc_struct = self.encoder_structure
@@ -123,7 +124,6 @@ class RFN(nn.Module):
 
         b, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, logdet)
         
-        #TODO: fix KL_loss
         kl_loss = kl_loss + td.kl_divergence(dist_enc, dist_prior).sum([1,2,3]).mean()
         nll_loss = nll_loss + nll 
 

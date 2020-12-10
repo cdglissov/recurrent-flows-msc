@@ -4,7 +4,6 @@ from Utils import split_feature, set_gpu
 import torch.distributions as td
 from .glow_modules import ActNorm, Conv2dZeros, Conv2dNorm, InvConv, AffineCoupling, Squeeze2d, Split2d, BatchNormFlow
 from Utils import ActFun
-import numpy as np
 
 device = set_gpu(True)
 
@@ -13,7 +12,7 @@ class GlowStep(nn.Module):
       super(GlowStep, self).__init__()
       LU_decomposed = args.LU_decomposed
       self.n_units_affine = args.n_units_affine
-      self.non_lin_affine = args.non_lin_affine
+      self.non_lin_glow = args.non_lin_glow
       self.clamp_type = args.clamp_type
       norm_type = args.flow_norm
       momentum = args.flow_batchnorm_momentum
@@ -26,7 +25,7 @@ class GlowStep(nn.Module):
       self.invconv =  InvConv(c, LU_decomposed = LU_decomposed)
       self.affine =  AffineCoupling(x_size, condition_size, 
                                     hidden_units = self.n_units_affine, 
-                                    non_lin = self.non_lin_affine, 
+                                    non_lin = self.non_lin_glow, 
                                     clamp_type = self.clamp_type)
        
     def forward(self, x, condition, logdet, reverse):
@@ -42,7 +41,7 @@ class GlowStep(nn.Module):
             return x, logdet
 
 class ListGlow(nn.Module):
-    def __init__(self, x_size, condition_size, base_dist_size, args, K = 12, L = 2):
+    def __init__(self, x_size, condition_size, base_dist_size, args):
         super(ListGlow, self).__init__()
         
         assert isinstance(condition_size, list), "condition_size is not a list, make sure it fits L"
@@ -50,23 +49,25 @@ class ListGlow(nn.Module):
         self.n_units_prior = args.n_units_prior
         self.make_conditional = args.make_conditional
         self.base_norm = args.base_norm
-        self.L = L
-        self.K = K
+        self.non_lin_glow = args.non_lin_glow
+        self.L = args.L
+        self.K = args.K
         Bx, Cx, Hx, Wx = x_size
         Bc, Cc, Hc, Wc = base_dist_size
         layers = []
         
-        for l in range(0, L):
+        
+        for l in range(0, self.L):
             layers.append(Squeeze2d())
             Cx, Hx, Wx = Cx * 4, Hx // 2, Wx // 2
             x_size =  [Bx, Cx, Hx, Wx]
             
             condition_size_cur = condition_size[l]
 
-            for i in range(0, K):
+            for i in range(0, self.K):
                 layers.append(GlowStep(x_size, condition_size_cur, args))
             
-            if l < (L-1):
+            if l < (self.L-1):
                 layers.append(Split2d(x_size, condition_size_cur, self.make_conditional)) 
                 Cx = Cx // 2 
                 x_size = [Bx, Cx, Hx, Wx]
@@ -77,9 +78,9 @@ class ListGlow(nn.Module):
           # TODO: We could try to use the Convnorm here, make more powerful (maybe)
           self.prior = nn.Sequential(
             Conv2dNorm(Cc, self.n_units_prior, norm = self.base_norm),
-            ActFun("leakyrelu"),
+            ActFun(self.non_lin_glow),
             Conv2dNorm(self.n_units_prior, self.n_units_prior//2, norm = self.base_norm),
-            ActFun("leakyrelu"),
+            ActFun(self.non_lin_glow),
             Conv2dZeros(in_channel=self.n_units_prior//2, out_channel=2*Cx),
             )
         else:
@@ -115,13 +116,13 @@ class ListGlow(nn.Module):
                 z, logdet = step(z, condition[l], logdet=logdet, reverse=False)
         return z, logdet
     
+    
     def log_prob(self, x, condition, base_condition, logdet = None):
         
         assert isinstance(condition, list), "Condition is not a list, make sure it fits L"
         z, obj = self.f(x, condition, logdet)
         
         z_in = base_condition
-
         if self.learn_prior:
           mean, log_scale = split_feature(self.prior(z_in), type="split")
         else:
@@ -132,6 +133,7 @@ class ListGlow(nn.Module):
         obj = torch.mean(obj)
         nll = -obj
         return z, nll
+
 
     def sample(self, z, condition, base_condition, num_samples = 32, temperature=0.8):
     

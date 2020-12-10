@@ -94,23 +94,23 @@ class Solver(object):
     def create_loaders(self):
         if self.choose_data=='mnist':
             	testset = MovingMNIST(False, 'Mnist', 
-                                                         seq_len=self.n_frames, 
-                                                         image_size=self.image_size, 
-                                                         digit_size=self.digit_size, 
-                                                         num_digits=self.num_digits, 
-            												 deterministic=False, 
-                                                         three_channels=False, 
-                                                         step_length=self.step_length, 
-                                                         normalize=False)
+                                     seq_len=self.n_frames, 
+                                     image_size=self.image_size, 
+                                     digit_size=self.digit_size, 
+                                     num_digits=self.num_digits, 
+												 deterministic=False, 
+                                     three_channels=False, 
+                                     step_length=self.step_length, 
+                                     normalize=False)
             	trainset = MovingMNIST(True, 'Mnist', 
-                                                          seq_len=self.n_frames, 
-                                                          image_size=self.image_size, 
-                                                          digit_size=self.digit_size, 
-                                                          num_digits=self.num_digits, 
-            												  deterministic=False, 
-                                                          three_channels=False, 
-                                                          step_length=self.step_length, 
-                                                          normalize=False)
+                                      seq_len=self.n_frames, 
+                                      image_size=self.image_size, 
+                                      digit_size=self.digit_size, 
+                                      num_digits=self.num_digits, 
+    												  deterministic=False, 
+                                      three_channels=False, 
+                                      step_length=self.step_length, 
+                                      normalize=False)
         if self.choose_data=='bair':
             	string=str(os.path.abspath(os.getcwd()))
             	trainset = PushDataset(split='train',
@@ -146,7 +146,7 @@ class Solver(object):
               x = torch.floor( x/2 ** (8 - n_bits))
             x = x / n_bins  - 0.5
           else:
-            x = torch.clamp(x, -0.5, 0.5)
+            x = x.div(x.max()) - 0.5 #torch.clamp(x, -0.5, 0.5)
             x = x + 0.5
             x = x * n_bins
             x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
@@ -208,7 +208,7 @@ class Solver(object):
             
           self.plotter()
  
-          if self.epoch_i % 5 == 0:
+          if self.epoch_i % 10 == 0:
             # Save model after each 25 epochs
             self.checkpoint('svg.pt', self.epoch_i, epoch_loss) 
             

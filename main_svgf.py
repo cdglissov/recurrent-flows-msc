@@ -54,7 +54,7 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=48, type=int)
+                        default=150, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--n_past", help="Specify number of conditioned frames", 
@@ -96,9 +96,9 @@ if __name__ == "__main__":
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
                         default=255, type=int)
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
-                        default=0.001, type=float)
+                        default=0.0001, type=float)
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
-                        default=0.00001, type=float)
+                        default=0.0000001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
                         default=2000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
@@ -114,9 +114,9 @@ if __name__ == "__main__":
     # SVG.
     # TODO: Big todo. Make SVG with with general input and not only L=5 and 64x64
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[48, 1, 64, 64], type=int)
+                        default=[150, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[48, 1, 64, 64], type=int)
+                        default=[150, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=256, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")
     parser.add_argument("--n_units_affine", help="Specify hidden units in affine coupling", 
                         default=128, type=int)
-    parser.add_argument("--non_lin_affine", help="Specify activation in affine coupling", 
+    parser.add_argument("--non_lin_glow", help="Specify activation in glow", 
                         default="relu", choices=["relu", "leakyrelu"], type=str)
     parser.add_argument("--n_units_prior", help="Specify hidden units in prior", 
                         default=256, type=int)
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("--flow_batchnorm_momentum", help="Running average batchnorm momentum for flow-step", 
                         default=0.0, type=float)
     parser.add_argument('--clamp_type', help="Specify clamp type of affine coupling", 
-                        default='softclamp', choices=["glow", "realnvp", "softclamp"], type=str)
+                        default='realnvp', choices=["glow", "realnvp", "softclamp"], type=str)
     
     args = parser.parse_args()
     
