@@ -14,7 +14,7 @@
 ### -- How much ram the requests -- ##
 #BSUB -R "rusage[mem=32GB]" 
 ### -- How many nodes the job requests -- ##
-# For requesting the extra big GPU w. 32GB of VRAM
+### For requesting the extra big GPU w. 32GB of VRAM
 #BSUB -R "select[gpu32gb]" 
 
 #BSUB -N Send an email when done
@@ -24,14 +24,14 @@
 
 
 echo "Starting:"
-## Get directory
+### Get directory
 cd /work1/s144077/
 . train_env/bin/activate train_env
 
 CONTENTPATH=/content/
 LR=0.0001
-PATIENCE_LR=20
-
+PATIENCE_LR=5000
+PATIENCE_ES=5000
 NBITS=6
 
 BETA_MAX=1
@@ -60,26 +60,14 @@ AFFINEHIDDEN=128
 #'actnorm','batchnorm'
 FLOWNORM=actnorm
 FRAMES=6
-
-#"instancenorm", "batchnorm", "none"
-DOWNUPSCALERNORM=batchnorm
-
-
 #"instancenorm", "batchnorm", "none"
 NORM_TYPE=none
 TEMPERATURE=0.7
 SCALER=2
-
-
-
-
-
 EPOCHS=100000000
-
-
 echo $CONTENTPATH
 
 nvidia-smi
 
 #I run my python script with all of the settings
-python3 deepflows/main_rfn.py --extractor_structure 1-2-squeeze 8-8-squeeze 32-32-squeeze --upscaler_structure 64 squeeze-32-32 squeeze-16-16 --prior_structure 256 128 --encoder_structure 256 128 --make_conditional --learn_prior --skip_connection --flow_norm $FLOWNORM --step_length $STEPLENGTH --structure_scaler $SCALER --choose_data $DATASET --n_units_affine $AFFINEHIDDEN --n_units_prior $N_UNITS_PRIOR --temperature $TEMPERATURE --norm_type $NORM_TYPE --z_dim $ZDIM --h_dim $HDIM --beta_min $BETA_MIN --beta_steps $BETA_STEPS --beta_max $BETA_MAX --learning_rate $LR --n_epochs $EPOCHS --n_bits $NBITS --n_frames $FRAMES --path $CONTENTPATH --image_size $IMAGE_SIZE --digit_size $DIGIT_SIZE --num_digits $NUM_DIGITS --K $K_SIZE --L $L_SIZE --x_dim $BATCH_SIZE $CHANNELS $IMAGE_SIZE $IMAGE_SIZE --condition_dim $BATCH_SIZE $CHANNELS $IMAGE_SIZE $IMAGE_SIZE --batch_size $BATCH_SIZE --num_workers $NUM_WORKERS --patience_lr $PATIENCE_LR
+python3 deepflows/main_rfn.py --extractor_structure 16-16-squeeze 32-32-squeeze 64-64-squeeze --upscaler_structure 64-64 squeeze-32-32 squeeze-16-16 --prior_structure 256 128 --encoder_structure 256 128 --make_conditional --learn_prior --skip_connection --flow_norm $FLOWNORM --step_length $STEPLENGTH --structure_scaler $SCALER --choose_data $DATASET --n_units_affine $AFFINEHIDDEN --n_units_prior $N_UNITS_PRIOR --temperature $TEMPERATURE --norm_type $NORM_TYPE --z_dim $ZDIM --h_dim $HDIM --beta_min $BETA_MIN --beta_steps $BETA_STEPS --beta_max $BETA_MAX --learning_rate $LR --n_epochs $EPOCHS --n_bits $NBITS --n_frames $FRAMES --path $CONTENTPATH --image_size $IMAGE_SIZE --digit_size $DIGIT_SIZE --num_digits $NUM_DIGITS --K $K_SIZE --L $L_SIZE --x_dim $BATCH_SIZE $CHANNELS $IMAGE_SIZE $IMAGE_SIZE --condition_dim $BATCH_SIZE $CHANNELS $IMAGE_SIZE $IMAGE_SIZE --batch_size $BATCH_SIZE --num_workers $NUM_WORKERS --patience_es $PATIENCE_ES --patience_lr $PATIENCE_LR
