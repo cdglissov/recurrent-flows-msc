@@ -237,19 +237,15 @@ class AffineCoupling(nn.Module):
             Conv2dZeros(hidden_units, Cx),
         )
         self.clamp_type = clamp_type
-        if clamp_type == 'realnvp':
+        if clamp_type == "glow":
+            self.clamper = self.glow_clamp
+        elif clamp_type == "realnvp":
             self.scale = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
             self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
-        #self.scale = nn.Parameter(torch.tensor([1]), requires_grad=True)
-        #self.scale_shift = nn.Parameter(torch.tensor([0.]), requires_grad=True)
-    def clamper(self,s):
-        if self.clamp_type == "glow":
-            out = self.glow_clamp(s)
-        elif self.clamp_type == "realnvp":
-            out = self.realnvp_clamp(s)
+            self.clamper = self.realnvp_clamp
         else:
-            out = self.s_clamp(s)
-        return out
+            self.clamper = self.s_clamp
+        
     def s_clamp(self, s):
         #soft clamp from arXiv:1907.02392v3
         clamp = 1.9
