@@ -239,14 +239,17 @@ class AffineCoupling(nn.Module):
         self.clamp_type = clamp_type
         if clamp_type == "glow":
             self.clamper = self.glow_clamp
+            self.log_clamper = self.log_glow_clamp
         elif clamp_type == "realnvp":
-            self.scale = nn.Parameter(torch.ones(Cx//2, 1, 1), requires_grad=True)
+            self.scale = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
             self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
             #self.scale = nn.Parameter(torch.tensor([1.]), requires_grad=True)
             #self.scale_shift = nn.Parameter(torch.tensor([0.]), requires_grad=True)
             self.clamper = self.realnvp_clamp
+            self.log_clamper = self.log_realnvp_clamp
         else:
             self.clamper = self.s_clamp
+            self.log_clamper = self.log_s_clamp
         
     def s_clamp(self, s):
         #soft clamp from arXiv:1907.02392v3
@@ -259,6 +262,16 @@ class AffineCoupling(nn.Module):
     
     def realnvp_clamp(self, s):
         return torch.exp(self.scale * torch.tanh(s) + self.scale_shift)
+    
+    def log_s_clamp(self, s):
+        clamp = 1.9
+        return clamp * 0.636 * torch.atan(s / clamp)
+    
+    def log_glow_clamp(self, s):
+        return torch.log(torch.sigmoid(s + 2.))
+    
+    def log_realnvp_clamp(self, s):
+        return self.scale * torch.tanh(s) + self.scale_shift
     
     def forward(self, x, condition, logdet, reverse): 
         z1, z2 = split_feature(x, "split")
@@ -273,12 +286,12 @@ class AffineCoupling(nn.Module):
             z2 = z2 + shift
             z2 = z2 * scale
             if logdet is not None:
-              logdet = logdet + torch.sum(torch.log(scale), dim=[1, 2, 3])
+              logdet = logdet + torch.sum(self.log_clamper(scale), dim=[1, 2, 3])
         else:
             z2 = z2 * scale.mul(-1)
             z2 = z2 - shift
             if logdet is not None:
-              logdet = logdet - torch.sum(torch.log(scale), dim=[1, 2, 3]) 
+              logdet = logdet - torch.sum(self.log_clamper(scale), dim=[1, 2, 3]) 
 
         output = torch.cat((z1, z2), dim=1)
         return output, logdet
