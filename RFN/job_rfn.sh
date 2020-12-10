@@ -18,10 +18,9 @@
 #BSUB -R "select[gpu32gb]" 
 
 ###BSUB -N Send an email when done
-#BSUB -o thesedoesntwork/%J_log_fil.out Log file
-#BSUB -e thesedoesntwork/%J_Error_file.err Error log file
-
-
+#BSUB -o log_%J.out
+### Error file
+#BSUB -e error_%J.err
 
 echo "Starting:"
 ### Get directory
