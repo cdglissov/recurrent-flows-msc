@@ -7,7 +7,7 @@ from torch import load as tloader
 def main(args):
     
     if args.load_model:
-        load_model = tloader(args.path + 'model_folder/rfn.pt')
+        load_model = tloader('.'+args.path + 'model_folder/rfn.pt')
         args = load_model['args']
         solver = Solver(args)
         solver.build()
