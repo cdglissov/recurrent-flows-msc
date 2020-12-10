@@ -17,7 +17,7 @@
 ### For requesting the extra big GPU w. 32GB of VRAM
 #BSUB -R "select[gpu32gb]" 
 
-#BSUB -N Send an email when done
+###BSUB -N Send an email when done
 #BSUB -o thesedoesntwork/%J_log_fil.out Log file
 #BSUB -e thesedoesntwork/%J_Error_file.err Error log file
 
@@ -39,7 +39,7 @@ BETA_MIN=0.0001
 BETA_STEPS=50000
 
 HDIM=200
-ZDIM=56
+ZDIM=35
 
 DATASET=mnist
 
@@ -57,10 +57,10 @@ K_SIZE=10
 L_SIZE=3
 N_UNITS_PRIOR=512
 AFFINEHIDDEN=128
-#'actnorm','batchnorm'
+###'actnorm','batchnorm'
 FLOWNORM=actnorm
 FRAMES=6
-#"instancenorm", "batchnorm", "none"
+###"instancenorm", "batchnorm", "none"
 NORM_TYPE=none
 TEMPERATURE=0.7
 SCALER=2
