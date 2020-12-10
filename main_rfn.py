@@ -1,5 +1,3 @@
-'''Main file'''
-
 import argparse
 from RFN.trainer import Solver
 from torch import load as tloader
