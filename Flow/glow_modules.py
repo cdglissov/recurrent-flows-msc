@@ -240,8 +240,10 @@ class AffineCoupling(nn.Module):
         if clamp_type == "glow":
             self.clamper = self.glow_clamp
         elif clamp_type == "realnvp":
-            self.scale = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
+            self.scale = nn.Parameter(torch.ones(Cx//2, 1, 1), requires_grad=True)
             self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
+            #self.scale = nn.Parameter(torch.tensor([1.]), requires_grad=True)
+            #self.scale_shift = nn.Parameter(torch.tensor([0.]), requires_grad=True)
             self.clamper = self.realnvp_clamp
         else:
             self.clamper = self.s_clamp
