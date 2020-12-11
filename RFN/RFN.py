@@ -194,7 +194,7 @@ class RFN(nn.Module):
         sample_recon = self.flow.sample(z, flow_conditions, base_conditions, self.temperature)
         
         condition_list, zxprev, zprev = x_feature_list, zxt, zt
-        hprev, cprev = ct.detach(), ct.detach()
+        hprev, cprev = ht.detach(), ct.detach()
         samples[i-1,:,:,:,:] = sample.detach()
         samples_recon[i-1,:,:,:,:] = sample_recon.detach()
       
