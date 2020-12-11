@@ -75,7 +75,6 @@ class ListGlow(nn.Module):
         self.glow_frame = nn.ModuleList(layers)
 
         if self.learn_prior == True:
-          # TODO: We could try to use the Convnorm here, make more powerful (maybe)
           self.prior = nn.Sequential(
             Conv2dNorm(Cc, self.n_units_prior, norm = self.base_norm),
             ActFun(self.non_lin_glow),

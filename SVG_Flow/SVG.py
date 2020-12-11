@@ -114,7 +114,6 @@ class SVG(nn.Module):
     
       nll = 0
       kld = 0
-      
     
       for i in range(1, self.n_past + self.n_future):
           h, skip = self.encoder(x[:,i-1,:,:,:])

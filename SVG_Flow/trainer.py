@@ -146,7 +146,7 @@ class Solver(object):
               x = torch.floor( x/2 ** (8 - n_bits))
             x = x / n_bins  - 0.5
           else:
-            x = x.div(x.max()) - 0.5 #torch.clamp(x, -0.5, 0.5)
+            x = torch.clamp(x, -0.5, 0.5)
             x = x + 0.5
             x = x * n_bins
             x = torch.clamp(x * (255 / n_bins), 0, 255).byte()

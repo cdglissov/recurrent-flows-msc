@@ -32,7 +32,7 @@ echo "Starting:"
 cd /work1/s146996/
 . train_env/bin/activate train_env
 
-CONTENTPATH=/work1/s146996/svg_test/
+CONTENTPATH=/svg_test/
 LR=0.0001
 PATIENCE_LR=20000
 PATIENCE_ES=20000

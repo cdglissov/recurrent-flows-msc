@@ -1,10 +1,12 @@
 from Flow import ListGlow
 import torch
 import torch.nn as nn
-from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM
+from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM, ConvLSTMOld
 import torch.distributions as td
 
-
+# Actually seems very promising to only give input from extractor, test against skip connections.
+# Stronger prior seems to be beneficial. Also there is some indication a stronger split is helpful.
+# 
 
 class RFN(nn.Module):
     def __init__(self, args):
@@ -16,7 +18,7 @@ class RFN(nn.Module):
       self.h_dim = args.h_dim
       self.z_dim = args.z_dim
       self.beta = 1
-      scaler = args.structure_scaler # Chooses the scaling of 'conv' and 'deconv' layers, default is 2
+      scaler = args.structure_scaler
       self.L = args.L
       self.K = args.K
       norm_type = args.norm_type
@@ -41,26 +43,30 @@ class RFN(nn.Module):
       
       for i in range(0, self.L):
         hu, wu = (hu//2, hu//2)
-        if self.skip_connection == True:
+        if self.skip_connection == "with_skip":
             condition_size_list.append([batch_size, channel_dims[i]+dims_skip[i][1], hu, wu])
-        else:
+        elif self.skip_connection =="without_skip":
             condition_size_list.append([batch_size, channel_dims[i], hu, wu])
+        elif self.skip_connection == "only_skip":
+            condition_size_list.append([batch_size, dims_skip[i][1], hu, wu])
+        else:
+            print("choose skip setting")
+            
       c_features = dims_skip[-1][1]
-      
-      self.hidden_init_dims = (batch_size, self.h_dim, hu, wu)
       
       self.z_0 = nn.Parameter(torch.zeros(batch_size, self.z_dim, hu, wu))
       self.z_0x = nn.Parameter(torch.zeros(batch_size, self.z_dim, hu, wu))
-
+      
+      self.h_0 = nn.Parameter(torch.zeros(batch_size, self.h_dim, hu, wu))
+      self.c_0 = nn.Parameter(torch.zeros(batch_size, self.h_dim, hu, wu))
+      
       # Feature extractor and upscaler for flow
       self.upscaler = VGG_upscaler(up_structure, L=self.L, in_channels = self.h_dim + self.z_dim, 
                                    norm_type = norm_type_features, non_lin = "leakyrelu", scale = scaler)
 
       # ConvLSTM
-      self.lstm = ConvLSTM(in_channels = c_features,
-                           hidden_channels=[self.h_dim],
-                           num_layers=1,
-                           kernel_size=(3, 3), bias=True, peephole=True, make_init=True)
+      self.lstm = ConvLSTMOld(in_channels = c_features, hidden_channels=self.h_dim, 
+                           kernel_size=[3, 3], bias=True, peephole=True)
 
       # Prior
       prior_struct = self.prior_structure
@@ -82,31 +88,27 @@ class RFN(nn.Module):
       loss = 0
       kl_loss = 0
       nll_loss = 0
-      hidden_state = self.lstm._init_hidden(batch_size=self.hidden_init_dims[0], 
-                                            height=self.hidden_init_dims[2], 
-                                            width=self.hidden_init_dims[3])
-      return hidden_state, self.z_0, self.z_0x, loss, kl_loss, nll_loss
+      return self.h_0, self.c_0, self.z_0, self.z_0x, loss, kl_loss, nll_loss
 
     def loss(self, x, logdet):
       assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
-      hidden_state, zprev, zxprev, loss, kl_loss, nll_loss = self.get_inits()
+      hprev, cprev, zprev, zxprev, loss, kl_loss, nll_loss = self.get_inits()
       t = x.shape[1]
-
-      
       condition_list = self.extractor(x[:, 0, :, :, :])
-
+      
       for i in range(1, t):
         
         x_feature_list = self.extractor(x[:, i, :, :, :])
         
-        if self.skip_connection:
-            condition = condition_list[-1]
-            x_feature = x_feature_list[-1]
-        else:
+        if self.skip_connection == "without_skip":
             condition = condition_list
             x_feature = x_feature_list
+        else:
+            condition = condition_list[-1]
+            x_feature = x_feature_list[-1]
+
         
-        ht, hidden_state = self.lstm(condition.unsqueeze(1), hidden_state) 
+        _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev) 
         
         # TODO: maybe try to make another LSTM but only for the prior.
         prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
@@ -119,8 +121,11 @@ class RFN(nn.Module):
         
         flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1))
         base_conditions = torch.cat((ht, zxt), dim = 1)
-        if self.skip_connection:
+        
+        if self.skip_connection=="with_skip":
             flow_conditions = self.combineconditions(flow_conditions, condition_list)
+        elif self.skip_connection=="only_skip":
+            flow_conditions = condition_list
 
         b, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, logdet)
         
@@ -128,7 +133,8 @@ class RFN(nn.Module):
         nll_loss = nll_loss + nll 
 
         zprev, zxprev, condition_list = zt, zxt, x_feature_list
-
+        hprev, cprev = ht ,ct
+        
       return kl_loss, nll_loss
     
     def combineconditions(self,flow_conditions, skip_conditions):
@@ -141,7 +147,7 @@ class RFN(nn.Module):
   
     def sample(self, x, n_predictions=6, encoder_sample = False, start_predictions = None):
       assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
-      hidden_state, zprev, zxprev, _, _, _ = self.get_inits()
+      hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()
       if start_predictions is not None:
           t = start_predictions
       else:
@@ -156,13 +162,13 @@ class RFN(nn.Module):
         
         x_feature_list = self.extractor(x[:, i, :, :, :])
         
-        if self.skip_connection:
-            condition = condition_list[-1]
-            x_feature = x_feature_list[-1]
-        else:
+        if self.skip_connection == "without_skip":
             condition = condition_list
             x_feature = x_feature_list
-        ht, hidden_state = self.lstm(condition.unsqueeze(1), hidden_state) 
+        else:
+            condition = condition_list[-1]
+            x_feature = x_feature_list[-1]
+        _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev) 
         
         enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
         dist_enc = td.Normal(enc_mean, enc_std)
@@ -177,16 +183,18 @@ class RFN(nn.Module):
         else:
           flow_conditions = self.upscaler(torch.cat((ht, zt), dim = 1))
           base_conditions = torch.cat((ht, zt), dim = 1)
-          
-        if self.skip_connection:
+        
+        if self.skip_connection=="with_skip":
             flow_conditions = self.combineconditions(flow_conditions, condition_list)
+        elif self.skip_connection=="only_skip":
+            flow_conditions = condition_list
 
         sample = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
         z, _ = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, 0.0)
         sample_recon = self.flow.sample(z, flow_conditions, base_conditions, self.temperature)
         
         condition_list, zxprev, zprev = x_feature_list, zxt, zt
-
+        hprev, cprev = ct.detach(), ct.detach()
         samples[i-1,:,:,:,:] = sample.detach()
         samples_recon[i-1,:,:,:,:] = sample_recon.detach()
       
@@ -195,25 +203,29 @@ class RFN(nn.Module):
       prediction = sample
       for i in range(0, n_predictions):
           
-        if self.skip_connection:
+        if self.skip_connection == "without_skip":
+            condition = self.extractor(prediction)
+        else:
             condition_list = self.extractor(prediction)
             condition = condition_list[-1]
-        else:
-            condition = self.extractor(prediction)
-        ht, hidden_state = self.lstm(condition.unsqueeze(1), hidden_state)
+        _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)  
         
         prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
         dist_prior = td.Normal(prior_mean, prior_std)
         zt = dist_prior.sample()
 
         flow_conditions = self.upscaler(torch.cat((ht, zt), dim = 1))
-        if self.skip_connection:
+        
+        if self.skip_connection=="with_skip":
             flow_conditions = self.combineconditions(flow_conditions, condition_list)
+        elif self.skip_connection=="only_skip":
+            flow_conditions = condition_list
+            
         base_conditions = torch.cat((ht, zt), dim = 1)
         
         predictions[i,:,:,:,:] = prediction.detach()
         prediction = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
-        
+        hprev, cprev = ht.detach(), ct.detach()
         zprev = zt
       return samples, samples_recon, predictions
 

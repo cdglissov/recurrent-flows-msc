@@ -52,7 +52,7 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=90, type=int)
+                        default=40, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=6, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
@@ -66,15 +66,14 @@ if __name__ == "__main__":
     parser.add_argument("--num_digits", help="Specify the number of mnist digits", 
                         default=2, type=int)
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
-                        default=0, type=int)
+                        default=2, type=int)
     
     
     # Trainer
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
-                        default=50, type=int)
-    
+                        default=5000, type=int)
     parser.add_argument("--patience_lr", help="Specify patience for lr_scheduler", 
-                        default=5, type=int)
+                        default=5000, type=int)
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
                         default=0.5, type=restricted_float)
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
@@ -103,15 +102,16 @@ if __name__ == "__main__":
     add_bool_arg(parser, "multigpu", default=False, help="Specify if we want to use multi GPUs")
     add_bool_arg(parser, "load_model", default=False, 
                  help="Specify if we want to load a pre-existing model (boolean)")
+    
     # RFN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[90, 1, 64, 64], type=int)
+                        default=[40, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[90, 1, 64, 64], type=int)
+                        default=[40, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
-                        default=100, type=int)
+                        default=200, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
-                        default=25, type=int)
+                        default=45, type=int)
     parser.add_argument("--L", help="Specify flow depth", 
                         default=3, type=int)
     parser.add_argument("--K", help="Specify flow recursion", 
@@ -123,7 +123,6 @@ if __name__ == "__main__":
                         default= [[16, 16, 'squeeze'],[32, 32, 'squeeze'], [64, 64, 'squeeze']], type=convert_to_upscaler)
     parser.add_argument('--norm_type', help="Specify normalization type of layers", 
                         default='none', choices=["instancenorm", "batchnorm", "none"], type=str)
-    add_bool_arg(parser, "skip_connection", default=True, help="Specify skip_connections mode (boolean)")
     # Upscaler structure can be a bit tricky to define. First the input does not need to be fully upscaled,
     # so for L = 3 only 2 deconv's is required. Every block should end with an integer. I.e. 32-deconv-32 deconv-16
     # and not 32-deconv 32-deconv
@@ -139,12 +138,15 @@ if __name__ == "__main__":
                         nargs="+" ,default=[256, 128],type=convert_mixed_list)
     parser.add_argument('--norm_type_features', help="Specify normalization type of layers upscaler/downscaler", 
                         default='batchnorm', choices=["instancenorm", "batchnorm", "none"], type=str)
+    parser.add_argument('--skip_connection', help="Specify skip_connections mode", 
+                        default='with_skip', choices=["without_skip", "with_skip", "only_skip"], type=str)
+    
     
     #Glow
     add_bool_arg(parser, "learn_prior", default=True, help="Specify if we want a learned prior (boolean)")
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")
     parser.add_argument("--n_units_affine", help="Specify hidden units in affine coupling", 
-                        default=256, type=int)
+                        default=512, type=int)
     parser.add_argument("--non_lin_glow", help="Specify activation in glow", 
                         default="relu", choices=["relu", "leakyrelu"], type=str)
     parser.add_argument("--n_units_prior", help="Specify hidden units in prior", 
@@ -158,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument("--flow_batchnorm_momentum", help="Running average batchnorm momentum for flow-step", 
                         default=0.0, type=float)
     parser.add_argument('--clamp_type', help="Specify clamp type of affine coupling", 
-                        default='realnvp', choices=["glow", "realnvp", "softclamp"], type=str)
+                        default='realnvp', choices=["glow", "realnvp", "softclamp", "none"], type=str)
     args = parser.parse_args()
     
     main(args)

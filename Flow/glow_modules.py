@@ -322,7 +322,7 @@ class Split2d(nn.Module):
         channels = Cx // 2
       self.conv = nn.Sequential(Conv2dZeros(channels, Cx),)
 
-    # TODO: We could try to use the Convnorm here, make more powerful (maybe)
+    # TODO: adding an extra layer seemed to help. Try recurrent
     def forward(self, x, condition, logdet, reverse):
 
         if reverse == False:

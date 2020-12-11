@@ -54,7 +54,7 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=150, type=int)
+                        default=32, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--n_past", help="Specify number of conditioned frames", 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
                         default=100, type=int)
     add_bool_arg(parser, "verbose", default=False, help="Specify verbose mode (boolean)")
     parser.add_argument("--path", help="Specify path to experiment", 
-                        default='/content/', type=str)
+                        default='/content_svg/', type=str)
     parser.add_argument("--preprocess_range", help="Specify the range of the data for preprocessing", 
                         choices=['0.5','1.0'], default='0.5', type=str)
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
@@ -114,9 +114,9 @@ if __name__ == "__main__":
     # SVG.
     # TODO: Big todo. Make SVG with with general input and not only L=5 and 64x64
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[150, 1, 64, 64], type=int)
+                        default=[32, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[150, 1, 64, 64], type=int)
+                        default=[32, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=256, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
