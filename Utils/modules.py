@@ -54,6 +54,7 @@ class VGG_downscaler(nn.Module):
       count = 0
       for i in structure:
           count = count + 1
+          # Insured tanh activation in last layer, this is done to avoid exploding gradients.
           if l == L-1 and len(structure) == count:
               ActivationFun = nn.Tanh()
           else:
