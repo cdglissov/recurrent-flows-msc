@@ -236,43 +236,37 @@ class AffineCoupling(nn.Module):
             ActFun(non_lin),
             Conv2dZeros(hidden_units, Cx),
         )
+        
         self.clamp_type = clamp_type
         if clamp_type == "glow":
             self.clamper = self.glow_clamp
-            self.log_clamper = self.log_glow_clamp
-        elif clamp_type == "realnvp":
-            self.scale = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
-            self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
-            #self.scale = nn.Parameter(torch.tensor([1.]), requires_grad=True)
-            #self.scale_shift = nn.Parameter(torch.tensor([0.]), requires_grad=True)
-            self.clamper = self.realnvp_clamp
-            self.log_clamper = self.log_realnvp_clamp
-        else:
+        elif clamp_type == "softclamp":
             self.clamper = self.s_clamp
-            self.log_clamper = self.log_s_clamp
+        elif clamp_type =="realnvp":
+            self.scale = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True) #try all dimensions
+            self.scale_shift = nn.Parameter(torch.zeros(Cx//2, 1, 1), requires_grad=True)
+            self.clamper = self.realnvp_clamp
+        else:
+            self.clamper = self.none_clamp
         
     def s_clamp(self, s):
         #soft clamp from arXiv:1907.02392v3
-        clamp = 1.9
-        return torch.exp(clamp * 0.636 * torch.atan(s / clamp))
+        clamp = 2.5
+        log_scale_clamped = clamp * 0.636 * torch.atan(s / clamp)
+        return log_scale_clamped
     
     def glow_clamp(self, s):
         # Glow clamp from Openai code
-        return torch.sigmoid(s + 2.)
+        scale = torch.log(torch.sigmoid(s + 2.))
+        return scale
     
     def realnvp_clamp(self, s):
-        return torch.exp(self.scale * torch.tanh(s) + self.scale_shift)
+        log_scale_clamped = self.scale * torch.tanh(s) + self.scale_shift
+        return log_scale_clamped
     
-    def log_s_clamp(self, s):
-        clamp = 1.9
-        return clamp * 0.636 * torch.atan(s / clamp)
-    
-    def log_glow_clamp(self, s):
-        return torch.log(torch.sigmoid(s + 2.))
-    
-    def log_realnvp_clamp(self, s):
-        return self.scale * torch.tanh(s) + self.scale_shift
-    
+    def none_clamp(self, s):
+        return s
+
     def forward(self, x, condition, logdet, reverse): 
         z1, z2 = split_feature(x, "split")
         assert condition.shape[2:4] == x.shape[2:4], "condition and x in affine needs to match"
@@ -280,18 +274,18 @@ class AffineCoupling(nn.Module):
 
         shift, log_scale = split_feature(self.net(h), "cross")
 
-        scale = self.clamper(log_scale)
+        log_scale_clamped = self.clamper(log_scale)
         
         if reverse == False:
             z2 = z2 + shift
-            z2 = z2 * scale
+            z2 = z2 * (log_scale_clamped.exp())
             if logdet is not None:
-              logdet = logdet + torch.sum(self.log_clamper(scale), dim=[1, 2, 3])
+              logdet = logdet + torch.sum(log_scale_clamped, dim=[1, 2, 3])
         else:
-            z2 = z2 * scale.mul(-1)
+            z2 = z2 * (log_scale_clamped.mul(-1).exp())
             z2 = z2 - shift
             if logdet is not None:
-              logdet = logdet - torch.sum(self.log_clamper(scale), dim=[1, 2, 3]) 
+              logdet = logdet - torch.sum(log_scale_clamped, dim=[1, 2, 3]) 
 
         output = torch.cat((z1, z2), dim=1)
         return output, logdet
