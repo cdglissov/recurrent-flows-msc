@@ -54,6 +54,10 @@ class VGG_downscaler(nn.Module):
       count = 0
       for i in structure:
           count = count + 1
+          if l == L-1 and len(structure) == count:
+              ActivationFun = nn.Tanh()
+          else:
+              ActivationFun = ActFun(non_lin, in_place=True)
           if i == 'pool':
               layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
           elif i == "conv":
@@ -61,24 +65,21 @@ class VGG_downscaler(nn.Module):
               conv2d = nn.Conv2d(in_channels, conv_channels, kernel_size=3, stride = 2, padding=1,bias=False)
               layers += [conv2d,
                            NormLayer(conv_channels, norm_type = norm_type), 
-                           ActFun(non_lin, in_place=True)]
+                           ActivationFun]
               in_channels = conv_channels
           elif i == "squeeze":
               conv_channels = in_channels * 4
               conv = Squeeze2dDecoder(undo_squeeze=False)
               layers += [conv, 
                         NormLayer(conv_channels, norm_type = norm_type),
-                        ActFun(non_lin, in_place=False)]
+                        ActivationFun]
               in_channels = conv_channels
           else:
               conv2d = nn.Conv2d(in_channels, i, kernel_size=3, stride=1, padding=1,bias=False)
-              if l == L-1 and len(structure) == count:
-                  layers += [conv2d, NormLayer(i, norm_type = norm_type), nn.Tanh()]
-              else:
-                  layers += [conv2d,  NormLayer(i, norm_type = norm_type), ActFun(non_lin, in_place=True)]
+              layers += [conv2d,  NormLayer(i, norm_type = norm_type), ActivationFun]
               in_channels = i
         
-      
+
           self.net = nn.Sequential(*layers).to(device)
       self.l_nets.append(self.net)
       
@@ -114,7 +115,7 @@ class VGG_downscaler(nn.Module):
       else:
           outputs=x
     return outputs
-
+  
 class Squeeze2dDecoder(nn.Module):
     def __init__(self,undo_squeeze = False):
         super(Squeeze2dDecoder, self).__init__()
