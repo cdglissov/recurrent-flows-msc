@@ -136,10 +136,9 @@ if __name__ == "__main__":
                         nargs="+" ,default=[256, 128, 128],type=convert_mixed_list)
     parser.add_argument("--encoder_structure", help="Specify the structure of the encoder", 
                         nargs="+" ,default=[256, 128],type=convert_mixed_list)
-    parser.add_argument('--norm_type_features', help="Specify normalization type of layers upscaler/downscaler", 
-                        default='batchnorm', choices=["instancenorm", "batchnorm", "none"], type=str)
-    parser.add_argument('--skip_connection', help="Specify skip_connections mode", 
+    parser.add_argument('--skip_connection_flow', help="Specify skip_connections mode", 
                         default='with_skip', choices=["without_skip", "with_skip", "only_skip"], type=str)
+    add_bool_arg(parser, "skip_connection_features", default=False, help="Specify if skip connection between up and downscaler (boolean)")
     
     
     #Glow
