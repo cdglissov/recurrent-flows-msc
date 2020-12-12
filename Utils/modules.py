@@ -44,7 +44,7 @@ class VGG_downscaler(nn.Module):
   def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2,skip_con=False):
     super(VGG_downscaler, self).__init__()
     assert len(structures) == L, "Please specify number of blocks = L"
-    self.l_nets = []
+    self.l_nets = nn.ModuleList([])
     self.L = L
     self.skip_con = skip_con
     self.scale = scale
@@ -139,7 +139,7 @@ class VGG_upscaler(nn.Module):
   def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2):
     super(VGG_upscaler, self).__init__()
     assert len(structures) == L, "Please specify number of blocks = L"
-    self.l_nets = []
+    self.l_nets = nn.ModuleList([])
     self.L = L
 
     for l in range(0, L):
