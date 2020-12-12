@@ -52,7 +52,7 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=40, type=int)
+                        default=64, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=6, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
                         default=0.00001, type=float)
     parser.add_argument("--n_bits", help="Specify number of bits", 
-                        default=8, type=int)
+                        default=5, type=int)
     parser.add_argument("--n_epochs", help="Specify number of epochs", 
                         default=100000, type=int)
     add_bool_arg(parser, "verbose", default=False, help="Specify verbose mode (boolean)")
@@ -92,9 +92,9 @@ if __name__ == "__main__":
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
                         default=255, type=int)
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
-                        default=0.001, type=float)
+                        default=1, type=float)
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
-                        default=0.000001, type=float)
+                        default=0.00001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
                         default=50000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
@@ -105,9 +105,9 @@ if __name__ == "__main__":
     
     # RFN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[40, 1, 64, 64], type=int)
+                        default=[64, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[40, 1, 64, 64], type=int)
+                        default=[64, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=200, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     parser.add_argument('--extractor_structure', nargs='+', help="Specify structure of extractor example writing, 32-32-conv 32-32-pool, creates 2 blocks", 
                         default= [[16, 16, 'squeeze'],[32, 32, 'squeeze'], [64, 64, 'squeeze']], type=convert_to_upscaler)
     parser.add_argument('--norm_type', help="Specify normalization type of layers", 
-                        default='none', choices=["instancenorm", "batchnorm", "none"], type=str)
+                        default='batchnorm', choices=["instancenorm", "batchnorm", "none"], type=str)
     # Upscaler structure can be a bit tricky to define. First the input does not need to be fully upscaled,
     # so for L = 3 only 2 deconv's is required. Every block should end with an integer. I.e. 32-deconv-32 deconv-16
     # and not 32-deconv 32-deconv
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     add_bool_arg(parser, "learn_prior", default=True, help="Specify if we want a learned prior (boolean)")
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")
     parser.add_argument("--n_units_affine", help="Specify hidden units in affine coupling", 
-                        default=512, type=int)
+                        default=256, type=int)
     parser.add_argument("--non_lin_glow", help="Specify activation in glow", 
                         default="relu", choices=["relu", "leakyrelu"], type=str)
     parser.add_argument("--n_units_prior", help="Specify hidden units in prior", 
