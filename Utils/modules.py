@@ -81,7 +81,7 @@ class VGG_downscaler(nn.Module):
               in_channels = i
         
 
-          self.net = nn.Sequential(*layers).to(device)
+      self.net = nn.Sequential(*layers).to(device)
       self.l_nets.append(self.net)
       
   def get_layer_size(self,structures,x_size):
@@ -167,8 +167,7 @@ class VGG_upscaler(nn.Module):
               layers += [conv2d,  NormLayer(i, norm_type = norm_type), ActFun(non_lin, in_place=True)]
               in_channels = i
       
-          self.net = nn.Sequential(*layers).to(device)
-
+      self.net = nn.Sequential(*layers).to(device)
       self.l_nets.append(self.net)
 
   def forward(self, x, block_size=None):
