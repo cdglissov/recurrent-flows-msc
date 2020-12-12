@@ -31,10 +31,14 @@ class RFN(nn.Module):
       down_structure = args.extractor_structure 
       up_structure = args.upscaler_structure
       
-      
+      if self.skip_connection == "without_skip":
+          skip = False
+      else:
+          skip = True
       self.extractor = VGG_downscaler(down_structure,L=self.L, in_channels = self.x_dim[1], 
-                                      norm_type=norm_type_features, non_lin = "leakyrelu", scale = scaler, 
-                                      skip_con=self.skip_connection)
+                                      norm_type=norm_type_features, non_lin = "relu", scale = scaler, 
+                                      skip_con=skip)
+      
       # adjust channel dims to match up_structure. Reversed.
       channel_dims = [i[-1] for i in up_structure][::-1]
 
