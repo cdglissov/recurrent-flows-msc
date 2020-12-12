@@ -135,46 +135,69 @@ class Squeeze2dDecoder(nn.Module):
         x = x.reshape(B, C // 4, H * 2, W * 2)
       return x
 
+
 class VGG_upscaler(nn.Module):
-  def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2):
+  def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2, skips = False, size_skips = None):
     super(VGG_upscaler, self).__init__()
     assert len(structures) == L, "Please specify number of blocks = L"
     self.l_nets = nn.ModuleList([])
+    self.upscales_nets = nn.ModuleList([])
     self.L = L
-
+    self.skips = skips
+    size_skips.reverse()
     for l in range(0, L):
       structure = structures[l]
       layers = []
+      count = 0
       for i in structure:
+          count = count + 1
+          if (skips and count == 1 and l == 0) or (skips and count == 2 and not l == 0):  
+              """ So for the lowest layer of L it is the first it is connected to, and the other the second.
+              Kinda weird but is easier to structure the nets."""
+              skip_channels = size_skips[l][1]
+          else:
+              skip_channels = 0
           if i == 'upsample':
-              layers += [nn.Upsample(scale_factor=2, mode='nearest')]
+              layer_up = [nn.Upsample(scale_factor=2, mode='nearest')]
           elif i == "deconv":
               deconv_channels = in_channels // scale
               deconv = nn.ConvTranspose2d(in_channels, deconv_channels, kernel_size=4, stride = 2, padding=1, bias=False)
-              layers += [deconv, 
+              layer_up = [deconv, 
                         NormLayer(deconv_channels, norm_type = norm_type),
                         ActFun(non_lin, in_place=True)]
               in_channels = deconv_channels
           elif i == "squeeze":
               deconv_channels = in_channels // 4
               deconv = Squeeze2dDecoder(undo_squeeze=True)
-              layers += [deconv, 
+              layer_up = [deconv, 
                         NormLayer(deconv_channels, norm_type = norm_type),
                         ActFun(non_lin, in_place=False)]
               in_channels = deconv_channels
           else:
-              conv2d = nn.Conv2d(in_channels, i, kernel_size=3, stride=1, padding=1,bias=False)
+              conv2d = nn.Conv2d(in_channels + skip_channels, i, kernel_size=3, stride=1, padding=1,bias=False)
               layers += [conv2d,  NormLayer(i, norm_type = norm_type), ActFun(non_lin, in_place=True)]
               in_channels = i
-      
+      if l > 0:
+          self.upscales_nets.append(nn.Sequential(*layer_up).to(device))
       self.net = nn.Sequential(*layers).to(device)
       self.l_nets.append(self.net)
 
-  def forward(self, x, block_size=None):
+  def forward(self, x, skip_list = None):
     outputs = []
+    if self.skips:
+        skip_list.reverse()
     for i in range(0, self.L):
-      x = self.l_nets[i](x)
+      
+      if i > 0:
+          x = self.upscales_nets[i-1](x)
+      if self.skips:
+          x = self.l_nets[i](torch.cat((x, skip_list[i]), dim = 1))
+      else:
+          x = self.l_nets[i](x)
       outputs.append(x)
+    # This needs to be done twice as it is calling the place in memorty
+    if self.skips:
+        skip_list.reverse()
     outputs.reverse()
     return outputs
 
