@@ -205,8 +205,8 @@ class Solver(object):
             self.kl_loss.append(kl)
             self.recon_loss.append(nll)
             self.counter += 1
-            if (batch_i + 1) % 5 == 0:
-                self.plotter()
+            #if (batch_i + 1) % 5 == 0:
+          self.plotter()
           if self.epoch_i % 10 == 0:
             # Save model after each 25 epochs
             self.checkpoint('svg.pt', self.epoch_i, epoch_loss) 
