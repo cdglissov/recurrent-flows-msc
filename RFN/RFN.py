@@ -1,20 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Dec 12 21:16:04 2020
-
-@author: s144077
-"""
-
 from Flow import ListGlow
 import torch
 import torch.nn as nn
-from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM #ConvLSTMOld
+from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM, ConvLSTMOld
 import torch.distributions as td
-
-# Actually seems very promising to only give input from extractor, test against skip connections.
-# Stronger prior seems to be beneficial. Also there is some indication a stronger split is helpful.
-# 
 
 class RFN(nn.Module):
     def __init__(self, args):
@@ -79,7 +67,7 @@ class RFN(nn.Module):
                                    norm_type = norm_type_features, non_lin = "leakyrelu", scale = scaler, skips = self.skip_connection_features, size_skips = dims_skip)
 
       # ConvLSTM
-      self.lstm = ConvLSTM(in_channels = c_features, hidden_channels=self.h_dim, 
+      self.lstm = ConvLSTMOld(in_channels = c_features, hidden_channels=self.h_dim, 
                            kernel_size=[3, 3], bias=True, peephole=True)
 
       # Prior
