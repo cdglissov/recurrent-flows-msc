@@ -192,7 +192,7 @@ class RFN(nn.Module):
             flow_conditions = self.upscaler(torch.cat((ht, ztemp), dim = 1))
         base_conditions = torch.cat((ht, ztemp), dim = 1)
         
-        if self.skip_connection_flow == "with_skipflow":
+        if self.skip_connection_flow == "with_skip":
             flow_conditions = self.combineconditions(flow_conditions, condition_list)
         elif self.skip_connection_flow == "only_skip":
             flow_conditions = condition_list
