@@ -200,10 +200,10 @@ class Solver(object):
             epoch_nll += nll
             epoch_kl += kl
             epoch_loss = (epoch_nll+epoch_kl)/batch_i
-            
-            self.losses.append(loss)
-            self.kl_loss.append(kl)
-            self.recon_loss.append(nll)
+            dims = float(np.log(2.) * torch.prod(torch.tensor(image.shape[2:])))
+            self.losses.append(loss/dims)
+            self.kl_loss.append(kl/dims)
+            self.recon_loss.append(nll/dims)
             self.counter += 1
             #if (batch_i + 1) % 5 == 0:
           self.plotter()
@@ -242,7 +242,7 @@ class Solver(object):
           'losses': self.losses,
           'plot_counter': self.plot_counter,
           'annealing_counter': self.counter,
-          'args': self.args,
+          'args': self.params,
           }, self.path + 'model_folder/' + model_name)
       
       
