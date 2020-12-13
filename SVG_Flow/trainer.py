@@ -205,9 +205,8 @@ class Solver(object):
             self.kl_loss.append(kl)
             self.recon_loss.append(nll)
             self.counter += 1
-            
-          self.plotter()
- 
+            if (batch_i + 1) % 5 == 0:
+                self.plotter()
           if self.epoch_i % 10 == 0:
             # Save model after each 25 epochs
             self.checkpoint('svg.pt', self.epoch_i, epoch_loss) 
@@ -288,15 +287,17 @@ class Solver(object):
       
       with torch.no_grad():
         image = next(iter(self.test_loader)).to(device)
-        time_steps = self.n_frames - 1
+        time_steps = self.n_frames 
         
         image  = self.preprocess(image, reverse=False)
-        predictions = self.model.plot_rec(image, encoder_sample=False)
-        predictions  = self.preprocess(predictions, reverse=True)
+        reconstruct = self.model.reconstruction(image)
+        reconstruct  = self.preprocess(reconstruct, reverse=True)
         
-        # With x
-        predictions_x = self.model.plot_rec(image, encoder_sample=True)
-        predictions_x  = self.preprocess(predictions_x, reverse=True)
+        onestep = self.model.onestep(image)
+        onestep  = self.preprocess(onestep, reverse=True)
+        
+        predictions = self.model.predict(image)
+        predictions  = self.preprocess(predictions, reverse=True)
         image  = self.preprocess(image, reverse=True)
         
  
@@ -318,14 +319,20 @@ class Solver(object):
         fig.savefig(self.path + 'png_folder/losses' + '.png', bbox_inches='tight')
         plt.close(fig)
       
-      fig, ax = plt.subplots(3, time_steps , figsize = (20,8))
+      fig, ax = plt.subplots(4, time_steps , figsize = (20,8))
       for i in range(0, time_steps):
         ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
         ax[0,i].set_title("True Image")
-        ax[1,i].imshow(self.convert_to_numpy(predictions[i, 0, :, :, :]))
-        ax[1,i].set_title("Predictions Image")
-        ax[2,i].imshow(self.convert_to_numpy(predictions_x[i, 0, :, :, :]))
-        ax[2,i].set_title("Predictions_x Image")
+        ax[0,i].axis('off')
+        ax[1,i].imshow(self.convert_to_numpy(reconstruct[i, 0, :, :, :]))
+        ax[1,i].set_title("Reconstructions")
+        ax[1,i].axis('off')
+        ax[2,i].imshow(self.convert_to_numpy(onestep[i, 0, :, :, :]))
+        ax[2,i].set_title("1 Step")
+        ax[2,i].axis('off')
+        ax[3,i].imshow(self.convert_to_numpy(predictions[i, 0, :, :, :]))
+        ax[3,i].set_title("Predictions")
+        ax[3,i].axis('off')
         
       if not self.verbose:
         fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')

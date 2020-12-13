@@ -28,14 +28,17 @@ class SVG(nn.Module):
         
         ### Flow settings
         L=args.L 
-        channels_flow = [32, 64, 128, 256, 512]
+        self.L=L
+        channels_flow = []
         condition_size_list = []
         for i in range(0, L):
+          channels_flow.append(16*(2**i))
           hx, wx = (hx//2, hx//2)
           condition_size_list.append([self.batch_size, channels_flow[i], hx, wx])
         condition_size_list
-
-        base_dim = (self.batch_size, 512, hx, wx)
+        #hxwx
+        base_dim = (self.batch_size, channels_flow[-1], hx, wx)
+        
         self.flow = ListGlow(x_dim, condition_size_list, base_dim, args)
         ###
         
@@ -119,17 +122,19 @@ class SVG(nn.Module):
           h, skip = self.encoder(x[:,i-1,:,:,:])
           h_target = self.encoder(x[:,i,:,:,:])[0]
           
+          
           z_t, mu, logvar = self.posterior(h_target)
           _, mu_p, logvar_p = self.prior(h)
           h_pred = self.frame_predictor(torch.cat([h, z_t], 1))
           
           x_upscaled = self.decoder([h_pred, skip])[::-1]
-          base_conditions = x_upscaled[-1]#h_pred.view(self.batch_size, -1, 1, 1)
-          _, nll = self.flow.log_prob(x[:, i, :, :, :], x_upscaled, base_conditions, logdet)
+          base_conditions = x_upscaled
+
+          _, nll = self.flow.log_prob(x[:, i, :, :, :], x_upscaled[:self.L], base_conditions[self.L-1], logdet)
     
           dist_enc = td.Normal(mu, torch.exp(logvar))
           dist_prior = td.Normal(mu_p, torch.exp(logvar_p))
-          nll += nll
+          nll += (nll / self.batch_size)
           kld += (td.kl_divergence(dist_enc, dist_prior).sum() / self.batch_size)
       
       loss = nll + kld*self.beta
@@ -153,31 +158,91 @@ class SVG(nn.Module):
       return kld.data, nll.data, loss.data
     
     
-    def plot_rec(self, x, encoder_sample):
+    def reconstruction(self, x):
         self.frame_predictor.hidden = self.frame_predictor.init_hidden()
         self.posterior.hidden = self.posterior.init_hidden()
+        self.prior.hidden = self.prior.init_hidden()
+        
+        
         gen_seq = []
         gen_seq.append(x[:, 0,:,:,:])
         
         for i in range(1, self.n_past + self.n_future):
-            h, skip  = self.encoder(x[:,i-1,:,:,:])
-            h_target = self.encoder(x[:,i,:,:,:])[0]
+            condition, skip  = self.encoder(x[:,i-1,:,:,:])
+            target = self.encoder(x[:,i,:,:,:])[0]
+            condition = condition.detach()
+            target = target.detach()
+            z_t, _, _= self.posterior(target)
             
-            h = h.detach()
-            h_target = h_target.detach()
-            if encoder_sample:
-                z_t, _, _= self.posterior(h_target)
-            else:
-                z_t, _, _ = self.prior(h)
-            if i < self.n_past: 
+            if i < self.n_past:
+                self.frame_predictor(torch.cat([condition, z_t], 1)) 
                 gen_seq.append(x[:,i,:,:,:])
             else:
-                h_pred = self.frame_predictor(torch.cat([h, z_t], 1))
-                x_upscaled = self.decoder([h_pred, skip])[::-1]
-                base_conditions = x_upscaled[-1]#h_pred.view(self.batch_size, -1, 1, 1)
-                sample = self.flow.sample(None, x_upscaled, base_conditions, temperature = self.temperature)
-                gen_seq.append(sample)
+                h_pred = self.frame_predictor(torch.cat([condition, z_t], 1))
+                x_upscaled = [xup.detach() for xup in self.decoder([h_pred, skip])][::-1]
+                base_conditions = x_upscaled
+                
+                sample = self.flow.sample(None, x_upscaled[:self.L], base_conditions[self.L-1], temperature = self.temperature)
+                gen_seq.append(sample.detach())
+        recons = torch.stack(gen_seq, dim=0)
         
-        return torch.stack(gen_seq, dim=0)
+        return recons
+    
+    def onestep(self, x):
+        self.frame_predictor.hidden = self.frame_predictor.init_hidden()
+        self.posterior.hidden = self.posterior.init_hidden()
+        self.prior.hidden = self.prior.init_hidden()
+        
+        
+        gen_seq = []
+        gen_seq.append(x[:, 0,:,:,:])
+        
+        for i in range(1, self.n_past + self.n_future):
+            condition, skip  = self.encoder(x[:,i-1,:,:,:])
+            condition = condition.detach()
+            z_t, _, _ = self.prior(condition)
+            if i < self.n_past:
+                self.frame_predictor(torch.cat([condition, z_t], 1)) 
+                gen_seq.append(x[:,i,:,:,:])
+            else:
+                h_pred = self.frame_predictor(torch.cat([condition, z_t], 1))
+                x_upscaled = [xup.detach() for xup in self.decoder([h_pred, skip])][::-1]
+                base_conditions = x_upscaled
+                
+                sample = self.flow.sample(None, x_upscaled[:self.L], base_conditions[self.L-1], temperature = self.temperature)
+                gen_seq.append(sample.detach())
+        onestep = torch.stack(gen_seq, dim=0)
+        return onestep
+
+    def predict(self, x):
+        self.frame_predictor.hidden = self.frame_predictor.init_hidden()
+        self.posterior.hidden = self.posterior.init_hidden()
+        self.prior.hidden = self.prior.init_hidden()
+        gen_seq = []
+        t = x.shape[1]
+        x_in = x[:,0,:,:,:]
+        gen_seq.append(x_in)
+        for i in range(1, t):
+            condition, skip  = self.encoder(x_in)
+            condition = condition.detach()
+            if i < self.n_past:
+                target = self.encoder(x[:,i,:,:,:])[0]
+                target = target.detach()
+                z_t, _, _ = self.posterior(target)
+                self.prior(condition)
+                self.frame_predictor(torch.cat([condition, z_t], 1))
+                x_in = x[:,i,:,:,:]
+                gen_seq.append(x_in)
+            else:
+                z_t, _, _ = self.prior(condition)
+                h_pred = self.frame_predictor(torch.cat([condition, z_t], 1)).detach()
+                x_upscaled = [xup.detach() for xup in self.decoder([h_pred, skip])][::-1]
+                base_conditions = x_upscaled
+                
+                x_in = self.flow.sample(None, x_upscaled[:self.L], base_conditions[self.L-1], temperature = self.temperature)
+                gen_seq.append(x_in.detach())
+                
+        predictions = torch.stack(gen_seq, dim=0)
+        return predictions
 
           
