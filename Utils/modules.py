@@ -360,40 +360,46 @@ class vgg_layer(nn.Module):
     def forward(self, input):
         return self.main(input)
 
-# TODO Fix Encoder and Decoder to work with downscaler
+
 class Encoder(nn.Module):
     def __init__(self, dim, nc=1):
         super(Encoder, self).__init__()
         self.dim = dim
-        # 64 x 64
+        
         self.c0 = nn.Sequential(
-                vgg_layer(nc, 32),
+                vgg_layer(nc, 16),
+                vgg_layer(16, 16),
+                )
+        
+        self.c1 = nn.Sequential(
+                vgg_layer(16, 32),
                 vgg_layer(32, 32),
                 )
-        self.c1 = nn.Sequential(
+     
+        self.c2 = nn.Sequential(
                 vgg_layer(32, 64),
                 vgg_layer(64, 64),
                 )
-        # 32 x 32
-        self.c2 = nn.Sequential(
+     
+        self.c3 = nn.Sequential(
                 vgg_layer(64, 128),
                 vgg_layer(128, 128),
+                vgg_layer(128, 128),
                 )
-        # 16 x 16 
-        self.c3 = nn.Sequential(
+        
+        self.c4 = nn.Sequential(
                 vgg_layer(128, 256),
                 vgg_layer(256, 256),
                 vgg_layer(256, 256),
                 )
-        # 8 x 8
-        self.c4 = nn.Sequential(
+        self.c5 = nn.Sequential(
                 vgg_layer(256, 512),
                 vgg_layer(512, 512),
                 vgg_layer(512, 512),
                 )
-        # 4 x 4
-        self.c5 = nn.Sequential(
-                nn.Conv2d(512, dim, 2, 1, 0),
+ 
+        self.c6 = nn.Sequential(
+                nn.Conv2d(512, dim, 1, 1, 0),
                 nn.BatchNorm2d(dim),
                 nn.Tanh()
                 )
@@ -405,60 +411,70 @@ class Encoder(nn.Module):
         h2 = self.c2(self.mp(h1)) # 16x16
         h3 = self.c3(self.mp(h2)) # 8x8
         h4 = self.c4(self.mp(h3)) # 4x4
-        h5 = self.c5(self.mp(h4)) # 1x1
-        return h5.view(-1, self.dim), [h0, h1, h2, h3, h4]
+        h5 = self.c5(self.mp(h4)) # 2x2
+        h6 = self.c6(self.mp(h5)) # 1x1
+        return h6.view(-1, self.dim), [h0, h1, h2, h3, h4, h5]
 
 
 class Decoder(nn.Module):
     def __init__(self, dim, nc=1):
         super(Decoder, self).__init__()
         self.dim = dim
-        #1 x 1 -> 4 x 4
+        #1x1->2x2
         self.upc1 = nn.Sequential(
-                nn.ConvTranspose2d(dim, 512, 2, 1, 0),
+                nn.ConvTranspose2d(dim, 512, 1, 1, 0),
                 nn.BatchNorm2d(512),
                 nn.LeakyReLU(0.2, inplace=True),
                 vgg_layer(512, 512),
                 )
         
-        # 8 x 8
+        # 4 x 4
         self.upc2 = nn.Sequential(
                 vgg_layer(512*2, 512),
                 vgg_layer(512, 512),
                 vgg_layer(512, 256)
                 )
-        # 16 x 16
+        # 8 x 8
         self.upc3 = nn.Sequential(
                 vgg_layer(256*2, 256),
                 vgg_layer(256, 256),
                 vgg_layer(256, 128)
                 )
-        # 32 x 32
+        # 16 x 16
         self.upc4 = nn.Sequential(
                 vgg_layer(128*2, 128),
+                vgg_layer(128, 128),
                 vgg_layer(128, 64)
                 )
+        
+        # 32 x 32
         self.upc5 = nn.Sequential(
                 vgg_layer(64*2, 64),
                 vgg_layer(64, 32)
                 )
         
-        self.tanh = nn.Tanh()
+        # 64 x 64
+        self.upc6 = nn.Sequential(
+                vgg_layer(32*2, 32),
+                vgg_layer(32, 16)
+                )
+        
         self.up = nn.UpsamplingNearest2d(scale_factor=2)
 
     def forward(self, input):
         vec, skip = input 
-        d1 = self.upc1(vec.view(-1, self.dim, 1, 1)) # 1 -> 2
-        up1 = self.up(d1) # 2 -> 4
-        d2 = self.upc2(torch.cat([up1, skip[4]], 1)) # 4 x 4
-        up2 = self.up(d2) # 4 -> 8 
-        d3 = self.upc3(torch.cat([up2, skip[3]], 1)) # 8 x 8 
-        up3 = self.up(d3) # 8 -> 16 
-        d4 = self.upc4(torch.cat([up3, skip[2]], 1)) # 16 x 16
-        up4 = self.up(d4) # 16 -> 32
-        d5 = self.upc5(torch.cat([up4, skip[1]], 1)) # 32 x 32
-        
-        return [d1,d2,d3,d4,d5]
+        d1 = self.upc1(vec.view(-1, self.dim, 1, 1)) 
+        up1 = self.up(d1)
+        d2 = self.upc2(torch.cat([up1, skip[5]], 1)) 
+        up2 = self.up(d2) 
+        d3 = self.upc3(torch.cat([up2, skip[4]], 1)) 
+        up3 = self.up(d3) 
+        d4 = self.upc4(torch.cat([up3, skip[3]], 1)) 
+        up4 = self.up(d4) 
+        d5 = self.upc5(torch.cat([up4, skip[2]], 1)) 
+        up5 = self.up(d5) 
+        d6 = self.upc6(torch.cat([up5, skip[1]], 1)) 
+        return [d1,d2,d3,d4,d5,d6]
 
 
 class lstm_svg(nn.Module):
