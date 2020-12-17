@@ -135,9 +135,9 @@ class Solver(object):
         n_bits = self.n_bits
         b, t, c, h, w = x.size()
         n_bins = 2 ** n_bits
-        chw = c * h * w
+        chwt = c * h * w * t
         x_noise = x + torch.zeros_like(x).uniform_(0, 1.0 / n_bins)
-        objective = -np.log(n_bins) * chw * torch.ones(b, device=x.device)
+        objective = -np.log(n_bins) * chwt * torch.ones(b, device=x.device)
         return x_noise, objective
  
     def preprocess(self, x, reverse = False):
