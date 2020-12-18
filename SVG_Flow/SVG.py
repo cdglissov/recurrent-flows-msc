@@ -25,6 +25,7 @@ class SVG(nn.Module):
         self.n_future = args.n_future
         self.beta = 1 
         self.temperature = args.temperature 
+        self.act_upscaler = args.act_upscaler
         
         ### Flow settings
         L=args.L 
@@ -43,7 +44,7 @@ class SVG(nn.Module):
         ###
         
         self.encoder = Encoder(c_features, channels)
-        self.decoder = Decoder(c_features, channels)
+        self.decoder = Decoder(c_features, channels, self.act_upscaler)
         self.encoder.apply(init_weights)
         self.decoder.apply(init_weights)
         
