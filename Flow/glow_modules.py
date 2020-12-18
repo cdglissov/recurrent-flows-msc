@@ -320,9 +320,9 @@ class Split2d(nn.Module):
         channels = Cx // 2 + C
       else:
         channels = Cx // 2
-      self.conv = nn.Sequential(Conv2dZeros(channels, Cx),)
+      self.conv = nn.Sequential(Conv2dZeros(channels, Cx),
+                               nn.Tanh())
 
-    # TODO: adding an extra layer seemed to help. Try recurrent
     def forward(self, x, condition, logdet, reverse):
 
         if reverse == False:
@@ -342,6 +342,6 @@ class Split2d(nn.Module):
             else:
               h = x
             mean, log_scale = split_feature(self.conv(h), "cross")
-            z2 = td.Normal(mean, torch.exp(log_scale)).rsample()
+            z2 = td.Normal(mean, torch.exp(log_scale)).sample()
             z = torch.cat((x, z2), dim=1)
             return z, logdet
