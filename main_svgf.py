@@ -140,6 +140,8 @@ if __name__ == "__main__":
                         default=0.0001, type=float)
     parser.add_argument("--free_bits", help="Specify free bit", 
                         default=0.0, type=restricted_float)
+    parser.add_argument('--act_upscaler', help="Specify activation for SVG upscaler", 
+                        default='tanh', choices=["tanh", "sigmoid", "none"], type=str)
     #Glow
     add_bool_arg(parser, "learn_prior", default=True, help="Specify if we want a learned prior (boolean)")
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")
