@@ -23,8 +23,13 @@ class RFN(nn.Module):
       self.prior_structure = args.prior_structure
       self.encoder_structure = args.encoder_structure
       condition_size_list = []
-      self.skip_connection_flow=args.skip_connection_flow
-      self.skip_connection_features=args.skip_connection_features
+      
+      self.skip_connection_flow = args.skip_connection_flow
+      self.downscaler_tanh = args.downscaler_tanh
+      
+      self.skip_connection_features = args.skip_connection_features
+      self.upscaler_tanh = args.upscaler_tanh
+      
       down_structure = args.extractor_structure 
       up_structure = args.upscaler_structure
       
@@ -34,7 +39,7 @@ class RFN(nn.Module):
           skip = True
       self.extractor = VGG_downscaler(down_structure,L=self.L, in_channels = self.x_dim[1], 
                                       norm_type=norm_type_features, non_lin = "relu", scale = scaler, 
-                                      skip_con=skip)
+                                      skip_con=skip, tanh = self.downscaler_tanh)
       
       # adjust channel dims to match up_structure. Reversed.
       channel_dims = [i[-1] for i in up_structure][::-1]
@@ -64,7 +69,9 @@ class RFN(nn.Module):
       # Feature extractor and upscaler for flow
       
       self.upscaler = VGG_upscaler(up_structure, L=self.L, in_channels = self.h_dim + self.z_dim, 
-                                   norm_type = norm_type_features, non_lin = "leakyrelu", scale = scaler, skips = self.skip_connection_features, size_skips = dims_skip)
+                                   norm_type = norm_type_features, non_lin = "leakyrelu",
+                                   scale = scaler, skips = self.skip_connection_features,
+                                   size_skips = dims_skip, tanh = self.upscaler_tanh)
 
       # ConvLSTM
       self.lstm = ConvLSTMOld(in_channels = c_features, hidden_channels=self.h_dim, 
