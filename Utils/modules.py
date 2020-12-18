@@ -41,7 +41,7 @@ class NormLayer(nn.Module):
       return self.norm(x)
   
 class VGG_downscaler(nn.Module):
-  def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2,skip_con=False):
+  def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2, skip_con=False, tanh = False):
     super(VGG_downscaler, self).__init__()
     assert len(structures) == L, "Please specify number of blocks = L"
     self.l_nets = nn.ModuleList([])
@@ -57,6 +57,8 @@ class VGG_downscaler(nn.Module):
           # Insured tanh activation in last layer, this is done to avoid exploding gradients.
           if l == L-1 and len(structure) == count:
               ActivationFun = nn.Tanh()
+          elif len(structure) == count and tanh:
+              ActivationFun = tanh0_5()
           else:
               ActivationFun = ActFun(non_lin, in_place=True)
           if i == 'pool':
@@ -135,9 +137,15 @@ class Squeeze2dDecoder(nn.Module):
         x = x.reshape(B, C // 4, H * 2, W * 2)
       return x
 
+class tanh0_5(nn.Module):
+    def __init__(self):
+        super(tanh0_5, self).__init__()
+        self.tanh=nn.Tanh()
+    def forward(self,x):
+        return 0.5*self.tanh(x)
 
 class VGG_upscaler(nn.Module):
-  def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2, skips = False, size_skips = None):
+  def __init__(self, structures, L, in_channels, norm_type = "batchnorm", non_lin = "relu", scale = 2, skips = False, size_skips = None, tanh = False):
     super(VGG_upscaler, self).__init__()
     assert len(structures) == L, "Please specify number of blocks = L"
     self.l_nets = nn.ModuleList([])
@@ -151,6 +159,10 @@ class VGG_upscaler(nn.Module):
       count = 0
       for i in structure:
           count = count + 1
+          if len(structure) == count and tanh:
+              ActivationFun = tanh0_5()
+          else:
+              ActivationFun = ActFun(non_lin, in_place=True)
           if (skips and count == 1 and l == 0) or (skips and count == 2 and not l == 0):  
               """ So for the lowest layer of L it is the first it is connected to, and the other the second.
               Kinda weird but is easier to structure the nets."""
@@ -164,18 +176,18 @@ class VGG_upscaler(nn.Module):
               deconv = nn.ConvTranspose2d(in_channels, deconv_channels, kernel_size=4, stride = 2, padding=1, bias=False)
               layer_up = [deconv, 
                         NormLayer(deconv_channels, norm_type = norm_type),
-                        ActFun(non_lin, in_place=True)]
+                        ActivationFun]
               in_channels = deconv_channels
           elif i == "squeeze":
               deconv_channels = in_channels // 4
               deconv = Squeeze2dDecoder(undo_squeeze=True)
               layer_up = [deconv, 
                         NormLayer(deconv_channels, norm_type = norm_type),
-                        ActFun(non_lin, in_place=False)]
+                        ActivationFun]
               in_channels = deconv_channels
           else:
               conv2d = nn.Conv2d(in_channels + skip_channels, i, kernel_size=3, stride=1, padding=1,bias=False)
-              layers += [conv2d,  NormLayer(i, norm_type = norm_type), ActFun(non_lin, in_place=True)]
+              layers += [conv2d,  NormLayer(i, norm_type = norm_type), ActivationFun]
               in_channels = i
       if l > 0:
           self.upscales_nets.append(nn.Sequential(*layer_up).to(device))
