@@ -239,6 +239,15 @@ class Solver(object):
           'annealing_counter': self.counter,
           'args': self.args,
           }, self.path + 'model_folder/' + model_name)
+      torch.save({
+          'epoch': epoch,
+          'loss': loss,
+          'kl_loss': self.kl_loss,
+          'recon_loss': self.recon_loss,
+          'losses': self.losses,
+          'annealing_counter': self.counter,
+          'args': self.args,
+          }, self.path + 'model_folder/eval_dict.pt')
       
     def load(self, load_model):
       self.model.load_state_dict(load_model['model_state_dict'])
