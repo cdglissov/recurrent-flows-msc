@@ -151,8 +151,6 @@ class Solver(object):
               x = torch.floor( x/2 ** (8 - n_bits))
             x = x / n_bins  - 0.5
           else:
-             #TODO: Remember to change this if it doesnt wooork
-            #x = torch.clamp(x, -0.5, 0.5)
             x = x + 0.5
             x = x * n_bins
             x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
@@ -163,7 +161,6 @@ class Solver(object):
               x = torch.floor( x/2 ** (8 - n_bits))
             x = x / n_bins  
           else:
-            x = torch.clamp(x, 0, 1)
             x = x * n_bins
             x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
         return x
