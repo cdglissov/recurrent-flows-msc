@@ -54,7 +54,7 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=90, type=int)
+                        default=60, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--n_past", help="Specify number of conditioned frames", 
@@ -113,9 +113,9 @@ if __name__ == "__main__":
     
     
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[90, 1, 64, 64], type=int)
+                        default=[60, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[90, 1, 64, 64], type=int)
+                        default=[60, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=256, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
@@ -138,7 +138,8 @@ if __name__ == "__main__":
                         default=0.9, type=restricted_float)
     parser.add_argument("--learning_rate", help="Specify learning_rate", 
                         default=0.0001, type=float)
-    
+    parser.add_argument("--free_bits", help="Specify free bit", 
+                        default=0.0, type=restricted_float)
     #Glow
     add_bool_arg(parser, "learn_prior", default=True, help="Specify if we want a learned prior (boolean)")
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")

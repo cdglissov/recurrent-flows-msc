@@ -52,7 +52,7 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=64, type=int)
+                        default=40, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=6, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
@@ -107,9 +107,9 @@ if __name__ == "__main__":
     
     # RFN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[64, 1, 64, 64], type=int)
+                        default=[40, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[64, 1, 64, 64], type=int)
+                        default=[40, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=200, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
@@ -145,7 +145,8 @@ if __name__ == "__main__":
     add_bool_arg(parser, "upscaler_tanh", default=False, help="Specify if the outputs from the upscaler is tanh'ed (boolean)")
     
     add_bool_arg(parser, "skip_connection_features", default=False, help="Specify if skip connection between up and downscaler (boolean)")
-    
+    parser.add_argument("--free_bits", help="Specify free bit", 
+                        default=0.0, type=restricted_float)
     
     #Glow
     add_bool_arg(parser, "learn_prior", default=True, help="Specify if we want a learned prior (boolean)")

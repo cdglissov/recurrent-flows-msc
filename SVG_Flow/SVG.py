@@ -1,7 +1,7 @@
 from Flow import ListGlow
 import torch
 import torch.nn as nn
-from Utils import Encoder, Decoder, init_weights, gaussian_lstm, lstm_svg
+from Utils import Encoder, Decoder, init_weights, gaussian_lstm, lstm_svg, free_bits_kl
 import torch.distributions as td
 from Utils import set_gpu
 
@@ -18,7 +18,7 @@ class SVG(nn.Module):
         posterior_rnn_layers = args.posterior_rnn_layers
         predictor_rnn_layers = args.predictor_rnn_layers
         prior_rnn_layers = args.prior_rnn_layers
-        
+        self.free_bits = args.free_bits
         x_dim = args.x_dim
         self.batch_size, channels, hx, wx = x_dim
         self.n_past = args.n_past
@@ -135,7 +135,10 @@ class SVG(nn.Module):
           dist_enc = td.Normal(mu, torch.exp(logvar))
           dist_prior = td.Normal(mu_p, torch.exp(logvar_p))
           nll += (nll / self.batch_size)
-          kld += (td.kl_divergence(dist_enc, dist_prior).sum() / self.batch_size)
+          
+          dkl=td.kl_divergence(dist_enc, dist_prior)
+          
+          kld += free_bits_kl(dkl, free_bits = self.free_bits).sum()
       
       loss = nll + kld*self.beta
       loss.backward()

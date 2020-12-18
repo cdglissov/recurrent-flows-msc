@@ -1,7 +1,7 @@
 from Flow import ListGlow
 import torch
 import torch.nn as nn
-from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM, ConvLSTMOld
+from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM, ConvLSTMOld, free_bits_kl
 import torch.distributions as td
 
 class RFN(nn.Module):
@@ -23,7 +23,7 @@ class RFN(nn.Module):
       self.prior_structure = args.prior_structure
       self.encoder_structure = args.encoder_structure
       condition_size_list = []
-      
+      self.free_bits = args.free_bits
       self.skip_connection_flow = args.skip_connection_flow
       self.downscaler_tanh = args.downscaler_tanh
       
@@ -67,7 +67,6 @@ class RFN(nn.Module):
       self.c_0 = nn.Parameter(torch.zeros(batch_size, self.h_dim, hu, wu))
       
       # Feature extractor and upscaler for flow
-      
       self.upscaler = VGG_upscaler(up_structure, L=self.L, in_channels = self.h_dim + self.z_dim, 
                                    norm_type = norm_type_features, non_lin = "leakyrelu",
                                    scale = scaler, skips = self.skip_connection_features,
@@ -141,7 +140,8 @@ class RFN(nn.Module):
 
         b, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, logdet)
         
-        kl_loss = kl_loss + td.kl_divergence(dist_enc, dist_prior).sum([1,2,3]).mean()
+        dkl=td.kl_divergence(dist_enc, dist_prior)
+        kl_loss = kl_loss + free_bits_kl(dkl, free_bits = self.free_bits).sum()
         nll_loss = nll_loss + nll 
 
         zprev, zxprev, condition_list = zt, zxt, x_feature_list

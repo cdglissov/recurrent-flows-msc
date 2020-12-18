@@ -86,14 +86,13 @@ def split_feature(tensor, type="split"):
     elif type == "cross":
         return tensor[:, 0::2, ...], tensor[:, 1::2, ...]
 
-#Create freebit here https://github.com/vlievin/biva-pytorch/blob/c39af44c012305f7b3aba7b4385d8bbdd8b4a72d/biva/evaluation/freebits.py#L5
-#def freebit(kl, beta=1, freebits=0):
-#    dimensions = torch.prod(kl.shape[1:])
-#    kl_raw = kl.sum() / batch_size
-#    
-#    kl_freebits = 0
-#    batch_size = kl.shape[0]
-#    
-#    kl_freebits = torch.max((kl_raw, freebits))  # original paper says best performance between [0.125;2]
-#    return kl_freebits
+def free_bits_kl(kl, free_bits=0.0, batch_average = False, eps=1e-6):
+
+    if free_bits < eps:
+        return kl.mean(0)
+    if batch_average:
+        return kl.mean(0).clamp(min=free_bits)
+    return kl.clamp(min=free_bits).mean(0)
+
+
 
