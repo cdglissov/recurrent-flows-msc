@@ -428,8 +428,42 @@ class Encoder(nn.Module):
         return h6.view(-1, self.dim), [h0, h1, h2, h3, h4, h5]
 
 
+class ActFun_SVG(nn.Module):
+  def __init__(self, non_lin, in_place = True):
+    super(ActFun_SVG, self).__init__()
+    self.non_lin = non_lin
+    if non_lin=='tanh':
+      self.net=nn.Tanh()
+    elif non_lin=='sigmoid':
+      self.net=nn.Sigmoid()
+    else:
+      self.net=nn.LeakyReLU(negative_slope=0.20, inplace = in_place)
+ 
+  def forward(self,x):
+    if self.non_lin == 'tanh':
+        x=self.net(x)*0.5
+    elif self.non_lin == 'sigmoid':
+        x=self.net(x)-0.5
+    else:
+        x=self.net(x)
+    return self.net(x)
+
+class vgg_layer2(nn.Module):
+    def __init__(self, nin, nout, act):
+        super(vgg_layer2, self).__init__()
+        self.main = nn.Sequential(
+                nn.Conv2d(nin, nout, 3, 1, 1),
+                nn.BatchNorm2d(nout),
+                ActFun_SVG(act, in_place=True)
+                )
+
+    def forward(self, input):
+        return self.main(input)
+
+
+
 class Decoder(nn.Module):
-    def __init__(self, dim, nc=1):
+    def __init__(self, dim, nc=1, act="none"):
         super(Decoder, self).__init__()
         self.dim = dim
         #1x1->2x2
@@ -437,42 +471,42 @@ class Decoder(nn.Module):
                 nn.ConvTranspose2d(dim, 512, 1, 1, 0),
                 nn.BatchNorm2d(512),
                 nn.LeakyReLU(0.2, inplace=True),
-                vgg_layer(512, 512),
+                vgg_layer2(512, 512, act),
                 )
         
         # 4 x 4
         self.upc2 = nn.Sequential(
                 vgg_layer(512*2, 512),
                 vgg_layer(512, 512),
-                vgg_layer(512, 256)
+                vgg_layer2(512, 256, act)
                 )
         # 8 x 8
         self.upc3 = nn.Sequential(
                 vgg_layer(256*2, 256),
                 vgg_layer(256, 256),
-                vgg_layer(256, 128)
+                vgg_layer2(256, 128, act)
                 )
         # 16 x 16
         self.upc4 = nn.Sequential(
                 vgg_layer(128*2, 128),
                 vgg_layer(128, 128),
-                vgg_layer(128, 64)
+                vgg_layer2(128, 64, act)
                 )
         
         # 32 x 32
         self.upc5 = nn.Sequential(
                 vgg_layer(64*2, 64),
-                vgg_layer(64, 32)
+                vgg_layer2(64, 32, act)
                 )
         
         # 64 x 64
         self.upc6 = nn.Sequential(
                 vgg_layer(32*2, 32),
-                vgg_layer(32, 16)
+                vgg_layer2(32, 16, act)
                 )
         
         self.up = nn.UpsamplingNearest2d(scale_factor=2)
-
+        
     def forward(self, input):
         vec, skip = input 
         d1 = self.upc1(vec.view(-1, self.dim, 1, 1)) 
@@ -486,7 +520,9 @@ class Decoder(nn.Module):
         d5 = self.upc5(torch.cat([up4, skip[2]], 1)) 
         up5 = self.up(d5) 
         d6 = self.upc6(torch.cat([up5, skip[1]], 1)) 
-        return [d1,d2,d3,d4,d5,d6]
+        return [d1, d2, d3, d4,d5,d6]
+
+
 
 
 class lstm_svg(nn.Module):
