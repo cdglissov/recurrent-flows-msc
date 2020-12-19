@@ -321,7 +321,7 @@ class Split2d(nn.Module):
       else:
         channels = Cx // 2
       self.conv = nn.Sequential(Conv2dZeros(channels, Cx),
-                               nn.Tanh())
+                               ) # nn.Tanh() this will remove invalid blobs
 
     def forward(self, x, condition, logdet, reverse):
 
