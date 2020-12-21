@@ -72,7 +72,7 @@ class Evaluator(object):
             self.model = self.solver.model.to(device)
         self.model.eval()
     def create_loaders(self):
-        self.n_frames = 20
+        self.n_frames = 30
         if self.choose_data=='mnist':
             	testset = MovingMNIST(False, 'Mnist', 
                                                          seq_len=self.n_frames, 
@@ -122,7 +122,7 @@ class Evaluator(object):
 #        return x
     
     def Evalplotter(self, predictions,true_predicted):
-      num_samples = 4 # The number of examples plotted
+      num_samples = 20 # The number of examples plotted
       time_steps = predictions.shape[1]
       fig, ax = plt.subplots(num_samples*2, time_steps , figsize = (time_steps,5*num_samples))
       for k in range(0,num_samples):
