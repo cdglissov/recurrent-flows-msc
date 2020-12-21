@@ -13,8 +13,8 @@ import numpy as np
 from scipy.signal import savgol_filter
 
 namelist = ['conv','pool','squeeze']
-path = '/work1/s144077/architechturetest/'
-fig, ax = plt.subplots(2, 1 ) #, figsize = (time_steps,5*num_samples))
+path = '/work1/s144077/architechturetestv2/'
+fig, ax = plt.subplots(2, 2 ,figsize = (20,10)) #, figsize = (time_steps,5*num_samples))
 for i in range(0,len(namelist)):
     name = namelist[i]
     plot_dict = torch.load(path+name+'/PSNR_SSIM.pt')
@@ -22,22 +22,49 @@ for i in range(0,len(namelist)):
     PSNR  = plot_dict['PSNR_values_sklearn']
     y = SSIM.mean(0).numpy()
     #print(np.shape(np.std(PSNR.numpy(),0)))
-    twostd = 1.96 * np.std(SSIM.numpy(),0)/np.mean(y)
-    ax[0].plot(np.arange(0,len(y)),y,label = name)
-    #ax[0].fill_between(np.arange(0,len(y)), np.quantile(SSIM.numpy(),0.05,axis = 0), np.quantile(SSIM.numpy(),1-0.05,axis = 0), alpha=.1)
+    #print()
+
+    twostd = 1.96 * np.std(SSIM.numpy(),0)/np.sqrt(np.shape(SSIM.numpy())[0])
+    #print(twostd)
+    ax[0,0].plot(np.arange(0,len(y)),y,label = name)
+    alpha = 0.05
     
-    y = PSNR.mean(0).numpy()
-    twostd = 1.96 * np.std(PSNR.numpy(),0)/np.mean(y)
-    ax[1].plot(np.arange(0,len(y)),y,label = name)
-    #ax[1].fill_between(np.arange(0,len(y)), np.quantile(PSNR.numpy(),0.05,axis = 0), np.quantile(PSNR.numpy(),1-0.05,axis = 0), alpha=.1)
+    ax[0,0].fill_between(np.arange(0,len(y)), y-twostd, y+twostd, alpha=.1)
+    
+    y = np.median(SSIM.numpy(),0)
+    ax[0,1].plot(np.arange(0,len(y)),y,label = name)
+    alpha = 0.05
+    
+    ax[0,1].fill_between(np.arange(0,len(y)), np.quantile(SSIM.numpy(),alpha/2,axis = 0), np.quantile(SSIM.numpy(),1-alpha/2,axis = 0), alpha=.1)
     
 
-ax[0].set_title('SSIM')
-ax[0].legend()
-ax[0].grid()
-ax[1].set_title('PSNR')
-ax[1].legend()
-ax[1].grid()
+    
+    
+    
+    y = PSNR.mean(0).numpy()
+    twostd = 1.96 * np.std(PSNR.numpy(),0)/np.sqrt(np.shape(PSNR.numpy())[0])
+    ax[1,0].plot(np.arange(0,len(y)),y,label = name)
+    #ax[1].fill_between(np.arange(0,len(y)), np.quantile(PSNR.numpy(),alpha/2,axis = 0), np.quantile(PSNR.numpy(),1-alpha/2,axis = 0), alpha=.1)
+    ax[1,0].fill_between(np.arange(0,len(y)), y-twostd, y+twostd, alpha=.1)
+    
+    y = np.median(PSNR.numpy(),0)
+    ax[1,1].plot(np.arange(0,len(y)),y,label = name)
+    ax[1,1].fill_between(np.arange(0,len(y)), np.quantile(PSNR.numpy(),alpha/2,axis = 0), np.quantile(PSNR.numpy(),1-alpha/2,axis = 0), alpha=.1)
+    
+    
+
+ax[0,0].set_title('SSIM')
+ax[0,0].legend()
+ax[0,0].grid()
+ax[0,1].set_title('SSIM-quantile-plot')
+ax[0,1].legend()
+ax[0,1].grid()
+ax[1,0].set_title('PSNR')
+ax[1,0].legend()
+ax[1,0].grid()
+ax[1,1].set_title('PSNR-quantile-plot')
+ax[1,1].legend()
+ax[1,1].grid()
 fig.savefig(path +  'SSIM_PSNR.png', bbox_inches='tight')  
 
 
@@ -49,7 +76,7 @@ fig, ax = plt.subplots(3, 1)
 fig2, ax2 = plt.subplots(3, 1)
 for i in range(0,len(namelist)):
 	name = namelist[i]
-	pathcd ='/work1/s144077/architechturetest/'
+	pathcd ='/work1/s144077/architechturetestv2/'
 	pathmodel = pathcd+namelist[i]+'/model_folder/eval_dict.pt'
     
 	load_dict = torch.load(pathmodel)
