@@ -8,7 +8,7 @@ import sys
 from tqdm import tqdm 
 
 # insert at 1, 0 is the script path (or '' in REPL)
-sys.path.insert(1, '/work1/s144077/deepflows/')
+sys.path.insert(1, '/work1/s144077/deepflows21/')
 
 
 from Utils import set_gpu
@@ -16,7 +16,7 @@ device = set_gpu(True)
 
 import matplotlib.pyplot as plt
 from RFN.trainer import Solver
-
+import lpips
 
 from data_generators import MovingMNIST
 from data_generators import PushDataset
@@ -71,6 +71,7 @@ class Evaluator(object):
         else:
             self.model = self.solver.model.to(device)
         self.model.eval()
+        self.lpipsNet = lpips.LPIPS(net='alex').to(device) # best forward scores
     def create_loaders(self):
         self.n_frames = 30
         if self.choose_data=='mnist':
@@ -175,15 +176,30 @@ class Evaluator(object):
       data_range = 2**n_bits-1
       ssim_val = ssim( X, Y, data_range=data_range)
       return ssim_val
+    def get_lpips(self,X,Y):
+        T = Y.shape[1]
+        bs = X.shape[0]
+        lpips = torch.zeros((bs, T))
+        for i in range(bs):
+            for t in range(T):
+                # Is range 0,255 needs to be [-1,1]
+                img0 = X[i,t,:,:,:].to(device) / 255 * 2 -1
+                img1 = Y[i,t,:,:,:].to(device) / 255 * 2 -1
+                if img0.shape[0] == 1: # This repeat is done as it needs 3 image channels.
+                    img0 = img0.repeat(3,1,1)
+                    img1 = img1.repeat(3,1,1)
+                lpips[i,t] = self.lpipsNet(img0, img1)
+        return lpips
   
     def EvaluatorPSNR_SSIM(self):
       start_predictions = 6 # After how many frames the the models starts condiitioning on itself.
-      times = 1 # This is to loop over the test set more than once, if you want to have than one.
+      times = 1 # This is to loop over the test set more than once, if you want better prediction of the measures ....
       SSIM_values = []
       PSNR_values = []
       SSIM_values_sklearn = []
       PSNR_values_sklearn = []
       MSE_values_sklearn = []
+      Lpips_values = []
       with torch.no_grad():
           for time in range(0, times):
               for batch_i, image in enumerate(tqdm(self.test_loader, desc="Tester", position=0, leave=True)):
@@ -206,6 +222,7 @@ class Evaluator(object):
                 SSIM_values_sklearn.append(ssim)
                 PSNR_values_sklearn.append(psnr)
                 MSE_values_sklearn.append(mse)
+                Lpips_values.append(self.get_lpips(predictions, true_predicted))
                 for i in range(0,predictions.shape[1]):
                     SSIM_values_batch.append(self.ssim_val(predictions[:,i,:,:,:], true_predicted[:,i,:,:,:]))
                     PSNR_values_batch.append(self.PSNRbatch(predictions[:,i,:,:,:], true_predicted[:,i,:,:,:]))
@@ -216,25 +233,22 @@ class Evaluator(object):
                 
       SSIM_values = torch.stack(SSIM_values)
       PSNR_values = torch.stack(PSNR_values)
-      MSE_values_sklearn = torch.stack(MSE_values_sklearn, dim = 1)
-      PSNR_values_sklearn = torch.stack(PSNR_values_sklearn, dim = 1)
-      SSIM_values_sklearn = torch.stack(SSIM_values_sklearn, dim = 1)
-      bs,times, seq = MSE_values_sklearn.shape
-      MSE_values_sklearn = MSE_values_sklearn.view(bs*times,seq) #torch.stack(MSE_values_sklearn, dim = 1)
-      PSNR_values_sklearn = PSNR_values_sklearn.view(bs*times,seq)
-      SSIM_values_sklearn = SSIM_values_sklearn.view(bs*times,seq)
+      MSE_values_sklearn = torch.cat(MSE_values_sklearn)
+      PSNR_values_sklearn = torch.cat(PSNR_values_sklearn)
+      SSIM_values_sklearn = torch.cat(SSIM_values_sklearn)
+      Lpips_values = torch.cat(Lpips_values)
       
       # Plot some samples to make sure the loader works. And the eval
       self.Evalplotter(predictions,true_predicted)
       
-      return SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn
+      return SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn, Lpips_values
                 
-namelist = ['conv','pool','squeeze']
+namelist = ['tanh_no','tanhup_down','tanh_no_conv','tanhup_down_conv']
 
 for i in range(0,len(namelist)):
-	pathcd ='/work1/s144077/architechturetest/'
+	pathcd ='/work1/s144077/tanhtest/'
 	pathmodel = pathcd+namelist[i]+'/model_folder/rfn.pt'
-	patherrormeasure = pathcd+namelist[i]+'/PSNR_SSIM.pt'
+	patherrormeasure = pathcd+namelist[i]+'/PSNR_SSIM_LPIPS.pt'
 	#name_string = 'errormeasures_architecture_'+namelist[i]+'_trained_on_6_frames.pt'
 	load_model = torch.load(pathmodel)
 	args = load_model['args']
@@ -246,13 +260,14 @@ for i in range(0,len(namelist)):
 	MetricEvaluator = Evaluator(solver, args)
 	MetricEvaluator.build()
 
-	SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn = MetricEvaluator.EvaluatorPSNR_SSIM()
+	SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn, Lpips_values = MetricEvaluator.EvaluatorPSNR_SSIM()
 	Savedict = {
 	  "SSIM_values": SSIM_values.cpu(),
 	  "PSNR_values": PSNR_values.cpu(),
       "SSIM_values_sklearn": SSIM_values_sklearn.cpu(),
 	  "PSNR_values_sklearn": PSNR_values_sklearn.cpu(),
       "MSE_values_sklearn": MSE_values_sklearn.cpu(),
+      "LPIPS_values": Lpips_values.cpu(),
 	  "SSIM_values_mean": SSIM_values.mean(0).cpu(),  # We dont need to save this, but w.e.
 	  "PSNR_values_mean": PSNR_values.mean(0).cpu()
 	}
