@@ -86,7 +86,7 @@ class ListGlow(nn.Module):
           self.prior_in = torch.zeros([1, 2*Cx, Hx, Wx,]).to(device)
           
 
-    def g(self, z, condition, logdet):
+    def g(self, z, condition, logdet, temperature):
         # maps z -> x
         x = z
         l = len(condition)-1
@@ -95,9 +95,9 @@ class ListGlow(nn.Module):
             x = step(x, undo_squeeze=True)
           elif isinstance(step, Split2d):
             l = l-1
-            x, logdet = step(x, condition[l], logdet = logdet, reverse=True)
+            x, logdet = step(x, condition[l], logdet = logdet, reverse = True, temperature = temperature)
           else:
-            x, logdet = step(x, condition[l], logdet = logdet, reverse=True)
+            x, logdet = step(x, condition[l], logdet = logdet, reverse = True)
         return x, logdet
 
 
@@ -109,10 +109,10 @@ class ListGlow(nn.Module):
             if isinstance(step, Squeeze2d):
                 z = step(z, undo_squeeze=False)
             elif isinstance(step, Split2d):
-                z, logdet = step(z, condition[l], logdet = logdet, reverse=False)
+                z, logdet = step(z, condition[l], logdet = logdet, reverse = False)
                 l = l+1
             else:
-                z, logdet = step(z, condition[l], logdet=logdet, reverse=False)
+                z, logdet = step(z, condition[l], logdet = logdet, reverse = False)
         return z, logdet
     
     
@@ -147,5 +147,5 @@ class ListGlow(nn.Module):
 
             prior = td.Normal(mean, torch.exp(log_scale)*temperature)
             z = prior.sample().to(device)
-          x, _ = self.g(z, condition, logdet=None)
+          x, _ = self.g(z, condition, logdet = None, temperature = temperature)
         return x
