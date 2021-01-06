@@ -323,7 +323,7 @@ class Split2d(nn.Module):
       self.conv = nn.Sequential(Conv2dZeros(channels, Cx),
                                ) # nn.Tanh() this will remove invalid blobs
 
-    def forward(self, x, condition, logdet, reverse):
+    def forward(self, x, condition, logdet, reverse, temperature = None):
 
         if reverse == False:
             z1, z2 = split_feature(x, "split")
@@ -342,6 +342,6 @@ class Split2d(nn.Module):
             else:
               h = x
             mean, log_scale = split_feature(self.conv(h), "cross")
-            z2 = td.Normal(mean, torch.exp(log_scale)).sample()
+            z2 = td.Normal(mean, torch.exp(log_scale)*temperature).sample()
             z = torch.cat((x, z2), dim=1)
             return z, logdet
