@@ -314,29 +314,35 @@ class Split2d(nn.Module):
       super(Split2d, self).__init__()
       self.make_conditional = make_conditional
       Bx, Cx, Hx, Wx = x_size
-      non_lin = 'leakyrelu'
+      non_lin = 'relu'
+      
       if make_conditional:
         B, C, H, W = condition_size
         channels = Cx // 2 + C
-        self.convcond = nn.Sequential(Conv2dNorm(C, C),
+        self.convcond = nn.Sequential(
+            Conv2dNorm(C, C),
             ActFun(non_lin),
             Conv2dNorm(C, C, kernel_size=[1, 1]),
-            ActFun(non_lin),)
+            ActFun(non_lin),
+            )
       else:
         channels = Cx // 2
-      self.conv = nn.Sequential(Conv2dZeros(channels, Cx),
-                               ) # nn.Tanh() this will remove invalid blobs
-      if clamp_function == 'softplus':
-          self.softplus_fun == nn.Softplus() 
+        
+      self.conv = nn.Sequential(Conv2dZeros(channels, Cx),)
+    
+      if clamp_function == 'softplus': 
           self.clamper = self.softplus()
       elif clamp_function == 'exp':
           self.clamper = self.exp_x()
       else:
           assert False, 'Please specify a clamp function for the split2d from the set {softplus, exp}'
+    
     def softplus(self,x):
-        return self.softplus_fun(x)+1e-8
+        return nn.Softplus()(x) + 1e-8
+    
     def exp_x(self,x):
         return x.exp()
+    
     def forward(self, x, condition, logdet, reverse, temperature = None):
         
         if reverse == False:
