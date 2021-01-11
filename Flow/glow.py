@@ -50,6 +50,7 @@ class ListGlow(nn.Module):
         self.make_conditional = args.make_conditional
         self.base_norm = args.base_norm
         self.non_lin_glow = args.non_lin_glow
+        self.conditional_clamp_function = args.split2d_act
         self.L = args.L
         self.K = args.K
         Bx, Cx, Hx, Wx = x_size
@@ -68,7 +69,7 @@ class ListGlow(nn.Module):
                 layers.append(GlowStep(x_size, condition_size_cur, args))
             
             if l < (self.L-1):
-                layers.append(Split2d(x_size, condition_size_cur, self.make_conditional)) 
+                layers.append(Split2d(x_size, condition_size_cur, self.make_conditional, self.condtional_clamp_function)) 
                 Cx = Cx // 2 
                 x_size = [Bx, Cx, Hx, Wx]
 
