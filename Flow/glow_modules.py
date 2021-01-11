@@ -310,38 +310,54 @@ class Squeeze2d(nn.Module):
       return x
 
 class Split2d(nn.Module):
-    def __init__(self, x_size, condition_size, make_conditional = True):
+    def __init__(self, x_size, condition_size, make_conditional = True, clamp_function = 'softplus'):
       super(Split2d, self).__init__()
       self.make_conditional = make_conditional
       Bx, Cx, Hx, Wx = x_size
-      
+      non_lin = 'leakyrelu'
       if make_conditional:
         B, C, H, W = condition_size
         channels = Cx // 2 + C
+        self.convcond = nn.Sequential(Conv2dNorm(C, C),
+            ActFun(non_lin),
+            Conv2dNorm(C, C, kernel_size=[1, 1]),
+            ActFun(non_lin),)
       else:
         channels = Cx // 2
       self.conv = nn.Sequential(Conv2dZeros(channels, Cx),
                                ) # nn.Tanh() this will remove invalid blobs
-
+      if clamp_function == 'softplus':
+          self.softplus_fun == nn.Softplus() 
+          self.clamper = self.softplus()
+      elif clamp_function == 'exp':
+          self.clamper = self.exp_x()
+      else:
+          assert False, 'Please specify a clamp function for the split2d from the set {softplus, exp}'
+    def softplus(self,x):
+        return self.softplus_fun(x)+1e-8
+    def exp_x(self,x):
+        return x.exp()
     def forward(self, x, condition, logdet, reverse, temperature = None):
-
+        
         if reverse == False:
             z1, z2 = split_feature(x, "split")
-            if self.make_conditional:
-              h = torch.cat([z1, condition], dim=1)
-            else:
-              h = z1
-            out = self.conv(h)
-            mean, log_scale = split_feature(out, "cross")
+        else:
+            z1 = x
+        
+        if self.make_conditional:
+            condition = self.convcond(condition)
+            h = torch.cat([z1, condition], dim=1)
+        else:
+            h = z1
+        
+        out = self.conv(h)
+        mean, log_scale = split_feature(out, "cross")  
+        
+        if reverse == False:
             if logdet is not None:
-              logdet = logdet + torch.sum(td.Normal(mean, torch.exp(log_scale)).log_prob(z2), dim=(1,2,3))
+              logdet = logdet + torch.sum(td.Normal(mean, self.clamper(log_scale)).log_prob(z2), dim=(1,2,3))
             return z1, logdet
         else:
-            if self.make_conditional:
-              h = torch.cat([x, condition], dim=1)
-            else:
-              h = x
-            mean, log_scale = split_feature(self.conv(h), "cross")
-            z2 = td.Normal(mean, torch.exp(log_scale)*temperature).sample()
-            z = torch.cat((x, z2), dim=1)
+            z2 = td.Normal(mean, self.clamper(log_scale)*temperature).sample()
+            z = torch.cat((z1, z2), dim=1)
             return z, logdet
