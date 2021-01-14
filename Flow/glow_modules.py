@@ -331,9 +331,9 @@ class Split2d(nn.Module):
       self.conv = nn.Sequential(Conv2dZeros(channels, Cx),)
     
       if clamp_function == 'softplus': 
-          self.clamper = self.softplus()
+          self.clamper = self.softplus
       elif clamp_function == 'exp':
-          self.clamper = self.exp_x()
+          self.clamper = self.exp_x
       else:
           assert False, 'Please specify a clamp function for the split2d from the set {softplus, exp}'
     

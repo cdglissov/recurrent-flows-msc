@@ -1,11 +1,10 @@
 import argparse
-from VRNN.trainer import Solver
+from SVG.trainer import Solver
 from torch import load as tloader
-    
+
 def main(args):
-        
     if args.load_model:
-        load_model = tloader('.'+args.path + 'model_folder/vrnn.pt')
+        load_model = tloader('.'+args.path + 'model_folder/svg.pt')
         args = load_model['args']
         solver = Solver(args)
         solver.build()
@@ -14,7 +13,7 @@ def main(args):
         solver = Solver(args)
         solver.build() 
     solver.train()
-    
+
     
 def add_bool_arg(parser, name, help, default=False):
     group = parser.add_mutually_exclusive_group(required=False)
@@ -67,7 +66,6 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
                         default=4, type=int)
     
-    
     # Trainer
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
                         default=50, type=int)
@@ -105,7 +103,14 @@ if __name__ == "__main__":
                  help="Specify if we want to load a pre-existing model (boolean)")
 
     
-    # VRNN
+    parser.add_argument("--posterior_rnn_layers", help="Specify layers of posterier (variational encoder)", 
+                        default=1, type=int)
+    parser.add_argument("--predictor_rnn_layers", help="Specify layers of predictor", 
+                        default=2, type=int)
+    parser.add_argument("--prior_rnn_layers", help="Specify layers of variational prior", 
+                        default=1, type=int)
+    parser.add_argument("--c_features", help="Specify channels of extracted features", 
+                        default=256, type=int)
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
                         default=[100, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 

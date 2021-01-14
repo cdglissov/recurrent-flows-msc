@@ -3,7 +3,7 @@ from RFN.trainer import Solver
 from torch import load as tloader
 
 def main(args):
-
+    
     if args.load_model:
         load_model = tloader('.'+args.path + 'model_folder/rfn.pt')
         args = load_model['args']
@@ -13,10 +13,10 @@ def main(args):
     else:
         solver = Solver(args)
         solver.build()
-
+        
     solver.train()   
 
-
+    
 def add_bool_arg(parser, name, help, default=False):
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--' + name, dest=name, action='store_true', help=help)
@@ -46,10 +46,10 @@ def convert_to_upscaler(x):
     block = [convert_mixed_list(i) for i in x.split("-")]
     return block
 
-
+        
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
+    
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
                         default=40, type=int)
@@ -67,8 +67,8 @@ if __name__ == "__main__":
                         default=2, type=int)
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
                         default=2, type=int)
-
-
+    
+    
     # Trainer
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
                         default=5000, type=int)
@@ -104,7 +104,7 @@ if __name__ == "__main__":
                  help="Specify if we want to load a pre-existing model (boolean)")
     parser.add_argument('--norm_type_features', help="Specify normalization type of layers upscaler/downscaler", 
                     default='batchnorm', choices=["instancenorm", "batchnorm", "none"], type=str)
-
+    
     # RFN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
                         default=[40, 1, 64, 64], type=int)
@@ -141,13 +141,13 @@ if __name__ == "__main__":
     parser.add_argument('--skip_connection_flow', help="Specify skip_connections mode", 
                         default='with_skip', choices=["without_skip", "with_skip", "only_skip"], type=str)
     add_bool_arg(parser, "downscaler_tanh", default=False, help="Specify if skip connection from downscaler is tanh'ed (boolean)")
-
+    
     add_bool_arg(parser, "upscaler_tanh", default=False, help="Specify if the outputs from the upscaler is tanh'ed (boolean)")
-
+    
     add_bool_arg(parser, "skip_connection_features", default=False, help="Specify if skip connection between up and downscaler (boolean)")
-    parser.add_argument("--free_bits", help="Specify free bit", 
-                        default=0.0, type=restricted_float)
-
+    parser.add_argument("--free_bits", help="Specify free bit, if -1.0 then we use no free_bit", 
+                        default=-1.0, type=float)
+    
     #Glow
     add_bool_arg(parser, "learn_prior", default=True, help="Specify if we want a learned prior (boolean)")
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")
@@ -170,6 +170,6 @@ if __name__ == "__main__":
     parser.add_argument('--split2d_act', help="Specify clamp type of split2d", 
                         default='softplus', choices=["softplus", "exp"], type=str)
     args = parser.parse_args()
-
+    
     main(args)
-
+    

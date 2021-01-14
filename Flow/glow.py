@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
-from Utils import split_feature, set_gpu
+from Utils import split_feature, set_gpu, ActFun, batch_reduce
 import torch.distributions as td
 from .glow_modules import ActNorm, Conv2dZeros, Conv2dNorm, InvConv, AffineCoupling, Squeeze2d, Split2d, BatchNormFlow
-from Utils import ActFun
 
 device = set_gpu(True)
 
@@ -69,7 +68,7 @@ class ListGlow(nn.Module):
                 layers.append(GlowStep(x_size, condition_size_cur, args))
             
             if l < (self.L-1):
-                layers.append(Split2d(x_size, condition_size_cur, self.make_conditional, self.condtional_clamp_function)) 
+                layers.append(Split2d(x_size, condition_size_cur, self.make_conditional, self.conditional_clamp_function)) 
                 Cx = Cx // 2 
                 x_size = [Bx, Cx, Hx, Wx]
 
@@ -129,10 +128,8 @@ class ListGlow(nn.Module):
           mean, log_scale = split_feature(self.prior_in.repeat(x.shape[0],1,1,1), type="split")
           
         prior = td.Normal(mean, torch.exp(log_scale))
-        obj = obj + torch.sum(prior.log_prob(z), dim=(1,2,3)) #p_z
-        obj = torch.mean(obj)
-        nll = -obj
-        return z, nll
+        obj = obj + batch_reduce(prior.log_prob(z)) #p_z
+        return z, -obj
 
 
     def sample(self, z, condition, base_condition, num_samples = 32, temperature=0.8):

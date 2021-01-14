@@ -22,6 +22,10 @@ def tensor(*args, torch_device=None, **kwargs):
         torch_device = device
     return torch.tensor(*args, **kwargs, device=torch_device)
 
+def batch_reduce(x, reduce=torch.sum, batch_dim=0):
+    # Reduces data to [batch_size]
+    batch_size = x.size(batch_dim)
+    return reduce(x.view(batch_size, -1), dim=-1)
 
 # Convert to numpy
 def get_numpy(tensor):
@@ -86,13 +90,12 @@ def split_feature(tensor, type="split"):
     elif type == "cross":
         return tensor[:, 0::2, ...], tensor[:, 1::2, ...]
 
-def free_bits_kl(kl, free_bits=0.0, batch_average = False, eps=1e-6):
+def free_bits_kl(kl, free_bits=0.0, eps=1e-6):
 
     if free_bits < eps:
-        return kl.mean(0)
-    if batch_average:
-        return kl.mean(0).clamp(min=free_bits)
-    return kl.clamp(min=free_bits).mean(0)
+        return kl
+    
+    return kl.clamp(min=free_bits)
 
 
 

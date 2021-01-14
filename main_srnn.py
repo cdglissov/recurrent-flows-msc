@@ -1,5 +1,5 @@
 import argparse
-from VRNN.trainer import Solver
+from SRNN.trainer import Solver
 from torch import load as tloader
     
 def main(args):
@@ -13,8 +13,8 @@ def main(args):
     else:
         solver = Solver(args)
         solver.build() 
-    solver.train()
-    
+    solver.train() 
+
     
 def add_bool_arg(parser, name, help, default=False):
     group = parser.add_mutually_exclusive_group(required=False)
@@ -67,7 +67,6 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
                         default=4, type=int)
     
-    
     # Trainer
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
                         default=50, type=int)
@@ -91,26 +90,28 @@ if __name__ == "__main__":
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
                         default=255, type=int)
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
-                        default=0.00001, type=float)
+                        default=1, type=float)
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
-                        default=0.000001, type=float)
+                        default=0.0000001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
-                        default=2000, type=int)
+                        default=4000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
                         default=5, type=int)
-    parser.add_argument("--n_conditions", help="Specify number of predictions", 
+    parser.add_argument("--n_conditions", help="Specify number of conditions for predictions", 
                         default=5, type=int)
     add_bool_arg(parser, "multigpu", default=False, help="Specify if we want to use multi GPUs")
     add_bool_arg(parser, "load_model", default=False, 
                  help="Specify if we want to load a pre-existing model (boolean)")
 
     
-    # VRNN
+    # SRNN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
                         default=[100, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
                         default=[100, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
+                        default=100, type=int)
+    parser.add_argument("--a_dim", help="Specify smoothing state (a) channels", 
                         default=100, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
                         default=20, type=int) # Very bad if too high, very bad if too low
@@ -118,8 +119,10 @@ if __name__ == "__main__":
                         default="mse", choices = ["bernoulli", "mse", "gaussian"], type=str)
     parser.add_argument("--norm_type", help="Specify the type of loss used", 
                         default="batchnorm", choices = ["batchnorm", "instancenorm", "none"], type=str)
-    
-    
+    add_bool_arg(parser, "res_q", default=False, 
+                 help="Specify if we want the residual between the mean of mu_q and mu_p")
+    add_bool_arg(parser, "enable_smoothing", default=False, 
+                 help="Specify if we want to use smoothing")
     args = parser.parse_args()
     
     main(args)

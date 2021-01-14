@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from data_generators import MovingMNIST
 from data_generators import PushDataset
 import matplotlib.pyplot as plt
-from .VRNN import VRNN
+from .SVG import SVG
 from Utils import set_gpu
 from tqdm import tqdm 
 device = set_gpu(True)
@@ -83,7 +83,7 @@ class Solver(object):
         if not os.path.exists(self.path + 'model_folder'):
           os.makedirs(self.path + 'model_folder')
         
-        model = VRNN(self.args)
+        model = SVG(self.args)
         
         if self.multigpu and torch.cuda.device_count() > 1:
             print("Using:", torch.cuda.device_count(), "GPUs")
@@ -95,11 +95,11 @@ class Solver(object):
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', 
                                                                     patience=self.patience_lr, 
                                                                     factor=self.factor_lr, 
-                                                                    min_lr=self.min_lr,
-                                                                    verbose = True)
+                                                                    min_lr=self.min_lr)
         self.earlystopping = EarlyStopping(min_delta = 0, patience = self.patience_es, 
                                            verbose = self.verbose)
         self.counter = 0
+        
         
     def create_loaders(self):
         if self.choose_data=='mnist':
@@ -220,7 +220,7 @@ class Solver(object):
  
           if self.epoch_i % 1 == 0:
             # Save model after each 25 epochs
-            self.checkpoint('vrnn.pt', self.epoch_i, epoch_loss) 
+            self.checkpoint('svg.pt', self.epoch_i, epoch_loss) 
  
           # Do early stopping, if above patience stop training, if better loss, save model
           stop = self.earlystopping.step(self.epoch_i, epoch_loss)
@@ -228,7 +228,7 @@ class Solver(object):
             break
           if (self.earlystopping.best_loss < self.best_loss) and (self.epoch_i > 50):
             self.best_loss = self.earlystopping.best_loss
-            self.checkpoint('vrnn_best_model.pt', self.epoch_i, epoch_loss) 
+            self.checkpoint('svg_best_model.pt', self.epoch_i, epoch_loss) 
           self.scheduler.step(epoch_loss)
           
           if self.verbose:

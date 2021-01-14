@@ -1,7 +1,7 @@
 from Flow import ListGlow
 import torch
 import torch.nn as nn
-from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM, ConvLSTMOld, free_bits_kl
+from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTMOld, free_bits_kl, batch_reduce
 import torch.distributions as td
 
 class RFN(nn.Module):
@@ -118,7 +118,6 @@ class RFN(nn.Module):
         
         _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev) 
         
-        # TODO: maybe try to make another LSTM but only for the prior.
         prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
         dist_prior = td.Normal(prior_mean, prior_std)
         zt = dist_prior.rsample()
@@ -140,14 +139,20 @@ class RFN(nn.Module):
 
         b, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, logdet)
         
-        dkl=td.kl_divergence(dist_enc, dist_prior)
-        kl_loss = kl_loss + free_bits_kl(dkl, free_bits = self.free_bits).sum()
+        
+        kl_loss = kl_loss + td.kl_divergence(dist_enc, dist_prior)
+        
+        if self.free_bits>0:
+            kl_free_bit = free_bits_kl(kl_loss, free_bits = self.free_bits)
+        else:
+            kl_free_bit = kl_loss
+        
         nll_loss = nll_loss + nll 
 
         zprev, zxprev, condition_list = zt, zxt, x_feature_list
         hprev, cprev = ht ,ct
         
-      return kl_loss, nll_loss
+      return batch_reduce(kl_free_bit).mean(), batch_reduce(kl_loss).mean(), nll_loss.mean()
     
     def combineconditions(self,flow_conditions, skip_conditions):
       flow_conditions_combined = []

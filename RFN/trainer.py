@@ -43,7 +43,6 @@ class EarlyStopping():
 class Solver(object):
     def __init__(self, args):
         self.args = args
-        self.params = args
         self.n_bits = args.n_bits
         self.n_epochs = args.n_epochs
         self.learning_rate = args.learning_rate
@@ -53,6 +52,7 @@ class Solver(object):
         self.losses = []
         self.kl_loss = []
         self.recon_loss = []
+        self.bits = []
         self.epoch_i = 0
         self.best_loss = 1e15
         self.batch_size = args.batch_size
@@ -86,14 +86,15 @@ class Solver(object):
             print("Using:", torch.cuda.device_count(), "GPUs")
             self.model = nn.DataParallel(RFN(self.params)).to(device)
         else:
-            self.model = RFN(self.params).to(device)
+            self.model = RFN(self.args).to(device)
         
             
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min', 
                                                                     patience=self.patience_lr, 
                                                                     factor=self.factor_lr, 
-                                                                    min_lr=self.min_lr)
+                                                                    min_lr=self.min_lr,
+                                                                    verbose = True)
         self.earlystopping = EarlyStopping(min_delta = 0, patience = self.patience_es, 
                                            verbose = self.verbose)
         self.counter = 0
@@ -164,7 +165,22 @@ class Solver(object):
             x = x * n_bins
             x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
         return x
- 
+    
+    def compute_loss(self, nll, kl_free_bit, kl, dims, t=1):
+        loss = nll + self.beta*kl_free_bit
+        
+        kl_store = kl.data
+        nll_store = nll.data
+        elbo = -(kl_store+nll_store)
+        
+        #https://stats.stackexchange.com/questions/423120/what-is-bits-per-dimension-bits-dim-exactly-in-pixel-cnn-papers/431012
+        bits_per_dim_loss = -elbo/(np.log(2.)*torch.prod(torch.tensor(dims))*t)
+        self.bits.append(float(bits_per_dim_loss))
+        self.losses.append(float(loss.data)/t)
+        self.kl_loss.append(float(kl_store)/t)
+        self.recon_loss.append(float(nll_store)/t)
+        return loss
+    
     def train(self):
       
       max_value = self.beta_max
@@ -186,19 +202,14 @@ class Solver(object):
             self.beta = min(max_value, min_value + self.counter*(max_value - min_value) / num_steps)
             
             if self.multigpu and torch.cuda.device_count() > 1:
-                kl_loss, nll_loss = self.model.module.loss(image, logdet)
+                kl_free_bit, kl, nll = self.model.module.loss(image, logdet)
             else:
-                kl_loss, nll_loss = self.model.loss(image, logdet)
-            loss=(self.beta * kl_loss) + nll_loss
+                kl_free_bit, kl, nll = self.model.loss(image, logdet)
+            loss = self.compute_loss(nll, kl_free_bit,  kl, image.shape[2:], t=1)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            dims = float(np.log(2.) * torch.prod(torch.tensor(image.shape[2:])))
-            bits_per_dim_loss =  float(loss.data/dims)
             
-            self.losses.append(bits_per_dim_loss)
-            self.kl_loss.append(kl_loss.detach() / dims)
-            self.recon_loss.append(nll_loss.detach() / dims)
             self.counter += 1
             #if (batch_i % 5)==0:
           
@@ -206,7 +217,7 @@ class Solver(object):
           epoch_loss = np.mean(self.losses)
  
           if self.epoch_i % 1 == 0:
-            # Save model after each 25 epochs
+            # Save model after each epoch
             self.checkpoint('rfn.pt', self.epoch_i, epoch_loss) 
  
           # Do early stopping, if above patience stop training, if better loss, save model
@@ -216,7 +227,7 @@ class Solver(object):
           if (self.earlystopping.best_loss < self.best_loss) and (self.epoch_i > 50):
             self.best_loss = self.earlystopping.best_loss
             self.checkpoint('rfn_best_model.pt', self.epoch_i, epoch_loss) 
-          self.scheduler.step(loss)
+          self.scheduler.step(epoch_loss)
           
           if self.verbose:
             print('Epoch {} Loss: {:.2f}'.format(self.epoch_i, epoch_loss))
@@ -265,7 +276,7 @@ class Solver(object):
       lr = self.optimizer.param_groups[0]['lr']
       with open(self.path + 'model_folder/status.txt', 'a') as f:
         print("STATUS:", file=f)
-        print("\tKL and Reconstruction loss: {:.4f}, {:.4f}".format(self.kl_loss[-1].data, self.recon_loss[-1].data), file=f)
+        print("\tKL and Reconstruction loss: {:.4f}, {:.4f}".format(self.kl_loss[-1], self.recon_loss[-1]), file=f)
         print(f'\tEpoch {self.epoch_i}, Beta value {self.beta:.4f}, Learning rate {lr}', file=f)
  
     def plotter(self):
@@ -294,19 +305,31 @@ class Solver(object):
     
  
       fig, ax = plt.subplots(1, 4 , figsize = (20,5))
-      ax[0].plot(self.losses)
-      ax[0].set_title("Loss")
+      ax[0].plot(self.bits)
+      ax[0].set_title("Bits per dim")
+      ax[0].set_xlabel("mini-batch")
+      ax[0].set_ylabel("bits-per-dim")
       ax[0].grid()
+      
       ax[1].plot(self.losses)
-      ax[1].set_title("log-Loss")
+      ax[1].set_title("Log of the loss")
       ax[1].set_yscale('log')
+      ax[1].set_xlabel("mini-batch")
+      ax[1].set_ylabel("log-loss")
       ax[1].grid()
+      
       ax[2].plot(self.kl_loss)
       ax[2].set_title("KL Loss")
       ax[2].grid()
+      ax[2].set_xlabel("mini-batch")
+      ax[2].set_ylabel("KL")
+      
       ax[3].plot(self.recon_loss)
       ax[3].set_title("Reconstruction Loss")
       ax[3].grid()
+      ax[3].set_xlabel("mini-batch")
+      ax[3].set_ylabel("nll")
+      
       if not self.verbose:
         fig.savefig(self.path + 'png_folder/losses' + '.png', bbox_inches='tight')
         plt.close(fig)
