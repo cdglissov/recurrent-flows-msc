@@ -119,9 +119,9 @@ if __name__ == "__main__":
                         default="mse", choices = ["bernoulli", "mse", "gaussian"], type=str)
     parser.add_argument("--norm_type", help="Specify the type of loss used", 
                         default="batchnorm", choices = ["batchnorm", "instancenorm", "none"], type=str)
-    add_bool_arg(parser, "res_q", default=False, 
+    add_bool_arg(parser, "res_q", default=True, 
                  help="Specify if we want the residual between the mean of mu_q and mu_p")
-    add_bool_arg(parser, "enable_smoothing", default=False, 
+    add_bool_arg(parser, "enable_smoothing", default=True, 
                  help="Specify if we want to use smoothing")
     args = parser.parse_args()
     
