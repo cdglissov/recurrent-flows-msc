@@ -8,7 +8,7 @@ import sys
 from tqdm import tqdm 
 
 # insert at 1, 0 is the script path (or '' in REPL)
-sys.path.insert(1, '/work1/s144077/deepflows21/')
+sys.path.insert(1, '/work1/s144077/deepflows_6_01/') ## Set version of model
 
 
 from Utils import set_gpu
@@ -33,11 +33,13 @@ import numpy as np
 
 
 class Evaluator(object):
-    def __init__(self,solver, args):
+    def __init__(self,solver, args, start_predictions, n_frames):
         self.args = args
         self.params = args
         self.n_bits = args.n_bits
         self.solver = solver
+        self.n_frames = n_frames
+        self.start_predictions = start_predictions # After so many frames it starts conditioning on itself.
 
         self.verbose = args.verbose
         
@@ -73,7 +75,7 @@ class Evaluator(object):
         self.model.eval()
         self.lpipsNet = lpips.LPIPS(net='alex').to(device) # best forward scores
     def create_loaders(self):
-        self.n_frames = 30
+        
         if self.choose_data=='mnist':
             	testset = MovingMNIST(False, 'Mnist', 
                                                          seq_len=self.n_frames, 
@@ -90,37 +92,8 @@ class Evaluator(object):
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
 
-        test_loader = DataLoader(testset, batch_size=self.batch_size,num_workers=self.num_workers, shuffle=True, drop_last=True)
+        test_loader = DataLoader(testset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, drop_last=True)
         return test_loader    
-#    def preprocess(self, x, reverse = False):
-#        # Remember to change the scale parameter to make variable between 0..255
-#        preprocess_range = self.preprocess_range
-#        scale = self.preprocess_scale
-#        n_bits = self.n_bits
-#        n_bins = 2 ** n_bits
-#        if preprocess_range == "0.5":
-#          if reverse == False:
-#            x = x * scale
-#            if n_bits < 8:
-#              x = torch.floor( x/2 ** (8 - n_bits))
-#            x = x / n_bins  - 0.5
-#          else:
-#            #x = torch.clamp(x, -0.5, 0.5)
-#            x = x + 0.5
-#            x = x * n_bins
-#            x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
-#            x = x * 255
-#        elif preprocess_range == "1.0":
-#          if reverse == False:
-#            x = x * scale
-#            if n_bits < 8:
-#              x = torch.floor( x/2 ** (8 - n_bits))
-#            x = x / n_bins  
-#          else:
-#            x = torch.clamp(x, 0, 1)
-#            x = x * n_bins
-#            x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
-#        return x
     
     def Evalplotter(self, predictions,true_predicted):
       num_samples = 20 # The number of examples plotted
@@ -192,7 +165,7 @@ class Evaluator(object):
         return lpips
   
     def EvaluatorPSNR_SSIM(self):
-      start_predictions = 6 # After how many frames the the models starts condiitioning on itself.
+      start_predictions = self.start_predictions # After how many frames the the models starts condiitioning on itself.
       times = 1 # This is to loop over the test set more than once, if you want better prediction of the measures ....
       SSIM_values = []
       PSNR_values = []
@@ -243,39 +216,41 @@ class Evaluator(object):
       
       return SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn, Lpips_values
                 
-namelist = ['tanh_no','tanhup_down','tanh_no_conv','tanhup_down_conv']
+namelist = ['tanh_no_newtemp_newclam_deeper']
 
 for i in range(0,len(namelist)):
-	pathcd ='/work1/s144077/tanhtest/'
-	pathmodel = pathcd+namelist[i]+'/model_folder/rfn.pt'
-	patherrormeasure = pathcd+namelist[i]+'/PSNR_SSIM_LPIPS.pt'
-	#name_string = 'errormeasures_architecture_'+namelist[i]+'_trained_on_6_frames.pt'
-	load_model = torch.load(pathmodel)
-	args = load_model['args']
-	solver = Solver(args)
-	solver.build()
-	solver.load(load_model)               
-				   
-					
-	MetricEvaluator = Evaluator(solver, args)
-	MetricEvaluator.build()
+    pathcd ='/work1/s144077/tanhtest/'
+    ## Would be very nice to find a 
+    start_predictions = 6 # After how many frames the model starts conditioning on itself.
+    n_frames = 30 # Number of frames in the test dataloader.
+    pathmodel = pathcd+namelist[i]+'/model_folder/rfn.pt'
+    patherrormeasure = pathcd+namelist[i]+'/PSNR_SSIM_LPIPS.pt'
+    #name_string = 'errormeasures_architecture_'+namelist[i]+'_trained_on_6_frames.pt'
+    load_model = torch.load(pathmodel)
+    args = load_model['args']
 
-	SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn, Lpips_values = MetricEvaluator.EvaluatorPSNR_SSIM()
-	Savedict = {
-	  "SSIM_values": SSIM_values.cpu(),
-	  "PSNR_values": PSNR_values.cpu(),
-      "SSIM_values_sklearn": SSIM_values_sklearn.cpu(),
-	  "PSNR_values_sklearn": PSNR_values_sklearn.cpu(),
-      "MSE_values_sklearn": MSE_values_sklearn.cpu(),
-      "LPIPS_values": Lpips_values.cpu(),
-	  "SSIM_values_mean": SSIM_values.mean(0).cpu(),  # We dont need to save this, but w.e.
-	  "PSNR_values_mean": PSNR_values.mean(0).cpu()
-	}
-	torch.save(Savedict,patherrormeasure)    
-	print(SSIM_values.mean(0))
-	print(PSNR_values.mean(0))
-	print(MSE_values_sklearn.mean(0))
-	print(PSNR_values_sklearn.mean(0))
-	print(SSIM_values_sklearn.mean(0))
+    solver = Solver(args)
+    solver.build()
+    solver.load(load_model)               
+    			   
+    				
+    MetricEvaluator = Evaluator(solver, args, start_predictions, n_frames)
+    MetricEvaluator.build()
+    SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn, Lpips_values = MetricEvaluator.EvaluatorPSNR_SSIM()
+    Savedict = {"SSIM_values": SSIM_values.cpu(),
+                "PSNR_values": PSNR_values.cpu(),
+                "SSIM_values_sklearn": SSIM_values_sklearn.cpu(),
+                "PSNR_values_sklearn": PSNR_values_sklearn.cpu(),
+                "MSE_values_sklearn": MSE_values_sklearn.cpu(),
+                "LPIPS_values": Lpips_values.cpu(),
+                "SSIM_values_mean": SSIM_values.mean(0).cpu(),  # We dont need to save this, but w.e.
+                "PSNR_values_mean": PSNR_values.mean(0).cpu(),
+                }
+    torch.save(Savedict,patherrormeasure)    
+    print(SSIM_values.mean(0))
+    print(PSNR_values.mean(0))
+    print(MSE_values_sklearn.mean(0))
+    print(PSNR_values_sklearn.mean(0))
+    print(SSIM_values_sklearn.mean(0))
        
             
