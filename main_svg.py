@@ -60,7 +60,7 @@ if __name__ == "__main__":
     parser.add_argument("--digit_size", help="Specify the size of mnist digit", 
                         default=32, type=int)
     parser.add_argument("--step_length", help="Specify the step size of mnist digit", 
-                        default=2, type=int)
+                        default=4, type=int)
     parser.add_argument("--num_digits", help="Specify the number of mnist digits", 
                         default=1, type=int)
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
