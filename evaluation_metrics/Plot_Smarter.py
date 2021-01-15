@@ -5,7 +5,7 @@ import numpy as np
 from scipy.signal import savgol_filter
 
 namelist = ['tanh_no','tanhup_down','tanh_no_conv','tanhup_down_conv']
-path = '/work1/s144077/tanhtest/'
+path = './tanhtest/'
 fig, ax = plt.subplots(3, 2 ,figsize = (20,10)) #, figsize = (time_steps,5*num_samples))
 for i in range(0,len(namelist)):
     name = namelist[i]
