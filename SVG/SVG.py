@@ -328,7 +328,7 @@ class SVG(nn.Module):
         
         true_x[0,:,:,:,:]=x[:,0,:,:,:]
         x_in = x[:,0,:,:,:]
-        for i in range(1, t):
+        for i in range(1, n_predictions+n_conditions):
             condition, skip  = self.encoder(x_in)
             condition = condition.detach()
             if i < n_conditions:

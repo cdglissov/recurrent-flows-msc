@@ -260,8 +260,6 @@ class SRNN(nn.Module):
       hprev, cprev, zprev, zprevx, aprev, caprev, _, _, _ = self.get_inits()     
 
       store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
-      store_at = torch.zeros((t-1, *hprev.shape)).cuda()
-      
       true_x[0,:,:,:,:] = xt[:, 0, :, :, :].detach()
       
       #Find ht
@@ -271,41 +269,16 @@ class SRNN(nn.Module):
         store_ht[i-1,:,:,:,:] = ht
         hprev = ht
         cprev = ct
-    
-      #Find at
-      if self.enable_smoothing:
-          for i in range(1, n_conditions):
-            xt_features = self.phi_x_t(xt[:, n_conditions-i, :, :, :])
-            lstm_a_input = torch.cat([store_ht[n_conditions-i-1,:,:,:,:], xt_features], 1)
-            _, at, c_at = self.lstm_a(lstm_a_input.unsqueeze(1), aprev, caprev)
-            aprev = at
-            caprev = c_at
-            store_at[n_conditions-i-1,:,:,:,:] = at
 
       #Find encoder samples, should we add res_q here? #add warmup with resq
       for i in range(1, n_conditions):
-        if self.enable_smoothing:
-            at = store_at[i-1,:,:,:,:]
-            enc_t = self.enc(torch.cat([at, self.phi_z(zprevx)], 1))
-        else:
-            xt_features = self.phi_x_t(xt[:, i, :, :, :])
-            enc_t = self.enc(torch.cat([ht, self.phi_z(zprevx), xt_features], 1))
-            
-        if self.res_q:
-            ht = store_ht[i-1,:,:,:,:]
-            prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1)) 
-            prior_mean_t = self.prior_mean(prior_t) 
-            prior_std_t = self.prior_std(prior_t)
-            prior_dist = td.Normal(prior_mean_t, prior_std_t)
-            z_t = prior_dist.rsample()
-            zprev = z_t
-            enc_mean_t = prior_mean_t + self.enc_mean(enc_t)
-        else:
-            enc_mean_t = self.enc_mean(enc_t)
-        enc_std_t = self.enc_std(enc_t)
-        enc_dist = td.Normal(enc_mean_t, enc_std_t)
-        z_tx = enc_dist.rsample()
-        zprevx = z_tx
+        ht = store_ht[i-1,:,:,:,:]
+        prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1)) 
+        prior_mean_t = self.prior_mean(prior_t) 
+        prior_std_t = self.prior_std(prior_t)
+        prior_dist = td.Normal(prior_mean_t, prior_std_t)
+        z_t = prior_dist.rsample()
+        zprev = z_t
         true_x[i,:,:,:,:] = xt[:, i, :, :, :].detach()
       
       prediction = xt[:,n_conditions-1,:,:,:]

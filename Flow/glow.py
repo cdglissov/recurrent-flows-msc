@@ -127,8 +127,8 @@ class ListGlow(nn.Module):
         else:
           mean, log_scale = split_feature(self.prior_in.repeat(x.shape[0],1,1,1), type="split")
           
-        prior = td.Normal(mean, torch.exp(log_scale))
-        obj = obj + batch_reduce(prior.log_prob(z)) #p_z
+        gaussian_likelihood = td.Normal(mean, torch.exp(log_scale))
+        obj = obj + batch_reduce(gaussian_likelihood.log_prob(z)) #p_z
         return z, -obj
 
 

@@ -280,7 +280,7 @@ class Solver(object):
       with torch.no_grad():
         self.model.eval()
         image = next(iter(self.test_loader)).to(device)
-        time_steps = self.n_frames - 1
+        time_steps = self.n_frames
 
         image  = self.preprocess(image, reverse=False)
         
@@ -333,15 +333,19 @@ class Solver(object):
       for i in range(0, time_steps):
         ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
         ax[0,i].set_title("True Image")
+        ax[0,i].axis('off')
         
         ax[1,i].imshow(self.convert_to_numpy(samples[i, 0, :, :, :]))
-        ax[1,i].set_title("Samples|1 frame")
+        ax[1,i].set_title("Sample|1 frame")
+        ax[1,i].axis('off')
         
         ax[2,i].imshow(self.convert_to_numpy(plot_preds[i, 0, :, :, :]))
         ax[2,i].set_title("Prediction")
+        ax[2,i].axis('off')
         
         ax[3,i].imshow(self.convert_to_numpy(recons[i, 0, :, :, :]))
         ax[3,i].set_title("Reconstruction")
+        ax[3,i].axis('off')
         
 
       if not self.verbose:

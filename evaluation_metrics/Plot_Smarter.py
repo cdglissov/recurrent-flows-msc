@@ -14,56 +14,32 @@ for i in range(0,len(namelist)):
     PSNR  = plot_dict['PSNR_values_sklearn']
     LPIPS  = plot_dict['LPIPS_values']
     y = SSIM.mean(0).numpy()
-    #print(np.shape(np.std(PSNR.numpy(),0)))
-    #print()
-
     twostd = 1.96 * np.std(SSIM.numpy(),0)#/np.sqrt(np.shape(SSIM.numpy())[0])
     #print(twostd)
     ax[0,0].plot(np.arange(0,len(y)),y,label = name)
     alpha = 0.05
-    
     ax[0,0].fill_between(np.arange(0,len(y)), y-twostd, y+twostd, alpha=.1)
-    
     y = np.median(SSIM.numpy(),0)
     ax[0,1].plot(np.arange(0,len(y)),y,label = name)
     alpha = 0.05
-    
     ax[0,1].fill_between(np.arange(0,len(y)), np.quantile(SSIM.numpy(),alpha/2,axis = 0), np.quantile(SSIM.numpy(),1-alpha/2,axis = 0), alpha=.1)
-    
-
-    
-    
-    
     y = PSNR.mean(0).numpy()
-    twostd = 1.96 * np.std(PSNR.numpy(),0)#/np.sqrt(np.shape(PSNR.numpy())[0])
+    twostd = 1.96 * np.std(PSNR.numpy(),0)
     ax[1,0].plot(np.arange(0,len(y)),y,label = name)
-    #ax[1].fill_between(np.arange(0,len(y)), np.quantile(PSNR.numpy(),alpha/2,axis = 0), np.quantile(PSNR.numpy(),1-alpha/2,axis = 0), alpha=.1)
     ax[1,0].fill_between(np.arange(0,len(y)), y-twostd, y+twostd, alpha=.1)
-    
     y = np.median(PSNR.numpy(),0)
     ax[1,1].plot(np.arange(0,len(y)),y,label = name)
     ax[1,1].fill_between(np.arange(0,len(y)), np.quantile(PSNR.numpy(),alpha/2,axis = 0), np.quantile(PSNR.numpy(),1-alpha/2,axis = 0), alpha=.1)
-    
-    
     y = LPIPS.mean(0).numpy()
-    #print(np.shape(np.std(PSNR.numpy(),0)))
-    #print()
-
-    twostd = 1.96 * np.std(LPIPS.numpy(),0)#/np.sqrt(np.shape(LPIPS.numpy())[0])
-    #print(twostd)
+    twostd = 1.96 * np.std(LPIPS.numpy(),0)
     ax[2,0].plot(np.arange(0,len(y)),y,label = name)
     alpha = 0.05
-    
     ax[2,0].fill_between(np.arange(0,len(y)), y-twostd, y+twostd, alpha=.1)
-    
     y = np.median(LPIPS.numpy(),0)
     ax[2,1].plot(np.arange(0,len(y)),y,label = name)
     alpha = 0.05
-    
     ax[2,1].fill_between(np.arange(0,len(y)), np.quantile(LPIPS.numpy(),alpha/2,axis = 0), np.quantile(LPIPS.numpy(),1-alpha/2,axis = 0), alpha=.1)
     
-    
-
 ax[0,0].set_title('SSIM')
 ax[0,0].legend()
 ax[0,0].grid()
@@ -76,7 +52,6 @@ ax[1,0].grid()
 ax[1,1].set_title('PSNR-quantile-plot')
 ax[1,1].legend()
 ax[1,1].grid()
-
 ax[2,0].set_title('LPIPS')
 ax[2,0].legend()
 ax[2,0].grid()
@@ -84,9 +59,6 @@ ax[2,1].set_title('LPIPS-quantile-plot')
 ax[2,1].legend()
 ax[2,1].grid()
 fig.savefig(path +  'SSIM_PSNR_LPIPS.png', bbox_inches='tight')  
-
-
-
 
 # Check the different losses
 #namelist = ['tanh_no','tanhup_down']

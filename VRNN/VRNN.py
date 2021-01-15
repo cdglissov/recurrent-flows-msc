@@ -170,7 +170,7 @@ class VRNN(nn.Module):
         xt_features = self.phi_x_t(xt[:, i, :, :, :])
         ut = self.phi_x_t(xt[:, i-1, :, :, :])
 
-        lstm_input = torch.cat([ut, self.phi_z(zprev)], 1)
+        lstm_input = torch.cat([ut, self.phi_z(zxprev)], 1)
         _, ht, ct = self.lstm(lstm_input.unsqueeze(1), hprev, cprev)
         
         prior_t = self.prior(ht) 
@@ -183,13 +183,13 @@ class VRNN(nn.Module):
         enc_std_t = self.enc_std(enc_t)
         enc_dist = td.Normal(enc_mean_t, enc_std_t)
 
-        z_t = enc_dist.rsample()
+        zx_t = enc_dist.rsample()
 
-        dec_t = self.dec(torch.cat([ht, self.phi_z(z_t)], 1))
+        dec_t = self.dec(torch.cat([ht, self.phi_z(zx_t)], 1))
         
         dec_mean_t = self.dec_mean(dec_t)
         
-        zprev = z_t
+        zxprev = zx_t
         hprev = ht
         cprev = ct
 
@@ -215,22 +215,28 @@ class VRNN(nn.Module):
       assert n_conditions <= t, "n_conditions > t, number of conditioned frames is greater than number of frames"
       predictions = torch.zeros((n_predictions, *x[:,0,:,:,:].shape))
       true_x = torch.zeros((n_conditions, *x[:,0,:,:,:].shape))
-      hprev, cprev, zprev, _,_,_,_ = self.get_inits()   
+      hprev, cprev, zprev, zxprev,_,_,_ = self.get_inits()   
       
       true_x[0,:,:,:,:] = x[:, 0, :, :, :]
       for i in range(1, n_conditions):
         xt_features = self.phi_x_t(x[:, i, :, :, :])
         ut = self.phi_x_t(x[:, i-1, :, :, :])
         
-        lstm_input = torch.cat([ut, self.phi_z(zprev)], 1)
+        lstm_input = torch.cat([ut, self.phi_z(zxprev)], 1)
         _, ht, ct = self.lstm(lstm_input.unsqueeze(1), hprev, cprev)
+        
+        prior_t = self.prior(ht) 
+        prior_mean_t = self.prior_mean(prior_t) 
+        prior_std_t = self.prior_std(prior_t)
+        z_t = td.Normal(prior_mean_t, prior_std_t).rsample()
         
         enc_t = self.enc(torch.cat([ht, xt_features], 1))
         enc_mean_t = self.enc_mean(enc_t) 
         enc_std_t = self.enc_std(enc_t)    
-        z_t = td.Normal(enc_mean_t, enc_std_t).rsample()
+        zx_t = td.Normal(enc_mean_t, enc_std_t).rsample()
         
         zprev = z_t
+        zxprev = zx_t
         hprev = ht
         cprev = ct
         
@@ -265,26 +271,26 @@ class VRNN(nn.Module):
       b, t, c, h, w = x.shape
       recons= torch.zeros((t, *x[:,0,:,:,:].shape))
       
-      hprev, cprev, zprev, _, _,_,_ = self.get_inits()
+      hprev, cprev, zprev, zxprev, _,_,_ = self.get_inits()
 
       for i in range(1, t):
         ut = self.phi_x_t(x[:, i-1, :, :, :])
         xt_features = self.phi_x_t(x[:, i, :, :, :])
         
-        lstm_input = torch.cat([ut, self.phi_z(zprev)], 1)
+        lstm_input = torch.cat([ut, self.phi_z(zxprev)], 1)
         _, ht, ct = self.lstm(lstm_input.unsqueeze(1), hprev, cprev)
         
         enc_t = self.enc(torch.cat([ht, xt_features], 1))
         enc_mean_t = self.enc_mean(enc_t) 
         enc_std_t = self.enc_std(enc_t)    
-        z_t = td.Normal(enc_mean_t, enc_std_t).rsample()
+        zx_t = td.Normal(enc_mean_t, enc_std_t).rsample()
         
         
-        dec_t = self.dec(torch.cat([ht, self.phi_z(z_t)], 1))
+        dec_t = self.dec(torch.cat([ht, self.phi_z(zx_t)], 1))
         dec_mean_t = self.dec_mean(dec_t)
         
         recons[i,:,:,:,:] = dec_mean_t.detach()
-        zprev = z_t
+        zxprev = zx_t
         hprev = ht
         cprev = ct
         

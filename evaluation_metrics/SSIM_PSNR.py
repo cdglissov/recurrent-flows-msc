@@ -26,12 +26,6 @@ from skimage.measure import compare_ssim as skSSIM
 import numpy as np
 
 ### Load model
-  
-# RFN
-# Path to model
-
-
-
 class Evaluator(object):
     def __init__(self,solver, args, start_predictions, n_frames):
         self.args = args
@@ -220,7 +214,6 @@ namelist = ['tanh_no_newtemp_newclam_deeper']
 pathcd ='./tanhtest/'
 for i in range(0,len(namelist)):
     
-    ## Would be very nice to find a 
     start_predictions = 6 # After how many frames the model starts conditioning on itself.
     n_frames = 30 # Number of frames in the test dataloader.
     pathmodel = pathcd+namelist[i]+'/model_folder/rfn.pt'

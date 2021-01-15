@@ -52,9 +52,9 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=40, type=int)
+                        default=30, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
-                        default=6, type=int)
+                        default=10, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
                         choices=['mnist', 'bair'], default='mnist', type=str)
     parser.add_argument("--image_size", help="Specify the image size of mnist", 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
                         default=0.00001, type=float)
     parser.add_argument("--n_bits", help="Specify number of bits", 
-                        default=5, type=int)
+                        default=8, type=int)
     parser.add_argument("--n_epochs", help="Specify number of epochs", 
                         default=100000, type=int)
     add_bool_arg(parser, "verbose", default=False, help="Specify verbose mode (boolean)")
@@ -98,7 +98,9 @@ if __name__ == "__main__":
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
                         default=50000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
-                        default=6, type=int)
+                        default=5, type=int)
+    parser.add_argument("--n_conditions", help="Specify number of predictions", 
+                        default=5, type=int)
     add_bool_arg(parser, "multigpu", default=False, help="Specify if we want to use multi GPUs")
     add_bool_arg(parser, "load_model", default=False, 
                  help="Specify if we want to load a pre-existing model (boolean)")
@@ -107,9 +109,9 @@ if __name__ == "__main__":
     
     # RFN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[40, 1, 64, 64], type=int)
+                        default=[30, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[40, 1, 64, 64], type=int)
+                        default=[30, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=200, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
