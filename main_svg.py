@@ -58,7 +58,7 @@ if __name__ == "__main__":
     parser.add_argument("--image_size", help="Specify the image size of mnist", 
                         default=64, type=int)
     parser.add_argument("--digit_size", help="Specify the size of mnist digit", 
-                        default=28, type=int)
+                        default=32, type=int)
     parser.add_argument("--step_length", help="Specify the step size of mnist digit", 
                         default=2, type=int)
     parser.add_argument("--num_digits", help="Specify the number of mnist digits", 
