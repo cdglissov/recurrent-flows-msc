@@ -7,8 +7,8 @@ from torch.utils.data import DataLoader
 import sys
 from tqdm import tqdm 
 
-# insert at 1, 0 is the script path (or '' in REPL)
-sys.path.insert(1, '/work1/s144077/deepflows_6_01/') ## Set version of model
+
+sys.path.insert(1, './deepflows_6_01/') ## Set version of code
 
 
 from Utils import set_gpu
@@ -105,7 +105,7 @@ class Evaluator(object):
             ax[2*(k),i].set_title("True Image")
             ax[2*(k)+1,i].imshow(self.convert_to_numpy(predictions[k, i, :, :, :]))
             ax[2*(k)+1,i].set_title(str(i)+"-step Prediction")
-      fig.savefig(self.path +'png_folder/eval_samples_v2' +  '.png', bbox_inches='tight')
+      fig.savefig(self.path +'png_folder/eval_samples' +  '.png', bbox_inches='tight')
       plt.close(fig)
 
     def convert_to_numpy(self, x):
@@ -217,9 +217,9 @@ class Evaluator(object):
       return SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn, Lpips_values
                 
 namelist = ['tanh_no_newtemp_newclam_deeper']
-
+pathcd ='./tanhtest/'
 for i in range(0,len(namelist)):
-    pathcd ='/work1/s144077/tanhtest/'
+    
     ## Would be very nice to find a 
     start_predictions = 6 # After how many frames the model starts conditioning on itself.
     n_frames = 30 # Number of frames in the test dataloader.
