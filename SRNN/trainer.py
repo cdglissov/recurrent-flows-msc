@@ -325,10 +325,11 @@ class Solver(object):
       ax[3].set_ylabel("nll")
       
       if not self.verbose:
+	fig.tight_layout()
         fig.savefig(self.path + 'png_folder/losses' + '.png', bbox_inches='tight')
         plt.close(fig)
       
-      fig, ax = plt.subplots(4, time_steps , figsize = (10, 15))
+      fig, ax = plt.subplots(4, time_steps , figsize = (15, 10))
       for i in range(0, time_steps):
         ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
         ax[0,i].set_title("True Image")
@@ -348,6 +349,7 @@ class Solver(object):
         
 
       if not self.verbose:
+	fig.tight_layout()
         fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')
         plt.close(fig)
 
