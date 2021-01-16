@@ -207,7 +207,7 @@ class Solver(object):
                 kl, nll = self.model.module.loss(image)
             else:
                 kl, nll = self.model.loss(image)
-            loss = self.compute_loss(nll, kl, image.shape[2:], t=self.n_frames-1)
+            loss = self.compute_loss(nll, kl, image.shape[2:], t=image.shape[1]-1)
 
             self.optimizer.zero_grad()
             loss.backward()
