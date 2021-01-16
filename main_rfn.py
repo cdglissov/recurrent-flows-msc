@@ -70,6 +70,9 @@ if __name__ == "__main__":
     
     
     # Trainer
+    # The plateau function reduces the learning rate after plateau. Linear decrease the learning rate after threshold.
+    parser.add_argument('--scheduler_type', help="Specify type of scheduler.", 
+                    default='plateau', choices=["plateau", "linear"], type=str)
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
                         default=5000, type=int)
     parser.add_argument("--patience_lr", help="Specify patience for lr_scheduler", 
@@ -141,12 +144,12 @@ if __name__ == "__main__":
     parser.add_argument("--encoder_structure", help="Specify the structure of the encoder", 
                         nargs="+" ,default=[256, 128],type=convert_mixed_list)
     parser.add_argument('--skip_connection_flow', help="Specify skip_connections mode", 
-                        default='with_skip', choices=["without_skip", "with_skip", "only_skip"], type=str)
+                        default='without_skip', choices=["without_skip", "with_skip", "only_skip"], type=str)
     add_bool_arg(parser, "downscaler_tanh", default=False, help="Specify if skip connection from downscaler is tanh'ed (boolean)")
     
     add_bool_arg(parser, "upscaler_tanh", default=False, help="Specify if the outputs from the upscaler is tanh'ed (boolean)")
     
-    add_bool_arg(parser, "skip_connection_features", default=False, help="Specify if skip connection between up and downscaler (boolean)")
+    add_bool_arg(parser, "skip_connection_features", default=True, help="Specify if skip connection between up and downscaler (boolean)")
     parser.add_argument("--free_bits", help="Specify free bit, if -1.0 then we use no free_bit", 
                         default=-1.0, type=float)
     
