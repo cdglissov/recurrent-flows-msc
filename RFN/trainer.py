@@ -75,6 +75,7 @@ class Solver(object):
         self.multigpu = args.multigpu
         self.n_predictions = args.n_predictions
         self.n_conditions = args.n_conditions
+        self.scheduler_type = args.scheduler_type
         
     def build(self):
         self.train_loader, self.test_loader = self.create_loaders()
@@ -100,7 +101,8 @@ class Solver(object):
         self.earlystopping = EarlyStopping(min_delta = 0, patience = self.patience_es, 
                                            verbose = self.verbose)
         self.counter = 0
-        
+        self.stop = False
+    
     def create_loaders(self):
         if self.choose_data=='mnist':
             	testset = MovingMNIST(False, 'Mnist', 
@@ -138,11 +140,11 @@ class Solver(object):
         n_bits = self.n_bits
         b, t, c, h, w = x.size()
         n_bins = 2 ** n_bits
-        chwt = c * h * w * t
+        chwt = c * h * w * (t-1)  # t-1 given we condition on one frame.
         x_noise = x + torch.zeros_like(x).uniform_(0, 1.0 / n_bins)
         objective = -np.log(n_bins) * chwt * torch.ones(b, device=x.device)
         return x_noise, objective
- 
+        
     def preprocess(self, x, reverse = False):
         # Remember to change the scale parameter to make variable between 0..255
         n_bits = self.n_bits
@@ -167,7 +169,23 @@ class Solver(object):
             x = x * n_bins
             x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
         return x
-    
+    def adjust_learning_rate(self, batch):
+        """Linearly decrease learning rate to zero after startbatch in num_steps.
+        Does not work with other schedulers
+        They do this in videoflow, and stohastic residual video prediction.
+        # Could also add a linear warmup as in videoflow, but dont know if needed.
+        """
+        startbatch = 100000 #If videoflow then this number should be 450000 # The batch the linear decrease starts.
+        num_steps = 150000 #Num is set after videoflow #The number of steps for linear decrease to zero.
+        if batch > startbatch: # After 100000 batches linearly decrease learning rate
+            lr = self.learning_rate - batch*(self.learning_rate)/num_steps
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lr
+
+            
+        if batch == (startbatch + num_steps): # If this is true the learning rate is zero.
+            self.stop = True
+
     def compute_loss(self, nll, kl_free_bit, kl, dims, t=10):
         loss = nll + self.beta*kl_free_bit
         
@@ -207,11 +225,13 @@ class Solver(object):
                 kl_free_bit, kl, nll = self.model.module.loss(image, logdet)
             else:
                 kl_free_bit, kl, nll = self.model.loss(image, logdet)
-            loss = self.compute_loss(nll, kl_free_bit,  kl, image.shape[2:], t=1)
+            loss = self.compute_loss(nll, kl_free_bit,  kl, image.shape[2:], t=image.shape[1]-1) # Minus one as we condition on frame. 
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            
+            if self.scheduler_type == 'linear':
+                self.adjust_learning_rate(self.counter)
+                
             self.counter += 1
             #if (batch_i % 5)==0:
           
@@ -224,13 +244,14 @@ class Solver(object):
  
           # Do early stopping, if above patience stop training, if better loss, save model
           stop = self.earlystopping.step(self.epoch_i, epoch_loss)
-          if stop:
+          if stop or self.stop:
             break
           if (self.earlystopping.best_loss < self.best_loss) and (self.epoch_i > 50):
             self.best_loss = self.earlystopping.best_loss
             self.checkpoint('rfn_best_model.pt', self.epoch_i, epoch_loss) 
-          self.scheduler.step(epoch_loss)
-          
+        
+          if self.scheduler_type == 'plateau':
+              self.scheduler.step(epoch_loss)
           if self.verbose:
             print('Epoch {} Loss: {:.2f}'.format(self.epoch_i, epoch_loss))
           else:
