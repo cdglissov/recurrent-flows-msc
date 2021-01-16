@@ -208,7 +208,7 @@ class Solver(object):
                 kl, nll = self.model.module.loss(image)
             else:
                 kl, nll = self.model.loss(image)
-            loss = self.compute_loss(nll, kl, image.shape[2:], t=self.n_frames -1)
+            loss = self.compute_loss(nll, kl, image.shape[2:], t=image.shape[1] -1)
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -326,10 +326,11 @@ class Solver(object):
       ax[3].set_ylabel("nll")
       
       if not self.verbose:
+	fig.tight_layout()
         fig.savefig(self.path + 'png_folder/losses' + '.png', bbox_inches='tight')
         plt.close(fig)
       
-      fig, ax = plt.subplots(4, time_steps , figsize = (20,5*5))
+      fig, ax = plt.subplots(4, time_steps , figsize = (15,10))
       for i in range(0, time_steps):
         ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
         ax[0,i].set_title("True Image")
@@ -349,6 +350,7 @@ class Solver(object):
         
 
       if not self.verbose:
+	fig.tight_layout()
         fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')
         plt.close(fig)
 
