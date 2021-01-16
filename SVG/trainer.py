@@ -326,6 +326,7 @@ class Solver(object):
       ax[3].set_ylabel("nll")
       
       if not self.verbose:
+	fig.tight_layout()
         fig.savefig(self.path + 'png_folder/losses' + '.png', bbox_inches='tight')
         plt.close(fig)
       
@@ -349,6 +350,7 @@ class Solver(object):
         
 
       if not self.verbose:
+	fig.tight_layout()
         fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')
         plt.close(fig)
 
