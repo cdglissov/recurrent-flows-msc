@@ -70,8 +70,10 @@ if __name__ == "__main__":
     
     
     # Trainer
+    parser.add_argument("--loss_select", help="Specify dataset", 
+                        choices=['MSE', 'gaussian'], default='MSE', type=str)
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
-                        default=5000, type=int)
+                    default=5000, type=int)
     parser.add_argument("--patience_lr", help="Specify patience for lr_scheduler", 
                         default=5000, type=int)
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
@@ -79,7 +81,7 @@ if __name__ == "__main__":
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
                         default=0.00001, type=float)
     parser.add_argument("--n_bits", help="Specify number of bits", 
-                        default=5, type=int)
+                        default=8, type=int)
     parser.add_argument("--n_epochs", help="Specify number of epochs", 
                         default=100000, type=int)
     add_bool_arg(parser, "verbose", default=False, help="Specify verbose mode (boolean)")
@@ -98,7 +100,9 @@ if __name__ == "__main__":
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
                         default=50000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
-                        default=6, type=int)
+                        default=5, type=int)
+    parser.add_argument("--n_conditions", help="Specify number of predictions", 
+                        default=5, type=int)
     add_bool_arg(parser, "multigpu", default=False, help="Specify if we want to use multi GPUs")
     add_bool_arg(parser, "load_model", default=False, 
                  help="Specify if we want to load a pre-existing model (boolean)")
