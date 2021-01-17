@@ -137,14 +137,6 @@ class Solver(object):
         test_loader = DataLoader(testset, batch_size=self.batch_size,num_workers=self.num_workers, shuffle=True, drop_last=True)
         return train_loader, test_loader
  
-    def uniform_binning_correction(self, x):
-        n_bits = self.n_bits
-        b, t, c, h, w = x.size()
-        n_bins = 2 ** n_bits
-        chwt = c * h * w * (t-1)  # t-1 given we condition on one frame.
-        x_noise = x + torch.zeros_like(x).uniform_(0, 1.0 / n_bins)
-        objective = -np.log(n_bins) * chwt * torch.ones(b, device=x.device)
-        return x_noise, objective
         
     def preprocess(self, x, reverse = False):
         # Remember to change the scale parameter to make variable between 0..255
@@ -219,7 +211,7 @@ class Solver(object):
             else:
                 image = image.to(device)
             image = self.preprocess(image)
-            image, logdet = self.uniform_binning_correction(image)
+	    logdet = 0
             self.beta = min(max_value, min_value + self.counter*(max_value - min_value) / num_steps)
             
             if self.multigpu and torch.cuda.device_count() > 1:
