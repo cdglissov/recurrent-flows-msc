@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from .RFN import RFN
 from Utils import set_gpu
 from tqdm import tqdm 
+import math
 device = set_gpu(True)
 
 class EarlyStopping():
@@ -395,7 +396,54 @@ class Solver(object):
  
       self.plot_counter += 1
       self.model.train()
-
+    def plotreconstruct(self, image):
+        recons, recons_flow, averageKLDseq, averageNLLseq = self.model.reconstructPlus(image)
+        recons  = self.preprocess(recons, reverse=True)
+        recons_flow  = self.preprocess(recons_flow, reverse=True)
+        image  = self.preprocess(image, reverse=True)
+        time_steps = image.shape[1]
+        fig, ax = plt.subplots(8, time_steps , figsize = (2*time_steps,2*6))
+        for i in range(0, time_steps):
+            ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
+            ax[0,i].set_title("True Image")
+            ax[0,i].axis('off')
+            for z, zname in zip(range(0,2),list(['Prior','Encoder'])): 
+                ax[1+z,i].imshow(self.convert_to_numpy(recons[z, i, 0, :, :, :]))
+                ax[1+z,i].set_title(str(zname))
+                ax[1+z,i].axis('off')
+                
+                ax[3+z,i].imshow(self.convert_to_numpy(recons_flow[z,i, 0, :, :, :]))
+                ax[3+z,i].set_title(str(zname)+' flow')
+                ax[3+z,i].axis('off')
+        plt.subplot(8, 1, 6)
+        plt.bar(range(0,time_steps),averageKLDseq[:,0], align='center', width=0.3)
+        plt.xlim((0-0.5,time_steps-0.5))
+        plt.xticks(range(0,time_steps), range(0,time_steps))
+        plt.xlabel("Frame number")
+        plt.ylabel("Average KLD")
+        plt.subplot(8, 1, 7)
+        
+        plt.bar(range(0,time_steps),-averageNLLseq[0,:,0], align='center', width=0.3)
+        plt.xlim((0-0.5,time_steps-0.5))
+        low = min(-averageNLLseq[0,1:,0])
+        high = max(-averageNLLseq[0,1:,0])
+        plt.ylim([math.ceil(low-0.5*(high-low)), math.ceil(high+0.5*(high-low))])
+        plt.xticks(range(0,time_steps), range(0,time_steps))
+        plt.xlabel("Frame number")
+        plt.ylabel("Average ll prior")
+        plt.subplot(8, 1, 8)
+        plt.bar(range(0,time_steps),-averageNLLseq[1, :,0], align='center', width=0.3)
+        plt.xlim((0-0.5,time_steps-0.5))
+        plt.xticks(range(0,time_steps), range(0,time_steps))
+        low = min(-averageNLLseq[1,1:,0])
+        high = max(-averageNLLseq[1,1:,0])
+        plt.ylim([math.ceil(low-0.5*(high-low)), math.ceil(high+0.5*(high-low))])
+        plt.xlabel("Frame number")
+        plt.ylabel("Average ll posterior")
+#        
+        #plt.set_title(' AvergKLD over frames')
+        fig.savefig(self.path + 'png_folder/KLDdiagnostic' + '.png', bbox_inches='tight')
+        plt.close(fig)
     def convert_to_numpy(self, x):
         return x.permute(1,2,0).squeeze().detach().cpu().numpy()
 
