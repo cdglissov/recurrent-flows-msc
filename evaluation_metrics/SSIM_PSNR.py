@@ -1,6 +1,6 @@
 
 import torch 
-#!pip install pytorch-msssim
+
 from pytorch_msssim import ssim
 import torch.utils.data
 from torch.utils.data import DataLoader
@@ -8,7 +8,7 @@ import sys
 from tqdm import tqdm 
 
 
-sys.path.insert(1, './deepflows_6_01/') ## Set version of code
+sys.path.insert(1, './deepflows_16_01/') ## Set version of code
 
 
 from Utils import set_gpu
@@ -24,7 +24,7 @@ import os
 from skimage.metrics import peak_signal_noise_ratio as skPSNR
 from skimage.measure import compare_ssim as skSSIM
 import numpy as np
-
+import math
 ### Load model
 class Evaluator(object):
     def __init__(self,solver, args, start_predictions, n_frames):
@@ -157,10 +157,53 @@ class Evaluator(object):
                     img1 = img1.repeat(3,1,1)
                 lpips[i,t] = self.lpipsNet(img0, img1)
         return lpips
+    def plotreconstruct(self, image):
+        ## Todo need proper normalized loss 
+        recons, recons_flow, averageKLDseq, averageNLLseq = self.model.reconstruct(image)
+        averageNLLseq = averageNLLseq
+        recons  = self.solver.preprocess(recons, reverse=True)
+        recons_flow  = self.solver.preprocess(recons_flow, reverse=True)
+        image  = self.solver.preprocess(image, reverse=True)
+        time_steps = image.shape[1]
+        fig, ax = plt.subplots(7, time_steps , figsize = (2*time_steps,2*6))
+        for i in range(0, time_steps):
+            ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
+            ax[0,i].set_title("True Image")
+            ax[0,i].axis('off')
+            for z, zname in zip(range(0,2),list(['Prior','Encoder'])): 
+                ax[1+z,i].imshow(self.convert_to_numpy(recons[z, i, 0, :, :, :]))
+                ax[1+z,i].set_title(str(zname))
+                ax[1+z,i].axis('off')
+                
+                ax[3+z,i].imshow(self.convert_to_numpy(recons_flow[z,i, 0, :, :, :]))
+                ax[3+z,i].set_title(str(zname)+' flow')
+                ax[3+z,i].axis('off')
+        plt.subplot(8, 1, 7)
+        plt.bar(np.arange(time_steps), averageKLDseq[:,0], align='center', width=0.3)
+        plt.xlim((0-0.5, time_steps-0.5))
+        plt.xticks(range(0, time_steps), range(0, time_steps))
+        plt.xlabel("Frame number")
+        plt.ylabel("Average KLD")
+        plt.subplot(8, 1, 8)
+        
+        plt.bar(np.arange(time_steps)-0.15, -averageNLLseq[0, :, 0], align='center', width=0.3,label = 'Prior')
+        plt.bar(np.arange(time_steps)+0.15, -averageNLLseq[1, :, 0], align='center', width=0.3,label = 'Posterior')
+        plt.xlim((0-0.5, time_steps-0.5))
+        low = min(min(-averageNLLseq[0, 1:, 0]),min(-averageNLLseq[1, 1:, 0]))
+        high = max(max(-averageNLLseq[0, 1:, 0]),max(-averageNLLseq[1, 1:, 0]))
+        plt.ylim([math.ceil(low-0.5*(high-low)), math.ceil(high+0.5*(high-low))])
+        plt.xticks(range(0, time_steps), range(0, time_steps))
+        plt.xlabel("Frame number")
+        plt.ylabel("bits dim ll")
+        plt.legend()
+
+
+        fig.savefig(self.path + 'png_folder/KLDdiagnostic' + '.png', bbox_inches='tight')
+        plt.close(fig)
   
     def EvaluatorPSNR_SSIM(self):
       start_predictions = self.start_predictions # After how many frames the the models starts condiitioning on itself.
-      times = 1 # This is to loop over the test set more than once, if you want better prediction of the measures ....
+      times = 1 # This is to loop over the test set more than once, if you want better measures of the prediction....
       SSIM_values = []
       PSNR_values = []
       SSIM_values_sklearn = []
@@ -178,7 +221,9 @@ class Evaluator(object):
                 else:
                     image_unprocessed = image.to(device)
                 image = self.solver.preprocess(image_unprocessed)
-                samples, samples_recon, predictions = self.model.sample(image, n_predictions=self.n_frames-start_predictions, encoder_sample = False, start_predictions = start_predictions)
+
+                #self.plotreconstruct(image)
+                x_true, predictions = self.model.predict(image,start_predictions, self.n_frames-start_predictions)
                 #print(predictions[0,0,0,:,0])
                 #print(predictions.permute(1,0,2,3,4).reshape((samples_recon.shape[1],-1)).min(dim=1)[0])
                 image  = self.solver.preprocess(image, reverse=True)
@@ -212,12 +257,15 @@ class Evaluator(object):
                 
 namelist = ['tanh_no_newtemp_newclam_deeper']
 pathcd ='./tanhtest/'
+overtemperature = True # Toggle if test over diffent temperatures
+#temperatures = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]
+temperatures = [0.6]
 for i in range(0,len(namelist)):
     
     start_predictions = 6 # After how many frames the model starts conditioning on itself.
     n_frames = 30 # Number of frames in the test dataloader.
     pathmodel = pathcd+namelist[i]+'/model_folder/rfn.pt'
-    patherrormeasure = pathcd+namelist[i]+'/PSNR_SSIM_LPIPS.pt'
+    patherrormeasure = pathcd+namelist[i]
     #name_string = 'errormeasures_architecture_'+namelist[i]+'_trained_on_6_frames.pt'
     load_model = torch.load(pathmodel)
     args = load_model['args']
@@ -229,21 +277,23 @@ for i in range(0,len(namelist)):
     				
     MetricEvaluator = Evaluator(solver, args, start_predictions, n_frames)
     MetricEvaluator.build()
-    SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn, Lpips_values = MetricEvaluator.EvaluatorPSNR_SSIM()
-    Savedict = {"SSIM_values": SSIM_values.cpu(),
-                "PSNR_values": PSNR_values.cpu(),
-                "SSIM_values_sklearn": SSIM_values_sklearn.cpu(),
-                "PSNR_values_sklearn": PSNR_values_sklearn.cpu(),
-                "MSE_values_sklearn": MSE_values_sklearn.cpu(),
-                "LPIPS_values": Lpips_values.cpu(),
-                "SSIM_values_mean": SSIM_values.mean(0).cpu(),  # We dont need to save this, but w.e.
-                "PSNR_values_mean": PSNR_values.mean(0).cpu(),
-                }
-    torch.save(Savedict,patherrormeasure)    
-    print(SSIM_values.mean(0))
-    print(PSNR_values.mean(0))
-    print(MSE_values_sklearn.mean(0))
-    print(PSNR_values_sklearn.mean(0))
-    print(SSIM_values_sklearn.mean(0))
+    for temp in temperatures:
+        MetricEvaluator.model.temperature = temp
+        SSIM_values, PSNR_values, MSE_values_sklearn, PSNR_values_sklearn, SSIM_values_sklearn, Lpips_values = MetricEvaluator.EvaluatorPSNR_SSIM()
+        Savedict = {"SSIM_values": SSIM_values.cpu(),
+                    "PSNR_values": PSNR_values.cpu(),
+                    "SSIM_values_sklearn": SSIM_values_sklearn.cpu(),
+                    "PSNR_values_sklearn": PSNR_values_sklearn.cpu(),
+                    "MSE_values_sklearn": MSE_values_sklearn.cpu(),
+                    "LPIPS_values": Lpips_values.cpu(),
+                    "SSIM_values_mean": SSIM_values.mean(0).cpu(),  # We dont need to save this, but w.e.
+                    "PSNR_values_mean": PSNR_values.mean(0).cpu(),
+                    }
+        torch.save(Savedict,patherrormeasure+'/temp_'+str(temp).replace('.','_')+'_PSNR_SSIM_LPIPS.pt')    
+        print(SSIM_values.mean(0))
+        print(PSNR_values.mean(0))
+        print(MSE_values_sklearn.mean(0))
+        print(PSNR_values_sklearn.mean(0))
+        print(SSIM_values_sklearn.mean(0))
        
             
