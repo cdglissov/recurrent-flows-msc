@@ -71,9 +71,11 @@ class Solver(object):
         self.image_size = args.image_size
         self.preprocess_range = args.preprocess_range
         self.preprocess_scale = args.preprocess_scale
-        self.num_workers=args.num_workers
+        self.n_predictions = args.n_predictions
+        self.n_conditions = args.n_conditions
+        self.num_workers = args.num_workers
         self.multigpu = args.multigpu
-        
+        self.loss_select = args.loss_select
     def build(self):
         self.train_loader, self.test_loader = self.create_loaders()
         
@@ -136,9 +138,9 @@ class Solver(object):
         n_bits = self.n_bits
         b, t, c, h, w = x.size()
         n_bins = 2 ** n_bits
-        chwt = c * h * w * t
+        chw = c * h * w
         x_noise = x + torch.zeros_like(x).uniform_(0, 1.0 / n_bins)
-        objective = -np.log(n_bins) * chwt * torch.ones(b, device=x.device)
+        objective = -np.log(n_bins) * chw * torch.ones(b, device=x.device)
         return x_noise, objective
  
     def preprocess(self, x, reverse = False):
@@ -198,14 +200,18 @@ class Solver(object):
             else:
                 image = image.to(device)
             image = self.preprocess(image)
-            image, logdet = self.uniform_binning_correction(image)
+            
+            image_noise, logdet = self.uniform_binning_correction(image)
+            if self.loss_select == 'gaussian': 
+                image = image_noise
             self.beta = min(max_value, min_value + self.counter*(max_value - min_value) / num_steps)
             
             if self.multigpu and torch.cuda.device_count() > 1:
                 kl_free_bit, kl, nll = self.model.module.loss(image, logdet)
             else:
                 kl_free_bit, kl, nll = self.model.loss(image, logdet)
-            loss = self.compute_loss(nll, kl_free_bit,  kl, image.shape[2:], t=1)
+
+            loss = self.compute_loss(nll, kl_free_bit,  kl, image.shape[2:], t=image.shape[1]-1)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -288,20 +294,22 @@ class Solver(object):
             image = image[0].to(device)
         else:
             image = image.to(device)
-        time_steps = self.n_frames - 1
-        n_predictions = time_steps
-
-        image  = self.preprocess(image, reverse=False)
-        samples, samples_recon, predictions = self.model.sample(image, n_predictions = n_predictions,encoder_sample = False)
-        samples  = self.preprocess(samples, reverse=True)
-        samples_recon  = self.preprocess(samples_recon, reverse=True)
-        predictions  = self.preprocess(predictions, reverse=True)
+        time_steps = self.n_frames 
         
-        # With x
-        samples_x, samples_recon_x, predictions_x = self.model.sample(image, n_predictions = n_predictions,encoder_sample = True)
-        samples_x  = self.preprocess(samples_x, reverse=True)
-        samples_recon_x  = self.preprocess(samples_recon_x, reverse=True)
-        predictions_x  = self.preprocess(predictions_x, reverse=True)
+        image  = self.preprocess(image, reverse=False)
+        
+        x_conditions, predictions = self.model.predict(image,
+                                                 n_predictions = self.n_predictions,
+                                                 n_conditions = self.n_conditions)
+        plot_preds = torch.cat((x_conditions, predictions), 0)
+        
+        recons = self.model.reconstruct(image)
+        samples = self.model.sample(image, n_samples = time_steps)
+        
+        samples  = self.preprocess(samples, reverse=True)
+        recons  = self.preprocess(recons, reverse=True)
+        plot_preds  = self.preprocess(plot_preds, reverse=True)
+        image  = self.preprocess(image, reverse=True)
     
  
       fig, ax = plt.subplots(1, 4 , figsize = (20,5))
@@ -334,43 +342,38 @@ class Solver(object):
         fig.savefig(self.path + 'png_folder/losses' + '.png', bbox_inches='tight')
         plt.close(fig)
       
-      fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
+      fig, ax = plt.subplots(4, time_steps , figsize = (15,10))
       for i in range(0, time_steps):
-        ax[0,i].imshow(self.convert_to_numpy(samples[0, i, :, :, :]))
-        ax[0,i].set_title("Random Sample")
+        
+        ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
+        ax[0,i].set_title("True Image")
+        ax[0,i].axis('off')
+        
         ax[1,i].imshow(self.convert_to_numpy(samples[i, 0, :, :, :]))
-        ax[1,i].set_title("Sample at timestep t")
-        ax[2,i].imshow(self.convert_to_numpy(image[0, i+1, :, :, :]))
-        ax[2,i].set_title("True Image")
-        ax[3,i].imshow(self.convert_to_numpy(samples_recon[i, 0, :, :, :]))
-        ax[3,i].set_title("Reconstructed Image")
-        ax[4,i].imshow(self.convert_to_numpy(predictions[i, 0, :, :, :]))
-        ax[4,i].set_title("Prediction")
+        ax[1,i].set_title("Sample|1 frame")
+        ax[1,i].axis('off')
+        
+        ax[2,i].imshow(self.convert_to_numpy(plot_preds[i, 0, :, :, :]))
+        ax[2,i].set_title("Prediction")
+        ax[2,i].axis('off')
+        
+        ax[3,i].imshow(self.convert_to_numpy(recons[i, 0, :, :, :]))
+        ax[3,i].set_title("Reconstruction")
+        ax[3,i].axis('off')
+        
+        
       if not self.verbose:
-        fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')
+        fig.tight_layout()
+        fig.savefig(self.path +'png_folder/samples'+ n_plot + '.png', bbox_inches='tight')
         plt.close(fig)
-      
-      fig, ax = plt.subplots(5, time_steps , figsize = (20,5*5))
-      for i in range(0, time_steps):
-        ax[0,i].imshow(self.convert_to_numpy(samples_x[0, i, :, :, :]))
-        ax[0,i].set_title("Random Sample")
-        ax[1,i].imshow(self.convert_to_numpy(samples_x[i, 0, :, :, :]))
-        ax[1,i].set_title("Sample at timestep t")
-        ax[2,i].imshow(self.convert_to_numpy(image[0, i+1, :, :, :]))
-        ax[2,i].set_title("True Image")
-        ax[3,i].imshow(self.convert_to_numpy(samples_recon_x[i, 0, :, :, :]))
-        ax[3,i].set_title("Reconstructed Image")
-        ax[4,i].imshow(self.convert_to_numpy(predictions_x[i, 0, :, :, :]))
-        ax[4,i].set_title("Prediction")
-      if not self.verbose:
-        fig.savefig(self.path +'png_folder/samples'+ n_plot + '_with_x.png', bbox_inches='tight')
-        plt.close(fig)
+        
       if self.verbose:
         print("\tKL and Reconstruction loss: {:.4f}, {:.4f}".format(self.kl_loss[-1].data, self.recon_loss[-1].data))
         plt.show()
  
       self.plot_counter += 1
       self.model.train()
+
 
     def convert_to_numpy(self, x):
         return x.permute(1,2,0).squeeze().detach().cpu().numpy()
