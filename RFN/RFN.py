@@ -273,6 +273,7 @@ class RFN(nn.Module):
             cprev = ct
             zxprev = zxt
         return recons, recons_flow
+    
     def reconstructPlus(self, x):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
         hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()
@@ -282,6 +283,7 @@ class RFN(nn.Module):
         recons_flow = torch.zeros((2, t, *x[:,0,:,:,:].shape))
         averageKLDseq = torch.zeros((t, x[:,0,:,:,:].shape[0]))
         averageNLLseq = torch.zeros((2, t, x[:,0,:,:,:].shape[0]))
+        
         for i in range(1, t):
             condition_list = self.extractor(x[:, i-1, :, :, :])
             x_feature_list = self.extractor(x[:, i, :, :, :])
@@ -332,6 +334,7 @@ class RFN(nn.Module):
             cprev = ct
             zxprev = zxt
         return recons, recons_flow, averageKLDseq, averageNLLseq
+    
     def sample(self, x, n_samples):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
         hprev, cprev, zprev, _, _, _, _ = self.get_inits()
