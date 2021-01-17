@@ -396,6 +396,7 @@ class Solver(object):
  
       self.plot_counter += 1
       self.model.train()
+
     def plotreconstruct(self, image):
         recons, recons_flow, averageKLDseq, averageNLLseq = self.model.reconstructPlus(image)
         recons  = self.preprocess(recons, reverse=True)
@@ -422,7 +423,6 @@ class Solver(object):
         plt.xlabel("Frame number")
         plt.ylabel("Average KLD")
         plt.subplot(8, 1, 7)
-        
         plt.bar(range(0,time_steps),-averageNLLseq[0,:,0], align='center', width=0.3)
         plt.xlim((0-0.5,time_steps-0.5))
         low = min(-averageNLLseq[0,1:,0])
@@ -440,10 +440,9 @@ class Solver(object):
         plt.ylim([math.ceil(low-0.5*(high-low)), math.ceil(high+0.5*(high-low))])
         plt.xlabel("Frame number")
         plt.ylabel("Average ll posterior")
-#        
-        #plt.set_title(' AvergKLD over frames')
         fig.savefig(self.path + 'png_folder/KLDdiagnostic' + '.png', bbox_inches='tight')
         plt.close(fig)
+	
     def convert_to_numpy(self, x):
         return x.permute(1,2,0).squeeze().detach().cpu().numpy()
 
