@@ -52,6 +52,7 @@ class ListGlow(nn.Module):
         self.conditional_clamp_function = args.split2d_act
         self.L = args.L
         self.K = args.K
+        self.n_bits = args.n_bits
         Bx, Cx, Hx, Wx = x_size
         Bc, Cc, Hc, Wc = base_dist_size
         layers = []
@@ -115,12 +116,20 @@ class ListGlow(nn.Module):
                 z, logdet = step(z, condition[l], logdet = logdet, reverse = False)
         return z, logdet
     
+    def uniform_binning_correction(self, x):
+        n_bits = self.n_bits
+        b, c, h, w = x.size()
+        n_bins = 2 ** n_bits
+        chw = c * h * w
+        x_noise = x + torch.zeros_like(x).uniform_(0, 1.0 / n_bins)
+        objective = -np.log(n_bins) * chw * torch.ones(b, device=x.device)
+        return x_noise, objective
     
-    def log_prob(self, x, condition, base_condition, logdet = None):
-        
+    def log_prob(self, x, condition, base_condition, logdet = 0):
+        x, obj_unif = self.uniform_binning_correction(x)
         assert isinstance(condition, list), "Condition is not a list, make sure it fits L"
         z, obj = self.f(x, condition, logdet)
-        
+        obj = obj + obj_unif 
         z_in = base_condition
         if self.learn_prior:
           mean, log_scale = split_feature(self.prior(z_in), type="split")
