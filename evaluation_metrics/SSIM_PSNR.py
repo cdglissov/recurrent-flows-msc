@@ -159,7 +159,7 @@ class Evaluator(object):
         return lpips
     def plotreconstruct(self, image):
         ## Todo need proper normalized loss 
-        recons, recons_flow, averageKLDseq, averageNLLseq = self.model.reconstruct(image)
+        recons, recons_flow, averageKLDseq, averageNLLseq = self.model.reconstructPlus(image)
         averageNLLseq = averageNLLseq
         recons  = self.solver.preprocess(recons, reverse=True)
         recons_flow  = self.solver.preprocess(recons_flow, reverse=True)
