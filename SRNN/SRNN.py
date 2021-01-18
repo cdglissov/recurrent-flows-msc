@@ -277,7 +277,7 @@ class SRNN(nn.Module):
 
                   enc_dist = td.Normal(store_ztx_mean[idt + d, :, :], store_ztx_std[idt + d, :, :] ) #Encoded values is matching ht so t + d
                   overshot_loss = overshot_loss + overshot_w * self.beta * td.kl_divergence(enc_dist, prior_dist)
-              kl_loss = 1/Dinit*(kl_loss + overshot_loss) # The first loss is for D=1, 
+          kl_loss = 1/Dinit*(kl_loss + overshot_loss) # The first loss is for D=1, 
       
 
       return batch_reduce(kl_loss).mean(), batch_reduce(nll_loss).mean()
