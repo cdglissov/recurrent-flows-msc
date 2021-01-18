@@ -3,6 +3,7 @@ import torch.nn as nn
 from Utils import split_feature, set_gpu, ActFun, batch_reduce
 import torch.distributions as td
 from .glow_modules import ActNorm, Conv2dZeros, Conv2dNorm, InvConv, AffineCoupling, Squeeze2d, Split2d, BatchNormFlow
+import numpy as np
 
 device = set_gpu(True)
 
