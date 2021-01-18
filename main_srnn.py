@@ -63,7 +63,7 @@ if __name__ == "__main__":
     parser.add_argument("--step_length", help="Specify the step size of mnist digit", 
                         default=4, type=int)
     parser.add_argument("--num_digits", help="Specify the number of mnist digits", 
-                        default=1, type=int)
+                        default=2, type=int)
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
                         default=4, type=int)
     
@@ -102,6 +102,10 @@ if __name__ == "__main__":
     add_bool_arg(parser, "multigpu", default=False, help="Specify if we want to use multi GPUs")
     add_bool_arg(parser, "load_model", default=False, 
                  help="Specify if we want to load a pre-existing model (boolean)")
+    parser.add_argument("--num_shots", help="Specify the number of overshoots, 0 is zeros overshoots", 
+                        default=0, type=int)
+    parser.add_argument("--overshot_w", help="Specify the the weigthing of the overshoots", 
+                        default=1, type=float)
 
     
     # SRNN
@@ -119,9 +123,9 @@ if __name__ == "__main__":
                         default="mse", choices = ["bernoulli", "mse", "gaussian"], type=str)
     parser.add_argument("--norm_type", help="Specify the type of loss used", 
                         default="batchnorm", choices = ["batchnorm", "instancenorm", "none"], type=str)
-    add_bool_arg(parser, "res_q", default=True, 
+    add_bool_arg(parser, "res_q", default=False, 
                  help="Specify if we want the residual between the mean of mu_q and mu_p")
-    add_bool_arg(parser, "enable_smoothing", default=True, 
+    add_bool_arg(parser, "enable_smoothing", default=False, 
                  help="Specify if we want to use smoothing")
     args = parser.parse_args()
     
