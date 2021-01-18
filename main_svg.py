@@ -70,11 +70,11 @@ if __name__ == "__main__":
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
                         default=50, type=int)
     parser.add_argument("--patience_lr", help="Specify patience for lr_scheduler", 
-                        default=50, type=int)
+                        default=10, type=int)
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
                         default=0.5, type=restricted_float)
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
-                        default=0.00001, type=float)
+                        default=0.002, type=float)
     parser.add_argument("--n_bits", help="Specify number of bits", 
                         default=8, type=int)
     parser.add_argument("--n_epochs", help="Specify number of epochs", 
@@ -89,9 +89,9 @@ if __name__ == "__main__":
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
                         default=255, type=int)
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
-                        default=0.00001, type=float)
+                        default=0.0001, type=float)
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
-                        default=0.000001, type=float)
+                        default=0.0001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
                         default=2000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
@@ -110,15 +110,15 @@ if __name__ == "__main__":
     parser.add_argument("--prior_rnn_layers", help="Specify layers of variational prior", 
                         default=1, type=int)
     parser.add_argument("--c_features", help="Specify channels of extracted features", 
-                        default=256, type=int)
+                        default=128, type=int)
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
                         default=[100, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
                         default=[100, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
-                        default=100, type=int)
+                        default=256, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
-                        default=20, type=int) # Very bad if too high, very bad if too low
+                        default=13, type=int) # Very bad if too high, very bad if too low
     parser.add_argument("--loss_type", help="Specify the type of loss used", 
                         default="mse", choices = ["bernoulli", "mse", "gaussian"], type=str)
     parser.add_argument("--norm_type", help="Specify the type of loss used", 

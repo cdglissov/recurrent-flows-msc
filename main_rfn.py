@@ -52,7 +52,7 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=30, type=int)
+                        default=35, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
@@ -76,11 +76,11 @@ if __name__ == "__main__":
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
                         default=5000, type=int)
     parser.add_argument("--patience_lr", help="Specify patience for lr_scheduler", 
-                        default=5000, type=int)
+                        default=10, type=int)
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
                         default=0.5, type=restricted_float)
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
-                        default=0.00001, type=float)
+                        default=0.0001, type=float)
     parser.add_argument("--n_bits", help="Specify number of bits", 
                         default=8, type=int)
     parser.add_argument("--n_epochs", help="Specify number of epochs", 
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
                         default=0.00001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
-                        default=50000, type=int)
+                        default=10000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
                         default=5, type=int)
     parser.add_argument("--n_conditions", help="Specify number of predictions", 
@@ -112,37 +112,37 @@ if __name__ == "__main__":
     
     # RFN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[30, 1, 64, 64], type=int)
+                        default=[35, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[30, 1, 64, 64], type=int)
+                        default=[35, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=200, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
                         default=45, type=int)
     parser.add_argument("--L", help="Specify flow depth", 
-                        default=3, type=int)
+                        default=5, type=int)
     parser.add_argument("--K", help="Specify flow recursion", 
                         default=10, type=int)
     # Downscaler architechture. Consisting of L blocks, the end of each block
     # will be what is skip connected. It is possible to chose between 
     # pool,conv,squeeze, as downsampling methods. Does not need to end with integer
     parser.add_argument('--extractor_structure', nargs='+', help="Specify structure of extractor example writing, 32-32-conv 32-32-pool, creates 2 blocks", 
-                        default= [[16, 16, 'squeeze'],[32, 32, 'squeeze'], [64, 64, 'squeeze']], type=convert_to_upscaler)
+                        default= [[16, 16, 'pool', 32],[32, 32, 'pool', 64], [64, 64, 'pool', 128], [128, 'pool', 256],[256, 'pool', 512]], type=convert_to_upscaler)
     parser.add_argument('--norm_type', help="Specify normalization type of layers", 
-                        default='batchnorm', choices=["instancenorm", "batchnorm", "none"], type=str)
+                        default='none', choices=["instancenorm", "batchnorm", "none"], type=str)
     # Upscaler structure can be a bit tricky to define. First the input does not need to be fully upscaled,
     # so for L = 3 only 2 deconv's is required. Every block should end with an integer. I.e. 32-deconv-32 deconv-16
     # and not 32-deconv 32-deconv
     parser.add_argument('--upscaler_structure', help="Specify upscaler structure, example writing, 32-32-deconv 32-32-upsample, creates 2 blocks",
-                        nargs='+', default=[[64, 64], ['squeeze', 32, 32], ['squeeze', 16, 16]], type=convert_to_upscaler)
+                        nargs='+', default=[[256], ['upsample', 128, 128], ['upsample', 64, 64], ['upsample', 32, 32], ['upsample', 16, 16]], type=convert_to_upscaler)
     parser.add_argument("--structure_scaler", help="Specify down/up-sampling channel factor", 
                         default=2, type=int)
     parser.add_argument("--temperature", help="Specify temperature", 
-                        default=0.8, type=restricted_float)
+                        default=0.7, type=restricted_float)
     parser.add_argument("--prior_structure", help="Specify the structure of the prior", 
-                        nargs="+" ,default=[256, 128, 128],type=convert_mixed_list)
+                        nargs="+" ,default=[256, 256],type=convert_mixed_list)
     parser.add_argument("--encoder_structure", help="Specify the structure of the encoder", 
-                        nargs="+" ,default=[256, 128],type=convert_mixed_list)
+                        nargs="+" ,default=[256, 256],type=convert_mixed_list)
     parser.add_argument('--skip_connection_flow', help="Specify skip_connections mode", 
                         default='without_skip', choices=["without_skip", "with_skip", "only_skip"], type=str)
     add_bool_arg(parser, "downscaler_tanh", default=False, help="Specify if skip connection from downscaler is tanh'ed (boolean)")
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     parser.add_argument("--non_lin_glow", help="Specify activation in glow", 
                         default="relu", choices=["relu", "leakyrelu"], type=str)
     parser.add_argument("--n_units_prior", help="Specify hidden units in prior", 
-                        default=256, type=int)
+                        default=512, type=int)
     add_bool_arg(parser, "make_conditional", default=True, 
                  help="Specify if split should be conditional or not (boolean)")
     parser.add_argument('--flow_norm', help="Specify normalization type of glow-step", 

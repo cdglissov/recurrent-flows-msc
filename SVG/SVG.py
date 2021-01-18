@@ -220,7 +220,6 @@ class SVG(nn.Module):
         self.batch_size, channels, hx, wx = x_dim
         self.n_conditions = args.n_conditions
         self.n_predictions = args.n_predictions
-        self.beta = 1 
         self.mse_criterion = nn.MSELoss(reduction="none")
         self.encoder = Encoder(c_features, channels)
         self.decoder = Decoder(c_features, channels)
@@ -230,6 +229,7 @@ class SVG(nn.Module):
         self.frame_predictor = lstm_svg(c_features+z_dim, c_features, h_dim, predictor_rnn_layers, self.batch_size).to(device)
         self.posterior = gaussian_lstm(c_features, z_dim, h_dim, posterior_rnn_layers, self.batch_size).to(device)
         self.prior = gaussian_lstm(c_features, z_dim, h_dim, prior_rnn_layers, self.batch_size).to(device)
+        
         self.frame_predictor.apply(init_weights).to(device)
         self.posterior.apply(init_weights).to(device)
         self.prior.apply(init_weights).to(device)
@@ -247,7 +247,6 @@ class SVG(nn.Module):
       for i in range(1, t):
           h, skip = self.encoder(x[:,i-1,:,:,:])
           h_target = self.encoder(x[:,i,:,:,:])[0]
-          
           z_t, mu, std_q = self.posterior(h_target)
           _, mu_p, std_p = self.prior(h)
           h_pred = self.frame_predictor(torch.cat([h, z_t], 1))
@@ -305,10 +304,7 @@ class SVG(nn.Module):
         
         for i in range(1, n_samples):
             condition, skip  = self.encoder(condition_x)
-            condition = condition.detach()
             z_t, _, _ = self.prior(condition)
-
-            self.frame_predictor(torch.cat([condition, z_t], 1)) 
             h_pred = self.frame_predictor(torch.cat([condition, z_t], 1))
             x_pred = self.decoder([h_pred, skip])
             samples[i,:,:,:,:] = x_pred
@@ -328,12 +324,11 @@ class SVG(nn.Module):
         
         true_x[0,:,:,:,:]=x[:,0,:,:,:]
         x_in = x[:,0,:,:,:]
-        for i in range(1, n_predictions+n_conditions):
+        for i in range(1, self.n_predictions+self.n_conditions):
             condition, skip  = self.encoder(x_in)
-            condition = condition.detach()
-            if i < n_conditions:
+
+            if i < self.n_conditions:
                 target = self.encoder(x[:,i,:,:,:])[0]
-                target = target.detach()
                 z_t, _, _ = self.posterior(target)
                 self.prior(condition)
                 self.frame_predictor(torch.cat([condition, z_t], 1))
@@ -342,8 +337,7 @@ class SVG(nn.Module):
             else:
                 z_t, _, _ = self.prior(condition)
                 h_pred = self.frame_predictor(torch.cat([condition, z_t], 1)).detach()
-                x_pred = self.decoder([h_pred, skip])
-                x_in = x_pred
+                x_in = self.decoder([h_pred, skip])
                 predictions[i-n_conditions,:,:,:,:] = x_in
         return true_x, predictions
 
