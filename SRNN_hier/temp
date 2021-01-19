@@ -1,0 +1,127 @@
+
+class Dense_Block_Prior(nn.Module):
+  def __init__(self, in_channels):
+    super(Dense_Block, self).__init__()
+    non_lin = "relu"
+    self.act = ActFun(non_lin, inplace = True)
+    
+    self.conv1 = nn.Conv2d(in_channels = in_channels, out_channels = 10, kernel_size = 3, stride = 1, padding = 1)
+    self.conv2 = nn.Conv2d(in_channels = 10, out_channels = 10, kernel_size = 3, stride = 2, padding = 1)
+    self.conv3 = nn.Conv2d(in_channels = 20, out_channels = 10, kernel_size = 3, stride = 2, padding = 1)
+    self.conv4 = nn.Conv2d(in_channels = 30, out_channels = 10, kernel_size = 3, stride = 2, padding = 1)
+    self.conv5 = nn.Conv2d(in_channels = 40, out_channels = 10, kernel_size = 3, stride = 2, padding = 1)
+    self.conv6 = nn.Conv2d(in_channels = 50, out_channels = 10, kernel_size = 3, stride = 2, padding = 1)
+    
+  def forward(self, z_prev, h_states):
+   
+   conv1 = self.act(self.conv1(x))
+   
+   
+   conv2 = self.act(self.conv2(conv1))
+   c2_dense = self.act(torch.cat([conv1, conv2], 1))
+   
+   conv3 = self.act(self.conv3(c2_dense))
+   c3_dense = self.act(torch.cat([conv1, conv2, conv3], 1))
+   
+   conv4 = self.act(self.conv4(c3_dense)) 
+   c4_dense = self.act(torch.cat([conv1, conv2, conv3, conv4], 1))
+   
+   conv5 = self.act(self.conv5(c4_dense))
+   c5_dense = self.act(torch.cat([conv1, conv2, conv3, conv4, conv5], 1))
+   
+   conv6 = self.act(self.conv6(c5_dense))
+   c6_dense = self.act(torch.cat([conv1, conv2, conv3, conv4, conv5, conv6], 1))
+   return c6_dense
+
+
+
+
+ #1x1
+    self.z_net1 = z_net(in_channels = zc[0] + hc[0]+z_dim*0, out_channels = z_dim, kernel_size = 1, stride = 1)
+    
+    #2x2
+    self.z_net2 = z_net(in_channels = zc[1] + hc[1] + z_dim*1, out_channels = z_dim, kernel_size = 2, stride = 1)
+    
+    #4x4
+    self.z_net3 = z_net(in_channels = zc[2] + hc[2] + z_dim*2, out_channels = z_dim, kernel_size = 3, stride = 1)
+    
+    #8x8
+    self.z_net4 = z_net(in_channels = zc[3] + hc[3] + z_dim*3, out_channels = z_dim, kernel_size = 3, stride = 1)
+    
+    #16x16
+    self.z_net5 = z_net(in_channels = zc[4] + hc[4] + z_dim*4, out_channels = z_dim, kernel_size = 3, stride = 1)
+    
+    #32x32
+    self.z_net6 = z_net(in_channels = zc[5] + hc[5] + z_dim*5, out_channels = z_dim, kernel_size = 3, stride = 1)
+
+
+#1x1
+    input1 = torch.cat([z_prev[0], h_states[0]], 1)
+    z1, mu1, logvar1 = self.z_net1(input1)
+    
+    #2x2
+    
+    input2 = torch.cat([z_prev[1], h_states[1], 
+                        self.scale(z1, z_prev[1].shape[-1], z1.shape[-1])],1)
+    z2, mu2, logvar2 = self.z_net1(input2)
+    
+    #4x4
+    
+    input3 = torch.cat([z_prev[2], h_states[2], 
+                        self.scale(z1, z_prev[2].shape[-1], z1.shape[-1]),
+                        self.scale(z2, z_prev[2].shape[-1], z2.shape[-1])],1)
+    z3, mu3, logvar3 = self.z_net1(input3)
+   
+    #8x8
+
+    input4 = torch.cat([z_prev[3], h_states[3], 
+                        self.scale(z1, z_prev[3].shape[-1], z1.shape[-1]),
+                        self.scale(z2, z_prev[3].shape[-1], z2.shape[-1]),
+                        self.scale(z3, z_prev[3].shape[-1], z3.shape[-1])],1)
+    z4, mu4, logvar4 = self.z_net1(input4)
+    
+    #16x16
+    input5 = torch.cat([z_prev[4], h_states[4], 
+                        self.scale(z1, z_prev[4].shape[-1], z1.shape[-1]),
+                        self.scale(z2, z_prev[4].shape[-1], z2.shape[-1]),
+                        self.scale(z3, z_prev[4].shape[-1], z3.shape[-1]),
+                        self.scale(z4, z_prev[4].shape[-1], z4.shape[-1])],1)
+    z5, mu5, logvar5 = self.z_net1(input5)
+    
+    #32x32
+    input6 = torch.cat([z_prev[5], h_states[5], 
+                        self.scale(z1, z_prev[5].shape[-1], z1.shape[-1]),
+                        self.scale(z2, z_prev[5].shape[-1], z2.shape[-1]),
+                        self.scale(z3, z_prev[5].shape[-1], z3.shape[-1]),
+                        self.scale(z4, z_prev[5].shape[-1], z4.shape[-1]),
+                        self.scale(z5, z_prev[5].shape[-1], z5.shape[-1])],1)
+    z6, mu6, logvar6 = self.z_net1(input6)
+
+ #init h's
+      self.h_32 = nn.Parameter(torch.zeros(self.batch_size, self.hc[0], 32, 32))
+      self.c_32 = nn.Parameter(torch.zeros(self.batch_size, self.hc[0], 32, 32))
+      self.h_16 = nn.Parameter(torch.zeros(self.batch_size, self.hc[1], 16, 16))
+      self.c_16 = nn.Parameter(torch.zeros(self.batch_size, self.hc[1], 16, 16))
+      self.h_8 = nn.Parameter(torch.zeros(self.batch_size, self.hc[2], 8, 8))
+      self.c_8 = nn.Parameter(torch.zeros(self.batch_size, self.hc[2], 8, 8))
+      self.h_4 = nn.Parameter(torch.zeros(self.batch_size, self.hc[3], 4, 4))
+      self.c_4 = nn.Parameter(torch.zeros(self.batch_size, self.hc[3], 4, 4))
+      self.h_2 = nn.Parameter(torch.zeros(self.batch_size, self.hc[4], 2, 2))
+      self.c_2 = nn.Parameter(torch.zeros(self.batch_size, self.hc[4], 2, 2))
+      self.h_1 = nn.Parameter(torch.zeros(self.batch_size, self.hc[5], 1, 1))
+      self.c_1 = nn.Parameter(torch.zeros(self.batch_size, self.hc[5], 1, 1))
+      
+      self.z_1 = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 1, 1))
+      self.z_1x = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 1, 1))
+      self.z_2 = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 2, 2))
+      self.z_2x = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 2, 2))
+      self.z_4= nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 4, 4))
+      self.z_4x = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 4, 4))
+      self.z_8 = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 8, 8))
+      self.z_8x = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 8, 8))
+      self.z_16 = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 16, 16))
+      self.z_16x = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 16, 16))
+      self.z_32 = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 32, 32))
+      self.z_32x = nn.Parameter(torch.zeros(self.batch_size, self.z_dim, 32, 32))
+
+
