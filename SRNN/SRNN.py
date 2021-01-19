@@ -31,7 +31,7 @@ class SRNN(nn.Module):
       
       # Remember to downscale more when using 64x64. Overall the net should probably increase in size when using 
       # 64x64 images
-      phi_x_t_channels = 256
+      self.phi_x_t_channels = 256
       self.phi_x_t = nn.Sequential(
           nn.Conv2d(cx, 64, kernel_size=3, stride=2, padding=1),#32
           NormLayer(64, norm_type),
@@ -42,8 +42,8 @@ class SRNN(nn.Module):
           nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),#8
           NormLayer(256, norm_type),
           nn.ReLU(),
-          nn.Conv2d(256, phi_x_t_channels, kernel_size=3, stride=1, padding=1),
-          NormLayer(phi_x_t_channels, norm_type),
+          nn.Conv2d(256, self.phi_x_t_channels, kernel_size=3, stride=1, padding=1),
+          NormLayer(self.phi_x_t_channels, norm_type),
           nn.ReLU(),
         )
       h, w = get_layer_size([hu, wu], kernels=[3, 3,3], paddings=[1, 1, 1], strides=[2, 2,2],
@@ -74,7 +74,7 @@ class SRNN(nn.Module):
             )
       else:
           self.enc = nn.Sequential(
-            nn.Conv2d(phi_z_channels + self.h_dim + phi_x_t_channels, 256,  kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(phi_z_channels + self.h_dim + self.phi_x_t_channels, 256,  kernel_size=3, stride=2, padding=1),
             NormLayer(256, norm_type),
             nn.ReLU(),
             Flatten(),
@@ -159,13 +159,13 @@ class SRNN(nn.Module):
       self.ca_0 = nn.Parameter(torch.zeros(self.batch_size, self.a_dim, h, w))
 
       #LSTM
-      self.lstm_h = ConvLSTMOld(in_channels = phi_x_t_channels, 
+      self.lstm_h = ConvLSTMOld(in_channels = self.phi_x_t_channels, 
                            hidden_channels=self.h_dim, 
                            kernel_size=[3, 3], 
                            bias=True, 
                            peephole=True)
       
-      self.lstm_a = ConvLSTMOld(in_channels = phi_x_t_channels + self.h_dim, 
+      self.lstm_a = ConvLSTMOld(in_channels = self.phi_x_t_channels + self.h_dim, 
                            hidden_channels=self.h_dim, 
                            kernel_size=[3, 3], 
                            bias=True, 
@@ -186,10 +186,12 @@ class SRNN(nn.Module):
       
       store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
       store_at = torch.zeros((t-1, *hprev.shape)).cuda()
-      
+      store_x_features = torch.zeros((self.batch_size, t, self.phi_x_t_channels, 8, 8)).cuda()
       #Find ht
+      for i in range(0, t):
+          store_x_features[:, i, :, :, :] = self.phi_x_t(xt[:, i, :, :, :])
       for i in range(1, t):
-        ut = self.phi_x_t(xt[:, i-1, :, :, :])
+        ut = store_x_features[:, i-1, :, :, :]
         _, ht, ct = self.lstm_h(ut.unsqueeze(1), hprev, cprev)
         store_ht[i-1,:,:,:,:] = ht
         hprev = ht
@@ -198,7 +200,7 @@ class SRNN(nn.Module):
       if self.enable_smoothing:
           #Find at
           for i in range(1, t):
-            xt_features = self.phi_x_t(xt[:, t-i, :, :, :])
+            xt_features = store_x_features[:, t-i, :, :, :]
             lstm_a_input = torch.cat([store_ht[t-i-1,:,:,:,:], xt_features], 1)
             _, at, c_at = self.lstm_a(lstm_a_input.unsqueeze(1), aprev, caprev)
             aprev = at
@@ -209,7 +211,7 @@ class SRNN(nn.Module):
       store_ztx_std = torch.zeros((t-1, *zprevx.shape)).cuda()
       store_zt = torch.zeros((t-1, *zprev.shape)).cuda()
       for i in range(1, t):
-        ht=store_ht[i-1,:,:,:,:]
+        ht = store_ht[i-1,:,:,:,:]
         prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
         prior_mean_t = self.prior_mean(prior_t) 
         prior_std_t = self.prior_std(prior_t)
@@ -244,7 +246,7 @@ class SRNN(nn.Module):
         zprevx = z_tx
         zprev = z_t
         
-        kl_loss = kl_loss + self.beta * td.kl_divergence(enc_dist, prior_dist)
+        #kl_loss = kl_loss + self.beta * td.kl_divergence(enc_dist, prior_dist)
 
  
         if self.loss_type == "bernoulli":
@@ -257,27 +259,26 @@ class SRNN(nn.Module):
         else:
             print("undefined loss")
       
-      if self.D > 1: ## If true able overshoots
-          overshot_loss = 0
-          overshot_w = self.overshot_w # Weight of overshot.
-          Dinit = self.D # is the number of over samples, if D=1 no over shooting will happen.
-          # Given we have calculated for D = 1 as the above, we continue from there
-          for i in range(1, t):
-              idt = i-1 # index t, Does this to make index less confusing
-              zprev = store_zt[idt, : , :]
-              D = min(t-i, Dinit) #Do this so that for ts at t-D still do overshoting but with less overshooting # Dont know if this is the correct way to do it but makes sense
-              for d in range(1, D): # D is the number of overshootes
-                  
-                  ht = store_ht[idt + d, :, :, :, :] # So find the ht for t + d
-                  prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
-                  prior_mean_t = self.prior_mean(prior_t)
-                  prior_std_t = self.prior_std(prior_t)
-                  zprev = prior_dist.rsample()
-                  prior_dist = td.Normal(prior_mean_t, prior_std_t)
+      #if self.D > 1: ## If true able overshoots
+      overshot_loss = 0
+      overshot_w = self.overshot_w # Weight of overshot.
+      Dinit = self.D # is the number of over samples, if D=1 no over shooting will happen.
+      # Given we have calculated for D = 1 as the above, we continue from there
+      for i in range(1, t):
+          idt = i-1 # index t, Does this to make index less confusing
+          zprev = store_zt[idt, : , :]
+          D = min(t-i, Dinit) #Do this so that for ts at t-D still do overshoting but with less overshooting # Dont know if this is the correct way to do it but makes sense
+          for d in range(0, D): # D is the number of overshootes
+              ht = store_ht[idt + d, :, :, :, :] # So find the ht for t + d
+              prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
+              prior_mean_t = self.prior_mean(prior_t)
+              prior_std_t = self.prior_std(prior_t)
+              zprev = prior_dist.rsample()
+              prior_dist = td.Normal(prior_mean_t, prior_std_t)
 
-                  enc_dist = td.Normal(store_ztx_mean[idt + d, :, :], store_ztx_std[idt + d, :, :] ) #Encoded values is matching ht so t + d
-                  overshot_loss = overshot_loss + overshot_w * self.beta * td.kl_divergence(enc_dist, prior_dist)
-          kl_loss = 1/Dinit*(kl_loss + overshot_loss) # The first loss is for D=1, 
+              enc_dist = td.Normal(store_ztx_mean[idt + d, :, :], store_ztx_std[idt + d, :, :] ) #Encoded values is matching ht so t + d
+              overshot_loss = overshot_loss + overshot_w * td.kl_divergence(enc_dist, prior_dist)
+          kl_loss = kl_loss + 1/D*(overshot_loss) * self.beta # The first loss is for D=1, 
       
 
       return batch_reduce(kl_loss).mean(), batch_reduce(nll_loss).mean()
