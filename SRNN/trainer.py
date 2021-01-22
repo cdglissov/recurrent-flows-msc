@@ -165,6 +165,7 @@ class Solver(object):
                 x = (x - x.min()) / (x.max() - x.min())
             else:
                 x = x * (x.max()-x.min())+x.min()
+				x = torch.clamp(x * (255), 0, 255).byte()
         else:
             print("Invalid preprocess choice")
         return x
