@@ -162,7 +162,7 @@ class RFN(nn.Module):
         
       return flow_conditions_combined
   
-    def predict(self, x, n_conditions, n_predictions):
+    def predict(self, x, n_predictions, n_conditions):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
         hprev, cprev, zprev, _, _, _, _ = self.get_inits()
         
