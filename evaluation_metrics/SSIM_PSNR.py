@@ -223,7 +223,7 @@ class Evaluator(object):
                 image = self.solver.preprocess(image_unprocessed)
 
                 #self.plotreconstruct(image)
-                x_true, predictions = self.model.predict(image,start_predictions, self.n_frames-start_predictions)
+                x_true, predictions = self.model.predict(image, self.n_frames-start_predictions, start_predictions)
                 #print(predictions[0,0,0,:,0])
                 #print(predictions.permute(1,0,2,3,4).reshape((samples_recon.shape[1],-1)).min(dim=1)[0])
                 image  = self.solver.preprocess(image, reverse=True)
