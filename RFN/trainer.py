@@ -162,6 +162,7 @@ class Solver(object):
             x = x * n_bins
             x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
         return x
+    
     def adjust_learning_rate(self, batch):
         """Linearly decrease learning rate to zero after startbatch in num_steps.
         Does not work with other schedulers
@@ -211,7 +212,7 @@ class Solver(object):
             else:
                 image = image.to(device)
             image = self.preprocess(image)
-	    	logdet = 0
+            logdet = 0
             self.beta = min(max_value, min_value + self.counter*(max_value - min_value) / num_steps)
 
             if self.multigpu and torch.cuda.device_count() > 1:
@@ -269,6 +270,7 @@ class Solver(object):
           'kl_loss': self.kl_loss,
           'recon_loss': self.recon_loss,
           'losses': self.losses,
+          'bits_per_dim': self.bits,
           'annealing_counter': self.counter,
           'args': self.args,
           }, self.path + 'model_folder/eval_dict.pt')
@@ -350,7 +352,7 @@ class Solver(object):
       ax[3].set_ylabel("nll")
 
       if not self.verbose:
-		fig.tight_layout()
+        fig.tight_layout()
         fig.savefig(self.path + 'png_folder/losses' + '.png', bbox_inches='tight')
         plt.close(fig)
 

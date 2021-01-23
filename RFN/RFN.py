@@ -274,7 +274,7 @@ class RFN(nn.Module):
             zxprev = zxt
         return recons, recons_flow
     
-    def reconstructPlus(self, x):
+    def reconstruct_elbo_gap(self, x):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
         hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()
         

@@ -165,7 +165,7 @@ class Solver(object):
                 x = (x - x.min()) / (x.max() - x.min())
             else:
                 x = x * (x.max()-x.min())+x.min()
-				x = torch.clamp(x * (255), 0, 255).byte()
+                x=torch.clamp(x * (255), 0, 255).byte()
         else:
             print("Invalid preprocess choice")
         return x
@@ -326,7 +326,7 @@ class Solver(object):
       ax[3].set_ylabel("nll")
 
       if not self.verbose:
-		fig.tight_layout()
+        fig.tight_layout()
         fig.savefig(self.path + 'png_folder/losses' + '.png', bbox_inches='tight')
         plt.close(fig)
 
@@ -350,7 +350,7 @@ class Solver(object):
 
 
       if not self.verbose:
-		fig.tight_layout()
+        fig.tight_layout()
         fig.savefig(self.path +'png_folder/samples' + n_plot + '.png', bbox_inches='tight')
         plt.close(fig)
 
