@@ -89,7 +89,7 @@ if __name__ == "__main__":
     parser.add_argument("--preprocess_range", help="Specify the range of the data for preprocessing", 
                         choices=['0.5','1.0', 'minmax'], default='minmax', type=str)
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
-                        default=255, type=int)
+                        default=256, type=int)
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
                         default=0.00001, type=float)
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 

@@ -275,6 +275,7 @@ class RFN(nn.Module):
         return recons, recons_flow
     
     def reconstruct_elbo_gap(self, x):
+        #TODO: Fix so we predict.
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
         hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()
         

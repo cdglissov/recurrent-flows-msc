@@ -124,14 +124,6 @@ class Solver(object):
         test_loader = DataLoader(testset, batch_size=self.batch_size, shuffle=True, drop_last=True)
         return train_loader, test_loader
  
-    def uniform_binning_correction(self, x):
-        n_bits = self.n_bits
-        b, t, c, h, w = x.size()
-        n_bins = 2 ** n_bits
-        chw = c * h * w
-        x_noise = x + torch.zeros_like(x).uniform_(0, 1.0 / n_bins)
-        objective = -np.log(n_bins) * chw * torch.ones(b, device=x.device)
-        return x_noise, objective
  
     def preprocess(self, x, reverse = False):
         # Remember to change the scale parameter to make variable between 0..255
@@ -148,7 +140,7 @@ class Solver(object):
           else:
             x = x + 0.5
             x = x * n_bins
-            x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
+            x = torch.clamp(torch.floor(x) * (256. / n_bins), 0, 255).byte()
         elif preprocess_range == "1.0":
           if reverse == False:
             x = x * scale
@@ -157,7 +149,7 @@ class Solver(object):
             x = x / n_bins  
           else:
             x = x * n_bins
-            x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
+            x = torch.clamp(torch.floor(x) * (256. / n_bins), 0, 255).byte()
         return x
  
     def train(self):
@@ -184,8 +176,7 @@ class Solver(object):
             else:
                 image = image.to(device)
             image = self.preprocess(image)
-            image, logdet = self.uniform_binning_correction(image)
-
+            logdet=0
             if self.variable_beta: 
                 self.model.beta = min(max_value, min_value + self.counter*(max_value - min_value) / num_steps)
             else:

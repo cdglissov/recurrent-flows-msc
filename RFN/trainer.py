@@ -151,7 +151,7 @@ class Solver(object):
           else:
             x = x + 0.5
             x = x * n_bins
-            x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
+            x = torch.clamp(torch.floor(x) * (256. / n_bins), 0, 255).byte()
         elif self.preprocess_range == "1.0":
           if reverse == False:
             x = x * self.preprocess_scale
@@ -160,7 +160,7 @@ class Solver(object):
             x = x / n_bins
           else:
             x = x * n_bins
-            x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
+            x = torch.clamp(torch.floor(x) * (256. / n_bins), 0, 255).byte()
         return x
     
     def adjust_learning_rate(self, batch):

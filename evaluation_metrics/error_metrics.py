@@ -16,7 +16,6 @@ from skimage.metrics import peak_signal_noise_ratio
 from skimage.metrics import structural_similarity
 from tqdm import tqdm 
 import math
-from scipy.signal import savgol_filter
 
 class Evaluator(object):
     def __init__(self, solver, args, settings):
@@ -80,7 +79,7 @@ class Evaluator(object):
                                  normalize=False)
                 
             if self.debug_mnist:
-                te_split_len = 100
+                te_split_len = 200
                 testset = torch.utils.data.random_split(testset, 
                                 [te_split_len, len(testset)-te_split_len])[0]
                 
@@ -136,7 +135,7 @@ class Evaluator(object):
                     ssim[i, t] += structural_similarity(image_gen, image_true)
                     psnr[i, t] += peak_signal_noise_ratio(image_gen, image_true)                    
                 ssim[i, t] /= gt.shape[2]
-                psnr[i, t] /= gt.shape[2] 
+                psnr[i, t] /= gt.shape[2]
                 mse[i, t] = torch.mean( (gt[i, t, :, : ,:] - pred[i, t, :, : ,:])**2, dim = [0, 1, 2])
         return mse, ssim, psnr
     
@@ -157,7 +156,6 @@ class Evaluator(object):
         return lpips
     
     def plot_elbo_gap(self, image):
-        #TODO: need proper normalized loss 
         recons, recons_flow, averageKLDseq, averageNLLseq = self.model.reconstruct_elbo_gap(image)
         recons  = self.solver.preprocess(recons, reverse=True)
         recons_flow  = self.solver.preprocess(recons_flow, reverse=True)
@@ -194,16 +192,37 @@ class Evaluator(object):
         plt.legend()
         fig.savefig(self.path + 'eval_folder/KLDdiagnostic' + '.png', bbox_inches='tight')
         plt.close(fig)
+    
+    def compute_loss(self, nll, kl, dims, t=10):
+
+        kl_store = kl.data
+        nll_store = nll.data
+        elbo = -(kl_store+nll_store)
+
+        bits_per_dim_loss = float(-elbo/(np.log(2.)*torch.prod(torch.tensor(dims))*t))
+        kl_loss = float(kl_store/t)
+        recon_loss = float(nll_store/t)
         
-    def get_eval_values(self):
+        return bits_per_dim_loss, kl_loss, recon_loss
+    
+    def get_eval_values(self, model_name):
       start_predictions = self.start_predictions 
-      resample = self.resample 
-      SSIM_values = []
-      PSNR_values = []
-      MSE_values = []
-      LPIPS_values = []
+      PSNR_max = 0.0
+      MSE_min = 1e15
+      SSIM_max = 0.0
+      LPIPS_min = 1e15
+      BPD_min = 1e15
+      
       with torch.no_grad():
-          for time in range(0, resample):
+          self.model.eval()
+          for time in range(0, self.resample):
+              SSIM_values = []
+              PSNR_values = []
+              MSE_values = []
+              LPIPS_values = []
+              BPD = [] 
+              DKL=[] 
+              RECON = []
               for batch_i, image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
                 
                 if self.choose_data=='bair':
@@ -213,32 +232,82 @@ class Evaluator(object):
                 image = self.solver.preprocess(image)
                 
                 x_true, predictions = self.model.predict(image, self.n_frames-start_predictions, start_predictions)
+                
+                # Computes eval loss
+                if model_name == "rfn.pt":
+                    logdet = 0
+                    _, kl, nll = self.model.loss(image, logdet)
+                    bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
+                                                                               kl=kl, 
+                                                                               dims=image.shape[2:], 
+                                                                               t=image.shape[1]-1)
+                else:
+                    kl, nll = self.model.loss(image)
+                    bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
+                                                                               kl=kl, 
+                                                                               dims=image.shape[2:], 
+                                                                               t=image.shape[1]-1)
+                
                 image  = self.solver.preprocess(image, reverse=True)
                 predictions  = self.solver.preprocess(predictions, reverse=True)
-                
+
                 ground_truth = image[:, start_predictions:,:,:,:].type(torch.FloatTensor).to(device)
                 predictions = predictions.permute(1,0,2,3,4).type(torch.FloatTensor).to(device)
                 
                 mse, ssim, psnr = self.eval_seq(predictions, ground_truth)
                 lpips = self.get_lpips(predictions, ground_truth)
                 
+                
                 SSIM_values.append(ssim)
                 PSNR_values.append(psnr)
                 MSE_values.append(mse)
                 LPIPS_values.append(lpips)
-                
-                if self.show_elbo_gap:
-                    self.plot_elbo_gap(image)
-                    
-      PSNR_values = torch.cat(PSNR_values)
-      MSE_values = torch.cat(MSE_values)
-      SSIM_values = torch.cat(SSIM_values)
-      LPIPS_values = torch.cat(LPIPS_values)
+                BPD.append(bits_per_dim_loss)
+                DKL.append(kl_loss) 
+                RECON.append(recon_loss)
+               
+              #TODO: Det er lidt mærkeligt at den skal være inde i eval loopet. Så har rykket den ud
+              # Måske gem den gennemsnitlige loss værdi for alle de forskellige inputs og så plot?
+              if self.show_elbo_gap:
+                self.plot_elbo_gap(image)
       
+              # Shape: [number of sequences, number of future frames predicted]
+              PSNR_values = torch.cat(PSNR_values)
+              MSE_values = torch.cat(MSE_values)
+              SSIM_values = torch.cat(SSIM_values)
+              LPIPS_values = torch.cat(LPIPS_values)
+        
+              # Shape: [one avg. loss for each minibatch]
+              BPD = torch.FloatTensor(BPD)
+              DKL = torch.FloatTensor(DKL)
+              RECON = torch.FloatTensor(RECON)
+              
+              if BPD.mean() < BPD_min:
+                  BPD_best = BPD
+                  DKL_best = DKL
+                  RECON_best = RECON
+                  BPD_min = BPD.mean()
+                  
+              if MSE_values.mean() < MSE_min:
+                  MSE_best = MSE_values
+                  MSE_min = MSE_values.mean()
+              
+              if PSNR_values.mean() > PSNR_max:
+                  PSNR_max = PSNR_values.mean()
+                  PSNR_best = PSNR_values
+                  
+              if SSIM_values.mean() > SSIM_max:
+                  SSIM_max = SSIM_values.mean()
+                  SSIM_best = SSIM_values
+                  
+              if LPIPS_values.mean() < LPIPS_min:
+                  LPIPS_min = LPIPS_values.mean()
+                  LPIPS_best = LPIPS_values
+      #maybe give best and worst plots to this, with corresponding ssim score etc
       if self.debug_plot:
-          self.plot_samples(predictions, ground_truth)
+          self.plot_samples(predictions.byte(), ground_truth.byte())
       
-      return MSE_values, PSNR_values, SSIM_values, LPIPS_values
+      return MSE_best, PSNR_best, SSIM_best, LPIPS_best, BPD_best, DKL_best, RECON_best
     
     def test_temp_values(self, path, label_names, experiment_names):
         markersize = 5
@@ -438,54 +507,3 @@ class Evaluator(object):
         fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_mean.png', bbox_inches='tight')
         fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_median.png', bbox_inches='tight') 
     
-    def loss_plots(self, path, label_names, experiment_names):
-        #TODO: Need to fix this class
-        #TODO: Make eval loss
-        #TODO: Insert bits per dim eval dict loss for all models
-        fig, ax = plt.subplots(1, 3)
-        fig2, ax2 = plt.subplots(1, 3)
-        
-        for i in range(0, len(experiment_names)):
-            name = experiment_names[i]
-            path_to_model = path + name + '/model_folder/eval_dict.pt'
-            load_dict = torch.load(path_to_model)
-            loss = load_dict['bits_per_dim']
-            kl_loss = load_dict['kl_loss']
-            recon_loss = load_dict['recon_loss']
-            ax[0].plot(loss, label = name)
-            ax[1].plot(kl_loss, label = name)
-            ax[2].plot(recon_loss, label = name)
-            ax2[0].plot(savgol_filter(tuple(loss), 301, 3), label = name)
-            ax2[1].plot(savgol_filter(tuple(kl_loss), 301, 3), label = name)
-            ax2[2].plot(savgol_filter(tuple(recon_loss), 301, 3), label = name)
-            
-        ylim1 = [654, 655]
-        ax[0].set_title('Bits per dim')
-        ax[0].legend()
-        ax[0].set_ylim(ylim1)
-        ax[0].grid()
-        ax[1].set_title('KL loss')
-        ax[1].legend()
-        ax[1].grid()
-        ax[1].set_ylim([0, 0.2])
-        ax[2].set_title('Recon loss')
-        ax[2].legend()
-        ax[2].grid()
-        ax[2].set_ylim(ylim1)
-        fig.savefig(path + name +  '/eval_folder/losses.png', bbox_inches='tight')  
-          
-        ax2[0].set_title('Total loss')
-        ax2[0].legend()
-        ax2[0].set_ylim(ylim1)
-        ax2[0].grid()
-        ax2[1].set_title('KL loss')
-        ax2[1].legend()
-        ax2[1].grid()
-        ax2[1].set_ylim([0, 0.2])
-        ax2[2].set_title('Recon loss')
-        ax2[2].legend()
-        ax2[2].grid()
-        ax2[2].set_ylim(ylim1)
-        fig2.savefig(path + name + '/eval_folder/smoothened_losses.png', bbox_inches='tight')  
-        
-#TODO: Make FVD wrapper here

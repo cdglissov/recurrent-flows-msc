@@ -1,7 +1,17 @@
+# TODO: check metric STD's
+# TODO: Ask tobs about if n_conditions isn't equal to start_predictions? (it is)
+# TODO: Proper normalized loss in plot_elbo_gap
+# TODO: Make FVD wrapper in error_metrics.py https://github.com/edouardelasalles/srvp/tree/master/metrics
+# TODO: Get parameters of RFN model (Tomorrow)
+# TODO: get best samples and PSNR values (laver jeg i dag) best_predictions, worst_predictions ud fra SSIM, find idividuelle sequences
+# TODO: Avg. bits per dim over frames (reconstructPlus) (Tobias)
+# TODO: Interpolation between two images (Tobias)
+# TODO: Kvantiser hvor god modellen er til at reconstruct (Tobias) + amortization gap
 
 import argparse
 import torch
 import sys
+
 # Adding deepflows to system path
 sys.path.insert(1, './deepflows/')
 
@@ -35,34 +45,47 @@ def main(settings):
             
             path_save_measures = settings.folder_path + experiments[i] + "/eval_folder"
             
+            
             if not settings.test_temperature:
+
                 evaluator.model.temperature = settings.temperatures[i]
-                MSE_values, PSNR_values, SSIM_values, LPIPS_values = evaluator.get_eval_values()
+                MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON = evaluator.get_eval_values(model_name)
                 dict_values = {"SSIM_values": SSIM_values.cpu(),
                             "PSNR_values": PSNR_values.cpu(),
                             "MSE_values": MSE_values.cpu(),
                             "LPIPS_values": LPIPS_values.cpu(),
-                            "temperature": settings.temperatures[i]
+                            "temperature": settings.temperatures[i],
+                            "BPD": BPD.cpu(),
+                            "DKL": DKL.cpu(),
+                            "RECON": RECON.cpu(),
                             }
                 
                 torch.save(dict_values, path_save_measures + '/evaluations.pt')     
-                print("SSIM:", SSIM_values.mean(0))
-                print("PSNR:", PSNR_values.mean(0))
-                print("MSE:", MSE_values.mean(0))
-                print("LPIPS:", LPIPS_values.mean(0))
+                
+                with open(path_save_measures+'/eval_avg_losses.txt', 'w') as f:
+                    print("SSIM:", SSIM_values.mean(0), file=f)
+                    print("PSNR:", PSNR_values.mean(0), file=f)
+                    print("MSE:", MSE_values.mean(0), file=f)
+                    print("LPIPS:", LPIPS_values.mean(0), file=f)
+                    print("BPD:", BPD.mean(), file=f)
+                    print("DKL:", DKL.mean(),file=f)
+                    print("RECON:", RECON.mean(),file=f)
+
             else:
                 for temperature in settings.temperatures:
                         evaluator.model.temperature = temperature
-                        MSE_values, PSNR_values, SSIM_values, LPIPS_values = evaluator.get_eval_values()
+                        MSE_values, PSNR_values, SSIM_values, LPIPS_values = evaluator.get_eval_values(model_name)
                         dict_values = {"SSIM_values": SSIM_values.cpu(),
                                     "PSNR_values": PSNR_values.cpu(),
                                     "MSE_values": MSE_values.cpu(),
                                     "LPIPS_values": LPIPS_values.cpu(),
-                                    "temperature": temperature
+                                    "temperature": temperature,
+                                    "BPD": BPD.cpu(),
+                                    "DKL": DKL.cpu(),
+                                    "RECON": RECON.cpu(),
                                     }
                         torch.save(dict_values, path_save_measures + "/t" + str(temperature).replace('.','') + 'evaluations.pt')    
 
-            
     # results always saved in the last eval_folder of experiment_names
     if not settings.test_temperature:
         evaluator.plot_eval_values(path = settings.folder_path,
@@ -114,9 +137,9 @@ if __name__ == "__main__":
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments", 
                         default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
-                        default=["vrnn_test", "svg_test"], type=str)
-    parser.add_argument("--model_path", nargs='+', help="Path to model.pt file", 
-                        default=['vrnn.pt', 'svg.pt'], type=str)
+                        default=["rfn_test", "svg_test"], type=str)
+    parser.add_argument("--model_path", nargs='+', help="Name of model.pt file", 
+                        default=['rfn.pt', "svg.pt"], type=str)
     
     #CALCULATE VALUES SETTINGS:
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences", 
@@ -126,14 +149,14 @@ if __name__ == "__main__":
     parser.add_argument("--start_predictions", help="Specify when model starts predicting", 
                         default=6, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model", 
-                        default=[0.6, 0.2], type=float)
+                        default=[0.6], type=float)
     parser.add_argument("--resample", help="Loops over the test set more than once to get better measures. WARNING: can be slow", 
                         default=1, type=int)
     add_bool_arg(parser, "show_elbo_gap", default=False, 
                  help="Plots the elbo gap of the RFN model. WARNING: Only works for RFN")
     
     #TEST TEMPERATURE:
-    add_bool_arg(parser, "test_temperature", default=True, 
+    add_bool_arg(parser, "test_temperature", default=False, 
                  help="Allows one to test temperature. If enabled different temperatures (from --temperatures) are tested for each specified model")
     
     #DEBUG SETTINGS:
@@ -146,12 +169,10 @@ if __name__ == "__main__":
     add_bool_arg(parser, "calc_eval", default=True, 
                  help="Set to false if we do not want to calculate eval values")
     parser.add_argument("--n_conditions", help="Number of conditions used for plotting eval_values", 
-                        default=1, type=int) #TODO: Ask tobs about this, isn't this equal to start_predictions?
+                        default=6, type=int)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
-                        default=["VRNN", "SVG", " SRNN"], type=str)
+                        default=["RFN"], type=str)
     
-    #LOSS VALUES PLOTTER SETTINGS:
-    #TODO: fix this function
     
     args = parser.parse_args()
     
