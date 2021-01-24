@@ -273,18 +273,76 @@ class RFN(nn.Module):
             cprev = ct
             zxprev = zxt
         return recons, recons_flow
-    
-    def reconstruct_elbo_gap(self, x):
-        #TODO: Fix so we predict.
+    def probability_future(self, x, n_conditions):
+        """
+        This function gets the temporal probablity of the future frames,
+        when conditioned on n_condition frames.
+        Both over the posterior and the prior. 
+        """
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
         hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()
         
         t = x.shape[1]
-        recons = torch.zeros((2, t, *x[:,0,:,:,:].shape))
-        recons_flow = torch.zeros((2, t, *x[:,0,:,:,:].shape))
+        # Do this to make the code more efficient.
+        prob_NLL_future = torch.zeros((x[:,0,:,:,:].shape[0], 2, t-n_conditions-1))
+
+        for i in range(1, n_conditions):
+            condition_list = self.extractor(x[:, i-1, :, :, :])
+            x_feature_list = self.extractor(x[:, i, :, :, :])
+            #Fix this so it is smarter
+            if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
+                condition = condition_list
+                x_feature = x_feature_list
+            else:
+                condition = condition_list[-1]
+                x_feature = x_feature_list[-1]
+                
+            _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev) 
+            
+            prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
+            dist_prior = td.Normal(prior_mean, prior_std)
+            zt = dist_prior.sample()
+            
+            enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
+            dist_enc = td.Normal(enc_mean, enc_std)
+            zxt = dist_enc.sample()
+            zprev = zt
+            hprev = ht
+            cprev = ct
+            zxprev = zxt
+        # The probability of the future frames. 
+        for i in range(n_conditions, t):
+            for zk, count in zip(list([zt,zxt]),range(0,2)):
+                if self.skip_connection_features:
+                    flow_conditions = self.upscaler(torch.cat((ht, zk), dim = 1), skip_list = condition_list)
+                else:
+                    flow_conditions = self.upscaler(torch.cat((ht, zk), dim = 1))
+            
+                if self.skip_connection_flow == "with_skip":
+                    flow_conditions = self.combineconditions(flow_conditions, condition_list)
+                elif self.skip_connection_flow == "only_skip":
+                    flow_conditions = condition_list
+                
+                base_conditions = torch.cat((ht, zk), dim = 1)
+                
+                z, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, 0.0)
+                prob_NLL_future[:, count, i-n_conditions-1] = nll
+        return prob_NLL_future
+    def reconstruct_elbo_gap(self, x, sample = True):
+        assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
+        hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()
+        
+        t = x.shape[1]
+        # Do this to make the code more efficient.
         averageKLDseq = torch.zeros((t, x[:,0,:,:,:].shape[0]))
         averageNLLseq = torch.zeros((2, t, x[:,0,:,:,:].shape[0]))
-        
+        if sample:
+            recons = torch.zeros((2, t, *x[:,0,:,:,:].shape))
+            recons_flow = torch.zeros((2, t, *x[:,0,:,:,:].shape))
+        else:
+            recons = 0
+            recons_flow = 0
+
         for i in range(1, t):
             condition_list = self.extractor(x[:, i-1, :, :, :])
             x_feature_list = self.extractor(x[:, i, :, :, :])
@@ -300,7 +358,7 @@ class RFN(nn.Module):
             
             prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
             dist_prior = td.Normal(prior_mean, prior_std)
-            zt = dist_prior.rsample()
+            zt = dist_prior.sample()
             
             enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
             dist_enc = td.Normal(enc_mean, enc_std)
@@ -316,18 +374,18 @@ class RFN(nn.Module):
                 elif self.skip_connection_flow == "only_skip":
                     flow_conditions = condition_list
                 
-                base_conditions = torch.cat((ht, zxt), dim = 1)
+                base_conditions = torch.cat((ht, zk), dim = 1)
                 
                 # To check bijection of the flow we use z to reconstruct the image
                 z, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, 0.0)
-                averageNLLseq[count,i,:] = nll
-                recon_flow_sample = self.flow.sample(z, flow_conditions, base_conditions, self.temperature)
-                
-                # To look at a normal reconstruction we just use the posterior distribution
-                recon_sample = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
-                recons[count, i,:,:,:,:] = recon_sample.detach()
-                recons_flow[count, i, :,:,:,:] = recon_flow_sample.detach()
-            KLavg = td.kl_divergence(dist_enc, dist_prior).mean([1,2,3]) # Mean over everything expect batches
+                averageNLLseq[count, i, :] = nll
+                if sample:
+                    recon_flow_sample = self.flow.sample(z, flow_conditions, base_conditions, self.temperature)
+                    # To look at a normal reconstruction we just use the posterior distribution
+                    recon_sample = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
+                    recons[count, i,:,:,:,:] = recon_sample.detach()
+                    recons_flow[count, i, :,:,:,:] = recon_flow_sample.detach()
+            KLavg = td.kl_divergence(dist_enc, dist_prior).sum([1,2,3]) # sum over everything expect batches
             averageKLDseq[i,:] = KLavg
              # KL batch
             zprev = zt
