@@ -96,7 +96,7 @@ class Evaluator(object):
     def convert_to_numpy(self, x):
         return x.permute(1,2,0).squeeze().detach().cpu().numpy()
     
-    def plot_samples(self, predictions, true_image):
+    def plot_samples(self, predictions, true_image, name="samples", eval_score = None):
       num_samples = self.num_samples_to_plot # The number of examples plotted
       time_steps = predictions.shape[1]
       fig, ax = plt.subplots(num_samples*2, time_steps ,figsize = (time_steps, 4*num_samples))
@@ -110,13 +110,15 @@ class Evaluator(object):
             else:
                 ax[2*(k),i].axis("off")
             ax[2*(k)+1,i].imshow(self.convert_to_numpy(predictions[k, i, :, :, :]))
+            if eval_score != None:
+                ax[2*(k)+1,i].set_title(f"{float(eval_score[k,i]):.3f}")
             if i == 0:
                 ax[2*(k)+1,i].set_yticks([])
                 ax[2*(k)+1,i].set_xticks([])
                 ax[2*(k)+1,i].set_ylabel("Prediction")
             else:
                 ax[2*(k)+1,i].axis("off")
-      fig.savefig(self.path +'eval_folder/samples' +  '.png', bbox_inches='tight') #dpi=fig.get_dpi()*2)
+      fig.savefig(self.path +'eval_folder/' + name +  '.png', bbox_inches='tight') #dpi=fig.get_dpi()*2)
       plt.close(fig)
       
     # Eval From SVG
@@ -207,107 +209,117 @@ class Evaluator(object):
     
     def get_eval_values(self, model_name):
       start_predictions = self.start_predictions 
-      PSNR_max = 0.0
-      MSE_min = 1e15
-      SSIM_max = 0.0
-      LPIPS_min = 1e15
-      BPD_min = 1e15
       
+      SSIM_values = []
+      PSNR_values = []
+      MSE_values = []
+      LPIPS_values = []
+      BPD = [] 
+      DKL=[] 
+      RECON = []
+      preds = []
+      gt = []
       with torch.no_grad():
           self.model.eval()
-          for time in range(0, self.resample):
-              SSIM_values = []
-              PSNR_values = []
-              MSE_values = []
-              LPIPS_values = []
-              BPD = [] 
-              DKL=[] 
-              RECON = []
-              for batch_i, image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
+          for batch_i, image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
+              for time in range(0, self.resample):
+                  
+                  if self.choose_data=='bair':
+                      image = image[0].to(device)
+                  else:
+                      image = image.to(device)  
+                  image = self.solver.preprocess(image)
                 
-                if self.choose_data=='bair':
-                    image = image[0].to(device)
-                else:
-                    image = image.to(device)  
-                image = self.solver.preprocess(image)
+                  x_true, predictions = self.model.predict(image, self.n_frames-start_predictions, start_predictions)
                 
-                x_true, predictions = self.model.predict(image, self.n_frames-start_predictions, start_predictions)
-                
-                # Computes eval loss
-                if model_name == "rfn.pt":
-                    logdet = 0
-                    _, kl, nll = self.model.loss(image, logdet)
-                    bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
+                  # Computes eval loss
+                  if model_name == "rfn.pt":
+                      logdet = 0
+                      _, kl, nll = self.model.loss(image, logdet)
+                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
                                                                                kl=kl, 
                                                                                dims=image.shape[2:], 
                                                                                t=image.shape[1]-1)
-                else:
-                    kl, nll = self.model.loss(image)
-                    bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
+                  else:
+                      kl, nll = self.model.loss(image)
+                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
                                                                                kl=kl, 
                                                                                dims=image.shape[2:], 
                                                                                t=image.shape[1]-1)
                 
-                image  = self.solver.preprocess(image, reverse=True)
-                predictions  = self.solver.preprocess(predictions, reverse=True)
+                  image  = self.solver.preprocess(image, reverse=True)
+                  predictions  = self.solver.preprocess(predictions, reverse=True)
 
-                ground_truth = image[:, start_predictions:,:,:,:].type(torch.FloatTensor).to(device)
-                predictions = predictions.permute(1,0,2,3,4).type(torch.FloatTensor).to(device)
+                  ground_truth = image[:, start_predictions:,:,:,:].type(torch.FloatTensor).to(device)
+                  predictions = predictions.permute(1,0,2,3,4).type(torch.FloatTensor).to(device)
                 
-                mse, ssim, psnr = self.eval_seq(predictions, ground_truth)
-                lpips = self.get_lpips(predictions, ground_truth)
-                
-                
-                SSIM_values.append(ssim)
-                PSNR_values.append(psnr)
-                MSE_values.append(mse)
-                LPIPS_values.append(lpips)
-                BPD.append(bits_per_dim_loss)
-                DKL.append(kl_loss) 
-                RECON.append(recon_loss)
+                  mse, ssim, psnr = self.eval_seq(predictions, ground_truth)
+                  lpips = self.get_lpips(predictions, ground_truth)
+                  
+                  #[seq_id, n_frames] = 1 batch
+                  if time == 0:
+                      psnr_best = psnr
+                      ssim_best = ssim
+                      mse_best = mse
+                      lpips_best = lpips
+                      best_preds_ssim = predictions
+                  else:
+                      psnr_better_id = psnr_best.mean(-1) < psnr.mean(-1)
+                      psnr_best[psnr_better_id, :] = psnr[psnr_better_id, :]
+                      
+                      ssim_better_id = ssim_best.mean(-1) < ssim.mean(-1)
+                      ssim_best[ssim_better_id, :] = ssim[ssim_better_id, :]
+                      
+                      mse_better_id = mse_best.mean(-1) > mse.mean(-1)
+                      mse_best[mse_better_id, :] = mse[mse_better_id, :]
+                      
+                      lpips_better_id = lpips_best.mean(-1) > lpips.mean(-1)
+                      lpips_best[lpips_better_id, :] = lpips[lpips_better_id, :]
+                      
+                      #Get better preds based on SSIM
+                      best_preds_ssim[ssim_better_id,:,:,:,:] = predictions[ssim_better_id,:,:,:,:]
+                  
+              preds.append(best_preds_ssim)
+              gt.append(ground_truth)
+              SSIM_values.append(ssim_best)
+              PSNR_values.append(psnr_best)
+              MSE_values.append(mse_best)
+              LPIPS_values.append(lpips_best)
+              BPD.append(bits_per_dim_loss)
+              DKL.append(kl_loss) 
+              RECON.append(recon_loss)
                
-              #TODO: Det er lidt mærkeligt at den skal være inde i eval loopet. Så har rykket den ud
-              # Måske gem den gennemsnitlige loss værdi for alle de forskellige inputs og så plot?
-              if self.show_elbo_gap:
-                self.plot_elbo_gap(image)
+  
+          # Shape: [seq_id, n_frames]
+          PSNR_values = torch.cat(PSNR_values)
+          MSE_values = torch.cat(MSE_values)
+          SSIM_values = torch.cat(SSIM_values)
+          LPIPS_values = torch.cat(LPIPS_values)
+          
+          # Sort gt and preds based on highest to lowest SSIM values
+          ordered = torch.argsort(SSIM_values.mean(-1), descending=True)
+          preds = torch.cat(preds)[ordered,...]
+          gt = torch.cat(gt)[ordered,...]
+          
+          # Shape: [one avg. loss for each minibatch]
+          BPD = torch.FloatTensor(BPD)
+          DKL = torch.FloatTensor(DKL)
+          RECON = torch.FloatTensor(RECON)
+    
+      #TODO: Det er lidt mærkeligt at den skal være inde i eval loopet. Så har rykket den ud
+          # Måske gem den gennemsnitlige loss værdi for alle de forskellige inputs og så plot?
+      if self.show_elbo_gap:
+        self.plot_elbo_gap(image)
+
       
-              # Shape: [number of sequences, number of future frames predicted]
-              PSNR_values = torch.cat(PSNR_values)
-              MSE_values = torch.cat(MSE_values)
-              SSIM_values = torch.cat(SSIM_values)
-              LPIPS_values = torch.cat(LPIPS_values)
-        
-              # Shape: [one avg. loss for each minibatch]
-              BPD = torch.FloatTensor(BPD)
-              DKL = torch.FloatTensor(DKL)
-              RECON = torch.FloatTensor(RECON)
-              
-              if BPD.mean() < BPD_min:
-                  BPD_best = BPD
-                  DKL_best = DKL
-                  RECON_best = RECON
-                  BPD_min = BPD.mean()
-                  
-              if MSE_values.mean() < MSE_min:
-                  MSE_best = MSE_values
-                  MSE_min = MSE_values.mean()
-              
-              if PSNR_values.mean() > PSNR_max:
-                  PSNR_max = PSNR_values.mean()
-                  PSNR_best = PSNR_values
-                  
-              if SSIM_values.mean() > SSIM_max:
-                  SSIM_max = SSIM_values.mean()
-                  SSIM_best = SSIM_values
-                  
-              if LPIPS_values.mean() < LPIPS_min:
-                  LPIPS_min = LPIPS_values.mean()
-                  LPIPS_best = LPIPS_values
-      #maybe give best and worst plots to this, with corresponding ssim score etc
       if self.debug_plot:
-          self.plot_samples(predictions.byte(), ground_truth.byte())
-      
-      return MSE_best, PSNR_best, SSIM_best, LPIPS_best, BPD_best, DKL_best, RECON_best
+          ns = self.num_samples_to_plot
+          self.plot_samples(predictions.byte(), ground_truth.byte(), name="random_samples")
+          self.plot_samples(preds[:ns,...].byte(), gt[:ns,...].byte(), 
+                            name="best_samples", eval_score = SSIM_values[ordered,...][:ns,...])
+          self.plot_samples(preds[-ns:,...].byte(), gt[-ns:,...].byte(), 
+                            name="worst_samples", eval_score = SSIM_values[ordered,...][-ns:,...])
+      return MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON
     
     def test_temp_values(self, path, label_names, experiment_names):
         markersize = 5

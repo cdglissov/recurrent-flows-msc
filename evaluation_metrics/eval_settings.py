@@ -7,6 +7,7 @@
 # TODO: Avg. bits per dim over frames (reconstructPlus) (Tobias)
 # TODO: Interpolation between two images (Tobias)
 # TODO: Kvantiser hvor god modellen er til at reconstruct (Tobias) + amortization gap
+# TODO: get_eval_values we need to find best BPD, for that we need
 
 import argparse
 import torch
@@ -137,9 +138,9 @@ if __name__ == "__main__":
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments", 
                         default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
-                        default=["rfn_test", "svg_test"], type=str)
+                        default=["rfn_test_bair"], type=str)
     parser.add_argument("--model_path", nargs='+', help="Name of model.pt file", 
-                        default=['rfn.pt', "svg.pt"], type=str)
+                        default=['rfn.pt'], type=str)
     
     #CALCULATE VALUES SETTINGS:
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences", 
@@ -149,7 +150,7 @@ if __name__ == "__main__":
     parser.add_argument("--start_predictions", help="Specify when model starts predicting", 
                         default=6, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model", 
-                        default=[0.6], type=float)
+                        default=[0.7], type=float)
     parser.add_argument("--resample", help="Loops over the test set more than once to get better measures. WARNING: can be slow", 
                         default=1, type=int)
     add_bool_arg(parser, "show_elbo_gap", default=False, 
