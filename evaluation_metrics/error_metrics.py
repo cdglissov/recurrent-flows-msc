@@ -1,6 +1,6 @@
 import sys
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows/')
+sys.path.insert(1, './deepflows_24_01/')
 import torch 
 import torch.utils.data
 from torch.utils.data import DataLoader
@@ -8,6 +8,7 @@ import os
 import lpips
 from Utils import set_gpu
 import matplotlib.pyplot as plt
+plt.rcParams.update({'text.usetex': True})
 from data_generators import MovingMNIST
 from data_generators import PushDataset
 device = set_gpu(True)
@@ -40,7 +41,7 @@ class Evaluator(object):
         self.debug_mnist = settings.debug_mnist
         self.debug_plot = settings.debug_plot
         self.resample = settings.resample
-        self.show_elbo_gap = settings.show_elbo_gap
+        self.extra_plots = settings.extra_plots
         self.n_conditions = settings.n_conditions
         # Number of frames the model has been trained on
         self.n_trained = args.n_frames
@@ -158,7 +159,12 @@ class Evaluator(object):
         return lpips
     
     def plot_elbo_gap(self, image):
+        # Restrict the length of the image.
+        t = 10
+        image = image[:,0:t,:,:,:]
         recons, recons_flow, averageKLDseq, averageNLLseq = self.model.reconstruct_elbo_gap(image)
+        dims = image.shape[2:]
+        averageNLLseq = averageNLLseq/(np.log(2.)*torch.prod(torch.tensor(dims)))
         recons  = self.solver.preprocess(recons, reverse=True)
         recons_flow  = self.solver.preprocess(recons_flow, reverse=True)
         image  = self.solver.preprocess(image, reverse=True)
@@ -166,7 +172,7 @@ class Evaluator(object):
         fig, ax = plt.subplots(7, time_steps , figsize = (2*time_steps, 2*6))
         for i in range(0, time_steps):
             ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
-            ax[0,i].set_title("True Image")
+            ax[0,i].set_title(r"True Image")
             ax[0,i].axis('off')
             for z, zname in zip(range(0,2),list(['Prior','Encoder'])): 
                 ax[1+z,i].imshow(self.convert_to_numpy(recons[z, i, 0, :, :, :]))
@@ -179,22 +185,40 @@ class Evaluator(object):
         plt.bar(np.arange(time_steps), averageKLDseq[:,0], align='center', width=0.3)
         plt.xlim((0-0.5, time_steps-0.5))
         plt.xticks(range(0, time_steps), range(0, time_steps))
-        plt.xlabel("Frame number")
-        plt.ylabel("Average KLD")
+        plt.xlabel(r"Frame number")
+        plt.ylabel(r"Sum of KLD")
         plt.subplot(8, 1, 8)
-        plt.bar(np.arange(time_steps)-0.15, -averageNLLseq[0, :, 0], align='center', width=0.3,label = 'Prior')
-        plt.bar(np.arange(time_steps)+0.15, -averageNLLseq[1, :, 0], align='center', width=0.3,label = 'Posterior')
+        plt.bar(np.arange(time_steps)-0.15, averageNLLseq[0, :, 0], align='center', width=0.3,label = 'Prior')
+        plt.bar(np.arange(time_steps)+0.15, averageNLLseq[1, :, 0], align='center', width=0.3,label = 'Posterior')
         plt.xlim((0-0.5, time_steps-0.5))
-        low = min(min(-averageNLLseq[0, 1:, 0]),min(-averageNLLseq[1, 1:, 0]))
-        high = max(max(-averageNLLseq[0, 1:, 0]),max(-averageNLLseq[1, 1:, 0]))
-        plt.ylim([math.ceil(low-0.5*(high-low)), math.ceil(high+0.5*(high-low))])
+        low = min(min(averageNLLseq[0, 1:, 0]),min(averageNLLseq[1, 1:, 0]))
+        high = max(max(averageNLLseq[0, 1:, 0]),max(averageNLLseq[1, 1:, 0]))
+        plt.ylim([low-0.5*(high-low), high+0.5*(high-low)])
         plt.xticks(range(0, time_steps), range(0, time_steps))
-        plt.xlabel("Frame number")
-        plt.ylabel("bits dim ll")
+        plt.xlabel(r"Frame number")
+        plt.ylabel(r"bits dim nll")
         plt.legend()
         fig.savefig(self.path + 'eval_folder/KLDdiagnostic' + '.png', bbox_inches='tight')
         plt.close(fig)
-    
+    def plot_prob_of_t(self, probT):
+        plt.figure()
+        xaxis = np.arange(self.n_conditions, probT.shape[2] + self.n_conditions)
+        y = probT[:,0,:].mean(0)
+        plt.plot(xaxis, probT[:,0,:].mean(0), label = 'Prior')
+        # Almost no difference between prior and posterior, so only plot prior
+        #plt.plot(xaxis, probT[:,1,:].mean(0), label = 'Posterior')
+        #plt.legend()
+        conf_std = 1.96 * np.std(probT[:,0,:].numpy(),0)/np.sqrt(np.shape(probT[:,0,:].numpy())[0])
+        plt.fill_between(xaxis, y-conf_std, y+conf_std, alpha=.1)
+        
+        plt.ylabel(r"bits per pixel nll")
+        plt.xlabel(r"Frame number:$X_{t}$")
+        plt.title(r'$P(X_{'+str(self.n_conditions)+'}= X_t \mid X_{<'+str(self.n_conditions)+'})$')
+        plt.grid()
+
+        plt.savefig(self.path + 'eval_folder/Probfuture' + '.png', bbox_inches='tight')
+
+        plt.close()
     def compute_loss(self, nll, kl, dims, t=10):
 
         kl_store = kl.data
@@ -219,6 +243,11 @@ class Evaluator(object):
       RECON = []
       preds = []
       gt = []
+      NLL_PROB = []
+      NLL_PRI = []
+      NLL_PO = []
+      AG = [] # Amotization gap.
+
       with torch.no_grad():
           self.model.eval()
           for batch_i, image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
@@ -229,17 +258,31 @@ class Evaluator(object):
                   else:
                       image = image.to(device)  
                   image = self.solver.preprocess(image)
+                  image_notchanged = image
                 
                   x_true, predictions = self.model.predict(image, self.n_frames-start_predictions, start_predictions)
-                
                   # Computes eval loss
                   if model_name == "rfn.pt":
                       logdet = 0
-                      _, kl, nll = self.model.loss(image, logdet)
+                      # It doesnt make sense to get loss for longer seqs than trained on, atleast not if need to be compared to the trained loss.
+                      imageloss = image[:,:self.n_trained,:,:,:]
+                      _, kl, nll = self.model.loss(imageloss, logdet)
                       bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
                                                                                kl=kl, 
-                                                                               dims=image.shape[2:], 
-                                                                               t=image.shape[1]-1)
+                                                                               dims=imageloss.shape[2:], 
+                                                                               t=imageloss.shape[1]-1)
+
+
+                      if time == 0:# Doesnt makes sense to get these for more then one time. Or i gueess you could if you wanted to. 
+                          #zts, hts, cts = self.model.get_zt_ht_from_seq(imageloss,3)
+                          dims = imageloss.shape[2:]
+                          nll_prob = self.model.probability_future(image,start_predictions)/(np.log(2.)*torch.prod(torch.tensor(dims)))
+                          _, _, _, averageNLLseq = self.model.reconstruct_elbo_gap(imageloss, sample = False)
+                          ## These needs to be saved
+                          nllprior = averageNLLseq[0, 1:, :]/(np.log(2.)*torch.prod(torch.tensor(dims)))
+                          nllposterior = averageNLLseq[1, 1:, :]/(np.log(2.)*torch.prod(torch.tensor(dims)))
+                          amortization_gap = (nllprior - nllposterior)
+
                   else:
                       kl, nll = self.model.loss(image)
                       bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
@@ -288,14 +331,27 @@ class Evaluator(object):
               BPD.append(bits_per_dim_loss)
               DKL.append(kl_loss) 
               RECON.append(recon_loss)
+              if model_name == "rfn.pt" and self.extra_plots:
+                  NLL_PROB.append(nll_prob)
+                  NLL_PRI.append(nllprior)
+                  NLL_PO.append(nllposterior)
+                  AG.append(amortization_gap)
+                  
                
-  
+          if model_name == "rfn.pt" and self.extra_plots:
+              NLL_PROB = torch.cat(NLL_PROB,dim = 0)
+              NLL_PRI = torch.cat(NLL_PRI, dim = 1)
+              NLL_PO = torch.cat(NLL_PO, dim = 1)
+              AG  = torch.cat(AG, dim = 1)
+              print(NLL_PRI.mean())
+              print(NLL_PO.mean())
+              print('Amortization gap: '+str(AG.mean()))
+                  
           # Shape: [seq_id, n_frames]
           PSNR_values = torch.cat(PSNR_values)
           MSE_values = torch.cat(MSE_values)
           SSIM_values = torch.cat(SSIM_values)
           LPIPS_values = torch.cat(LPIPS_values)
-          
           # Sort gt and preds based on highest to lowest SSIM values
           ordered = torch.argsort(SSIM_values.mean(-1), descending=True)
           preds = torch.cat(preds)[ordered,...]
@@ -305,11 +361,12 @@ class Evaluator(object):
           BPD = torch.FloatTensor(BPD)
           DKL = torch.FloatTensor(DKL)
           RECON = torch.FloatTensor(RECON)
-    
-      #TODO: Det er lidt mærkeligt at den skal være inde i eval loopet. Så har rykket den ud
-          # Måske gem den gennemsnitlige loss værdi for alle de forskellige inputs og så plot?
-      if self.show_elbo_gap:
-        self.plot_elbo_gap(image)
+      
+          #TODO: Det er lidt mærkeligt at den skal være inde i eval loopet. Så har rykket den ud
+              # Måske gem den gennemsnitlige loss værdi for alle de forskellige inputs og så plot?
+          if self.extra_plots:
+            self.plot_elbo_gap(image_notchanged)
+            self.plot_prob_of_t(NLL_PROB)
 
       
       if self.debug_plot:
@@ -474,44 +531,44 @@ class Evaluator(object):
               np.quantile(LPIPS.numpy(), alpha/2, axis = 0), 
               np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=.1)
             
-        ax[0].set_ylabel('score')
-        ax[0].set_xlabel('t')
-        ax[0].set_title('Avg. SSIM with 95% confidence interval')
+        ax[0].set_ylabel(r'score')
+        ax[0].set_xlabel(r'$t$')
+        ax[0].set_title(r'Avg. SSIM with 95% confidence interval')
         ax[0].axvline(x=n_train, color='k', linestyle='--')
         ax[0].legend()
         ax[0].grid()
         
-        ax[1].set_ylabel('score')
-        ax[1].set_xlabel('t')
-        ax[1].set_title('Avg. PSNR with 95% confidence interval')
+        ax[1].set_ylabel(r'score')
+        ax[1].set_xlabel(r'$t$')
+        ax[1].set_title(r'Avg. PSNR with 95% confidence interval')
         ax[1].axvline(x=n_train, color='k', linestyle='--')
         ax[1].legend()
         ax[1].grid()
         
-        ax[2].set_ylabel('score')
-        ax[2].set_xlabel('t')
-        ax[2].set_title('Avg. LPIPS with 95% confidence interval')
+        ax[2].set_ylabel(r'score')
+        ax[2].set_xlabel(r'$t$')
+        ax[2].set_title(r'Avg. LPIPS with 95% confidence interval')
         ax[2].axvline(x=n_train, color='k', linestyle='--')
         ax[2].legend()
         ax[2].grid()
         
-        ax2[0].set_ylabel('score')
-        ax2[0].set_xlabel('t')
-        ax2[0].set_title('Avg. SSIM with 95% quantiles')
+        ax2[0].set_ylabel(r'score')
+        ax2[0].set_xlabel(r'$t$')
+        ax2[0].set_title(r'Avg. SSIM with 95% quantiles')
         ax2[0].axvline(x=n_train, color='k', linestyle='--')
         ax2[0].legend()
         ax2[0].grid()
         
-        ax2[1].set_ylabel('score')
-        ax2[1].set_xlabel('t')
-        ax2[1].set_title('Avg. PSNR with 95% quantiles')
+        ax2[1].set_ylabel(r'score')
+        ax2[1].set_xlabel(r'$t$')
+        ax2[1].set_title(r'Avg. PSNR with 95% quantiles')
         ax2[1].axvline(x=n_train, color='k', linestyle='--')
         ax2[1].legend()
         ax2[1].grid()
         
-        ax2[2].set_ylabel('score')
-        ax2[2].set_xlabel('t')
-        ax2[2].set_title('Avg. LPIPS with 95% quantiles')
+        ax2[2].set_ylabel(r'score')
+        ax2[2].set_xlabel(r'$t$')
+        ax2[2].set_title(r'Avg. LPIPS with 95% quantiles')
         ax2[2].axvline(x=n_train, color='k', linestyle='--')
         ax2[2].legend()
         ax2[2].grid()
