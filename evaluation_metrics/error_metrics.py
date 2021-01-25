@@ -370,7 +370,7 @@ class Evaluator(object):
               NLL_PRI = torch.cat(NLL_PRI, dim = 1)
               NLL_PO = torch.cat(NLL_PO, dim = 1)
               AG  = torch.cat(AG, dim = 1)
-              print("BPP Prior: ", NLL_PRI.mean())
+              print("BPP Prior: ", NLL_PRI.mean()) ## this is over the seq, so would be per dim, as much as the loss, but it is the same.
               print("BPP Posterior: ", NLL_PO.mean())
               print('Amortization gap: '+str(AG.mean()))
 
