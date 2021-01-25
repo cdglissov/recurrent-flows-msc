@@ -16,6 +16,7 @@ import numpy as np
 from skimage.metrics import peak_signal_noise_ratio
 from skimage.metrics import structural_similarity
 from tqdm import tqdm
+from evaluation_metrics.FVD_score import fvd
 
 class Evaluator(object):
     def __init__(self, solver, args, settings):
@@ -370,7 +371,7 @@ class Evaluator(object):
               NLL_PRI = torch.cat(NLL_PRI, dim = 1)
               NLL_PO = torch.cat(NLL_PO, dim = 1)
               AG  = torch.cat(AG, dim = 1)
-              print("BPP Prior: ", NLL_PRI.mean()) ## this is over the seq, so would be per dim, as much as the loss, but it is the same.
+              print("BPP Prior: ", NLL_PRI.mean())
               print("BPP Posterior: ", NLL_PO.mean())
               print('Amortization gap: '+str(AG.mean()))
 
@@ -511,13 +512,13 @@ class Evaluator(object):
               np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=.1)
 
             y = SSIM.mean(0).numpy()
-            ax3[0].errorbar(xaxis, y, yerr=SSIM_std_mean,label = lname)
+            ax3[0].errorbar(xaxis, y, yerr=1.96*SSIM_std_mean,label = lname)
 
             y = PSNR.mean(0).numpy()
-            ax3[1].errorbar(xaxis,y, yerr=PSNR_std_mean, label = lname)
+            ax3[1].errorbar(xaxis,y, yerr=1.96*PSNR_std_mean, label = lname)
 
             y = LPIPS.mean(0).numpy()
-            ax3[2].errorbar(xaxis,y, yerr=LPIPS_std_mean, label = lname)
+            ax3[2].errorbar(xaxis,y, yerr=1.96*LPIPS_std_mean, label = lname)
 
         ax[0].set_ylabel(r'score')
         ax[0].set_xlabel(r'$t$')
@@ -563,21 +564,21 @@ class Evaluator(object):
 
         ax3[0].set_ylabel(r'score')
         ax3[0].set_xlabel(r'$t$')
-        ax3[0].set_title(r'Avg. SSIM')
+        ax3[0].set_title(r'Avg. SSIM with uncertainty')
         ax3[0].axvline(x=n_train, color='k', linestyle='--')
         ax3[0].legend()
         ax3[0].grid()
 
         ax3[1].set_ylabel(r'score')
         ax3[1].set_xlabel(r'$t$')
-        ax3[1].set_title(r'Avg. PSNR')
+        ax3[1].set_title(r'Avg. PSNR with uncertainty')
         ax3[1].axvline(x=n_train, color='k', linestyle='--')
         ax3[1].legend()
         ax3[1].grid()
 
         ax3[2].set_ylabel(r'score')
         ax3[2].set_xlabel(r'$t$')
-        ax3[2].set_title(r'Avg. LPIPS')
+        ax3[2].set_title(r'Avg. LPIPS with uncertainty')
         ax3[2].axvline(x=n_train, color='k', linestyle='--')
         ax3[2].legend()
         ax3[2].grid()
@@ -585,3 +586,35 @@ class Evaluator(object):
         fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_mean.png', bbox_inches='tight')
         fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_median.png', bbox_inches='tight')
         fig3.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_errorbars.png', bbox_inches='tight')
+
+    def get_fvd_values(self, model_name, n_predicts):
+      start_predictions = self.start_predictions
+
+      FVD_values = []
+
+      with torch.no_grad():
+          self.model.eval()
+          for batch_i, true_image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
+
+              if self.choose_data=='bair':
+                  image = true_image[0].to(device)
+              else:
+                  image = true_image.to(device)
+              image = self.solver.preprocess(image)
+              
+
+              x_true, predictions = self.model.predict(image, n_predicts, start_predictions)
+
+              image  = self.solver.preprocess(image, reverse=True)
+              predictions  = self.solver.preprocess(predictions, reverse=True)
+              
+              # should be [t, b, c, h, w]
+              ground_truth = image[:, start_predictions:,:,:,:].permute(1,0,2,3,4).cpu()
+              predictions = predictions.cpu()
+              
+              FVD = fvd(ground_truth, predictions)
+              
+              #Store values
+              FVD_values.append(FVD/n_predicts)
+
+      return FVD_values

@@ -9,6 +9,7 @@
 import argparse
 import torch
 import sys
+import numpy as np
 # Adding deepflows to system path
 sys.path.insert(1, './deepflows/')
 from evaluation_metrics.error_metrics import Evaluator
@@ -45,8 +46,12 @@ def main(settings):
 
 
             if not settings.test_temperature:
-
                 evaluator.model.temperature = settings.temperatures[i]
+                if settings.calc_fvd:
+                    print("Computing FVD")
+                    FVD_values = evaluator.get_fvd_values(model_name, settings.fvd_predicts)
+                    print("Done - FVD")
+                
                 MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON, SSIM_std_values, PSNR_std_values, LPIPS_std_values = evaluator.get_eval_values(model_name)
                 dict_values = {"SSIM_values": SSIM_values.cpu(),
                             "PSNR_values": PSNR_values.cpu(),
@@ -59,6 +64,7 @@ def main(settings):
                             "SSIM_std_mean": SSIM_std_values,
                             "PSNR_std_mean": PSNR_std_values,
                             "LPIPS_std_mean": SSIM_std_values,
+                            "FVD_values": FVD_values
                             }
 
                 torch.save(dict_values, path_save_measures + '/evaluations.pt')
@@ -74,6 +80,7 @@ def main(settings):
                     print("SSIM_std_mean:", SSIM_std_values, file=f)
                     print("PSNR_std_mean:", PSNR_std_values, file=f)
                     print("LPIPS_std_mean:", LPIPS_std_values, file=f)
+                    print("FVD_values:", np.mean(FVD_values), file=f)
 
             else:
                 for temperature in settings.temperatures:
@@ -103,10 +110,6 @@ def main(settings):
                                label_names=settings.label_names,
                                experiment_names=experiments)
 
-    # FIX THIS FUNCTION
-    #evaluator.loss_plots(path = settings.folder_path,
-    #                     label_names=settings.label_names,
-    #                     experiment_names=experiments)
 
 def add_bool_arg(parser, name, help, default=False):
     group = parser.add_mutually_exclusive_group(required=False)
@@ -180,6 +183,11 @@ if __name__ == "__main__":
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
                         default=["RFN", "VRNN"], type=str)
 
+    # FVD settings
+    add_bool_arg(parser, "calc_fvd", default=True,
+                 help="Enabling this allows us to compute FVD")
+    parser.add_argument("--fvd_predicts", help="How far into the future to predict",
+                        default=10, type=int)
 
     args = parser.parse_args()
 

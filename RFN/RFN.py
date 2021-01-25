@@ -273,6 +273,7 @@ class RFN(nn.Module):
             cprev = ct
             zxprev = zxt
         return recons, recons_flow
+    
     def probability_future(self, x, n_conditions):
         """
         This function gets the temporal probablity of the future frames,
@@ -328,6 +329,7 @@ class RFN(nn.Module):
                 z, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, 0.0)
                 prob_NLL_future[:, count, i-n_conditions-1] = nll
         return prob_NLL_future
+    
     def reconstruct_elbo_gap(self, x, sample = True):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
         hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()
