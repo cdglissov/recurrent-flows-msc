@@ -1,6 +1,6 @@
 import sys
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows_24_01/')
+sys.path.insert(1, './deepflows/')
 import torch
 import torch.utils.data
 from torch.utils.data import DataLoader
@@ -16,7 +16,6 @@ import numpy as np
 from skimage.metrics import peak_signal_noise_ratio
 from skimage.metrics import structural_similarity
 from tqdm import tqdm
-import math
 
 class Evaluator(object):
     def __init__(self, solver, args, settings):
@@ -212,12 +211,12 @@ class Evaluator(object):
         conf_std = 1.96 * np.std(probT[:,0,:].numpy(),0)/np.sqrt(np.shape(probT[:,0,:].numpy())[0])
         plt.fill_between(xaxis, y-conf_std, y+conf_std, alpha=.1)
 
-        plt.ylabel(r"bits per pixel nll")
+        plt.ylabel(r"Bits per pixel")
         plt.xlabel(r"Frame number:$X_{t}$")
         plt.title(r'$P(X_{'+str(self.n_conditions)+'}= X_t \mid X_{<'+str(self.n_conditions)+'})$')
         plt.grid()
 
-        plt.savefig(self.path + 'eval_folder/Probfuture' + '.png', bbox_inches='tight')
+        plt.savefig(self.path + 'eval_folder/bpp_sequence' + '.png', bbox_inches='tight')
 
         plt.close()
 
@@ -371,8 +370,8 @@ class Evaluator(object):
               NLL_PRI = torch.cat(NLL_PRI, dim = 1)
               NLL_PO = torch.cat(NLL_PO, dim = 1)
               AG  = torch.cat(AG, dim = 1)
-              print(NLL_PRI.mean())
-              print(NLL_PO.mean())
+              print("BPP Prior: ", NLL_PRI.mean())
+              print("BPP Posterior: ", NLL_PO.mean())
               print('Amortization gap: '+str(AG.mean()))
 
           # Shape: [seq_id, n_frames]
@@ -396,7 +395,7 @@ class Evaluator(object):
           DKL = torch.FloatTensor(DKL)
           RECON = torch.FloatTensor(RECON)
 
-          if self.extra_plots:
+          if model_name == "rfn.pt" and self.extra_plots:
             self.plot_elbo_gap(image_notchanged)
             self.plot_prob_of_t(NLL_PROB)
 

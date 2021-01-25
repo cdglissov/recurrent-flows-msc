@@ -3,20 +3,14 @@
 # TODO: Proper normalized loss in plot_elbo_gap
 # TODO: Make FVD wrapper in error_metrics.py https://github.com/edouardelasalles/srvp/tree/master/metrics
 # TODO: Get parameters of RFN model (Tomorrow)
-# TODO: get best samples and PSNR values (laver jeg i dag) best_predictions, worst_predictions ud fra SSIM, find idividuelle sequences
-# TODO: Avg. bits per dim over frames (reconstructPlus) (Tobias, yes)
 # TODO: Interpolation between two images (Tobias)
-# TODO: Kvantiser hvor god modellen er til at reconstruct (Tobias, yes) + amortization gap
 # TODO: get_eval_values we need to find best BPD, for that we need
 
 import argparse
 import torch
 import sys
-import os
-print(os.getcwd())
-
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows_24_01/')
+sys.path.insert(1, './deepflows/')
 from evaluation_metrics.error_metrics import Evaluator
 
 
@@ -84,7 +78,7 @@ def main(settings):
             else:
                 for temperature in settings.temperatures:
                         evaluator.model.temperature = temperature
-                        MSE_values, PSNR_values, SSIM_values, LPIPS_values = evaluator.get_eval_values(model_name)
+                        MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON, SSIM_std_values, PSNR_std_values, LPIPS_std_values = evaluator.get_eval_values(model_name)
                         dict_values = {"SSIM_values": SSIM_values.cpu(),
                                     "PSNR_values": PSNR_values.cpu(),
                                     "MSE_values": MSE_values.cpu(),
@@ -150,9 +144,9 @@ if __name__ == "__main__":
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments",
                         default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
-                        default=["rfn_test_bair"], type=str)
+                        default=["rfn_test_bair", "vrnn_test"], type=str)
     parser.add_argument("--model_path", nargs='+', help="Name of model.pt file",
-                        default=['rfn.pt'], type=str)
+                        default=['rfn.pt', 'vrnn.pt'], type=str)
 
     #CALCULATE VALUES SETTINGS:
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences",
@@ -162,10 +156,10 @@ if __name__ == "__main__":
     parser.add_argument("--start_predictions", help="Specify when model starts predicting",
                         default=5, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model",
-                        default=[0.7], type=float)
+                        default=[0.7, 0.6], type=float)
     parser.add_argument("--resample", help="Loops over the test set more than once to get better measures. WARNING: can be slow",
-                        default=1, type=int)
-    add_bool_arg(parser, "extra_plots", default=False,
+                        default=2, type=int)
+    add_bool_arg(parser, "extra_plots", default=True,
                  help="Plots the elbo gap of the RFN model and other plots. WARNING: Only works for RFN")
 
     #TEST TEMPERATURE:
@@ -184,7 +178,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_conditions", help="Number of conditions used for plotting eval_values",
                         default=5, type=int)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
-                        default=["RFN"], type=str)
+                        default=["RFN", "VRNN"], type=str)
 
 
     args = parser.parse_args()
