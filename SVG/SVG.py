@@ -29,47 +29,46 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.dim = dim
         # 64 x 64
-        self.c0 = nn.Sequential(
-                vgg_layer(nc, 32),
-                vgg_layer(32, 32),
-                )
         self.c1 = nn.Sequential(
-                vgg_layer(32, 64),
+                vgg_layer(nc, 64),
                 vgg_layer(64, 64),
                 )
+        
         # 32 x 32
         self.c2 = nn.Sequential(
                 vgg_layer(64, 128),
                 vgg_layer(128, 128),
                 )
+        
         # 16 x 16 
         self.c3 = nn.Sequential(
                 vgg_layer(128, 256),
                 vgg_layer(256, 256),
                 vgg_layer(256, 256),
                 )
+        
         # 8 x 8
         self.c4 = nn.Sequential(
                 vgg_layer(256, 512),
                 vgg_layer(512, 512),
                 vgg_layer(512, 512),
                 )
+        
         # 4 x 4
         self.c5 = nn.Sequential(
-                nn.Conv2d(512, dim, 2, 1, 0),
+                nn.Conv2d(512, dim, 4, 1, 0),
                 nn.BatchNorm2d(dim),
                 nn.Tanh()
                 )
         self.mp = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
 
     def forward(self, input):
-        h0 = self.c0(input) # 64x64
-        h1 = self.c1(self.mp(h0)) # 32x32
+        h1 = self.c1(input) # 64x64
         h2 = self.c2(self.mp(h1)) # 16x16
         h3 = self.c3(self.mp(h2)) # 8x8
         h4 = self.c4(self.mp(h3)) # 4x4
         h5 = self.c5(self.mp(h4)) # 1x1
-        return h5.view(-1, self.dim), [h0, h1, h2, h3, h4]
+        return h5.view(-1, self.dim), [h1, h2, h3, h4]
 
 class Decoder(nn.Module):
     def __init__(self, dim, nc=1):
@@ -77,7 +76,7 @@ class Decoder(nn.Module):
         self.dim = dim
         # 1 x 1 -> 4 x 4
         self.upc1 = nn.Sequential(
-                nn.ConvTranspose2d(dim, 512, 2, 1, 0),
+                nn.ConvTranspose2d(dim, 512, 4, 1, 0),
                 nn.BatchNorm2d(512),
                 nn.LeakyReLU(0.2, inplace=True)
                 )
@@ -98,13 +97,10 @@ class Decoder(nn.Module):
                 vgg_layer(128*2, 128),
                 vgg_layer(128, 64)
                 )
-        self.upc5 = nn.Sequential(
-                vgg_layer(64*2, 64),
-                vgg_layer(64, 32)
-                )
+
         self.out = nn.Sequential(
-                vgg_layer(32*2, 32),
-                nn.ConvTranspose2d(32, nc, 3, 1, 1),
+                vgg_layer(64*2, 64),
+                nn.ConvTranspose2d(64, nc, 3, 1, 1),
                 nn.Sigmoid()
                 )
         
@@ -114,15 +110,13 @@ class Decoder(nn.Module):
         vec, skip = input 
         d1 = self.upc1(vec.view(-1, self.dim, 1, 1)) # 1 -> 2
         up1 = self.up(d1) # 2 -> 4
-        d2 = self.upc2(torch.cat([up1, skip[4]], 1)) # 4 x 4
+        d2 = self.upc2(torch.cat([up1, skip[3]], 1)) # 4 x 4
         up2 = self.up(d2) # 4 -> 8 
-        d3 = self.upc3(torch.cat([up2, skip[3]], 1)) # 8 x 8 
+        d3 = self.upc3(torch.cat([up2, skip[2]], 1)) # 8 x 8 
         up3 = self.up(d3) # 8 -> 16 
-        d4 = self.upc4(torch.cat([up3, skip[2]], 1)) # 16 x 16
+        d4 = self.upc4(torch.cat([up3, skip[1]], 1)) # 16 x 16
         up4 = self.up(d4) # 16 -> 32
-        d5 = self.upc5(torch.cat([up4, skip[1]], 1)) # 32 x 32
-        up5 = self.up(d5) # 32 -> 64
-        output = self.out(torch.cat([up5, skip[0]], 1)) # 64 x 64
+        output = self.out(torch.cat([up4, skip[0]], 1)) # 64 x 64
         return output
 
 class lstm_svg(nn.Module):
@@ -247,7 +241,7 @@ class SVG(nn.Module):
       for i in range(1, t):
           h, skip = self.encoder(x[:,i-1,:,:,:])
           h_target = self.encoder(x[:,i,:,:,:])[0]
-          z_t, mu, std_q = self.posterior(h_target)
+          z_t, mu_q, std_q = self.posterior(h_target)
           _, mu_p, std_p = self.prior(h)
           h_pred = self.frame_predictor(torch.cat([h, z_t], 1))
           
@@ -265,10 +259,10 @@ class SVG(nn.Module):
               print("undefined loss")
           
             
-          dist_enc = td.Normal(mu, std_q)
+          dist_enc = td.Normal(mu_q, std_q)
           dist_prior = td.Normal(mu_p, std_p)
 
-          kl += td.kl_divergence(dist_enc, dist_prior)
+          kl = kl + td.kl_divergence(dist_enc, dist_prior)
           
       
       return batch_reduce(kl).mean(), batch_reduce(nll).mean()
@@ -286,9 +280,11 @@ class SVG(nn.Module):
         for i in range(1, t):
             condition, skip  = self.encoder(x[:,i-1,:,:,:])
             target = self.encoder(x[:,i,:,:,:])[0]
+            target = target.detach()
+            condition = condition.detach()
             z_t, _, _= self.posterior(target)
             h_pred = self.frame_predictor(torch.cat([condition, z_t], 1))
-            x_pred = self.decoder([h_pred, skip])
+            x_pred = self.decoder([h_pred, skip]).detach()
             recons[i,:,:,:,:] = x_pred.detach()
         return recons
     
@@ -304,9 +300,11 @@ class SVG(nn.Module):
         
         for i in range(1, n_samples):
             condition, skip  = self.encoder(condition_x)
+            condition = condition.detach()
+            
             z_t, _, _ = self.prior(condition)
             h_pred = self.frame_predictor(torch.cat([condition, z_t], 1))
-            x_pred = self.decoder([h_pred, skip])
+            x_pred = self.decoder([h_pred, skip]).detach()
             samples[i,:,:,:,:] = x_pred
             condition_x = x_pred
         return samples
@@ -326,9 +324,10 @@ class SVG(nn.Module):
         x_in = x[:,0,:,:,:]
         for i in range(1, self.n_predictions+self.n_conditions):
             condition, skip  = self.encoder(x_in)
-
+            condition=condition.detach()
             if i < self.n_conditions:
                 target = self.encoder(x[:,i,:,:,:])[0]
+                target=target.detach()
                 z_t, _, _ = self.posterior(target)
                 self.prior(condition)
                 self.frame_predictor(torch.cat([condition, z_t], 1))
@@ -337,7 +336,7 @@ class SVG(nn.Module):
             else:
                 z_t, _, _ = self.prior(condition)
                 h_pred = self.frame_predictor(torch.cat([condition, z_t], 1)).detach()
-                x_in = self.decoder([h_pred, skip])
+                x_in = self.decoder([h_pred, skip]).detach()
                 predictions[i-n_conditions,:,:,:,:] = x_in
         return true_x, predictions
 

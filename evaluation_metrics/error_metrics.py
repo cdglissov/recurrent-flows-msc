@@ -1,7 +1,7 @@
 import sys
 # Adding deepflows to system path
 sys.path.insert(1, './deepflows_24_01/')
-import torch 
+import torch
 import torch.utils.data
 from torch.utils.data import DataLoader
 import os
@@ -15,7 +15,7 @@ device = set_gpu(True)
 import numpy as np
 from skimage.metrics import peak_signal_noise_ratio
 from skimage.metrics import structural_similarity
-from tqdm import tqdm 
+from tqdm import tqdm
 import math
 
 class Evaluator(object):
@@ -46,57 +46,57 @@ class Evaluator(object):
         # Number of frames the model has been trained on
         self.n_trained = args.n_frames
         self.temperatures = settings.temperatures
-        
+
     def build(self):
         self.test_loader = self.create_loaders()
-        
+
         if not os.path.exists(self.path + 'png_folder'):
           os.makedirs(self.path + 'png_folder')
         if not os.path.exists(self.path + 'model_folder'):
           os.makedirs(self.path + 'model_folder')
         if not os.path.exists(self.path + 'eval_folder'):
           os.makedirs(self.path + 'eval_folder')
-          
+
         if self.multigpu and torch.cuda.device_count() > 1:
             print("Using:", torch.cuda.device_count(), "GPUs")
             self.model = self.solver.model.to(device)
         else:
             self.model = self.solver.model.to(device)
-            
+
         self.model.eval()
         # best forward scores
         self.lpipsNet = lpips.LPIPS(net='alex').to(device)
-        
+
     def create_loaders(self):
         if self.choose_data=='mnist':
-            testset = MovingMNIST(False, 'Mnist', 
-                                 seq_len=self.n_frames, 
-                                 image_size=self.image_size, 
-                                 digit_size=self.digit_size, 
-                                 num_digits=self.num_digits, 
-												 deterministic=False, 
-                                 three_channels=False, 
-                                 step_length=self.step_length, 
+            testset = MovingMNIST(False, 'Mnist',
+                                 seq_len=self.n_frames,
+                                 image_size=self.image_size,
+                                 digit_size=self.digit_size,
+                                 num_digits=self.num_digits,
+												 deterministic=False,
+                                 three_channels=False,
+                                 step_length=self.step_length,
                                  normalize=False)
-                
+
             if self.debug_mnist:
                 te_split_len = 200
-                testset = torch.utils.data.random_split(testset, 
+                testset = torch.utils.data.random_split(testset,
                                 [te_split_len, len(testset)-te_split_len])[0]
-                
+
         if self.choose_data=='bair':
             	string=str(os.path.abspath(os.getcwd()))
             	testset = PushDataset(split='test',
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
 
-        test_loader = DataLoader(testset, batch_size=self.batch_size, 
+        test_loader = DataLoader(testset, batch_size=self.batch_size,
                                  num_workers=self.num_workers, shuffle=True, drop_last=True)
-        return test_loader    
-    
+        return test_loader
+
     def convert_to_numpy(self, x):
         return x.permute(1,2,0).squeeze().detach().cpu().numpy()
-    
+
     def plot_samples(self, predictions, true_image, name="samples", eval_score = None):
       num_samples = self.num_samples_to_plot # The number of examples plotted
       time_steps = predictions.shape[1]
@@ -121,7 +121,7 @@ class Evaluator(object):
                 ax[2*(k)+1,i].axis("off")
       fig.savefig(self.path +'eval_folder/' + name +  '.png', bbox_inches='tight') #dpi=fig.get_dpi()*2)
       plt.close(fig)
-      
+
     # Eval From SVG
     def eval_seq(self, gt, pred):
         # Takes a ground truth (gt) of size [bs, time, c, h, w]
@@ -136,12 +136,12 @@ class Evaluator(object):
                     image_gen = np.uint8(gt[i,t,c,:,:].cpu())
                     image_true = np.uint8(pred[i, t, c,:, :].cpu())
                     ssim[i, t] += structural_similarity(image_gen, image_true)
-                    psnr[i, t] += peak_signal_noise_ratio(image_gen, image_true)                    
+                    psnr[i, t] += peak_signal_noise_ratio(image_gen, image_true)
                 ssim[i, t] /= gt.shape[2]
                 psnr[i, t] /= gt.shape[2]
                 mse[i, t] = torch.mean( (gt[i, t, :, : ,:] - pred[i, t, :, : ,:])**2, dim = [0, 1, 2])
         return mse, ssim, psnr
-    
+
     def get_lpips(self, X, Y):
         T = Y.shape[1]
         bs = X.shape[0]
@@ -157,7 +157,7 @@ class Evaluator(object):
                     img1 = img1.repeat(3,1,1)
                 lpips[i,t] = self.lpipsNet(img0, img1)
         return lpips
-    
+
     def plot_elbo_gap(self, image):
         # Restrict the length of the image.
         t = 10
@@ -174,7 +174,7 @@ class Evaluator(object):
             ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
             ax[0,i].set_title(r"True Image")
             ax[0,i].axis('off')
-            for z, zname in zip(range(0,2),list(['Prior','Encoder'])): 
+            for z, zname in zip(range(0,2),list(['Prior','Encoder'])):
                 ax[1+z,i].imshow(self.convert_to_numpy(recons[z, i, 0, :, :, :]))
                 ax[1+z,i].set_title(str(zname))
                 ax[1+z,i].axis('off')
@@ -200,6 +200,7 @@ class Evaluator(object):
         plt.legend()
         fig.savefig(self.path + 'eval_folder/KLDdiagnostic' + '.png', bbox_inches='tight')
         plt.close(fig)
+
     def plot_prob_of_t(self, probT):
         plt.figure()
         xaxis = np.arange(self.n_conditions, probT.shape[2] + self.n_conditions)
@@ -210,7 +211,7 @@ class Evaluator(object):
         #plt.legend()
         conf_std = 1.96 * np.std(probT[:,0,:].numpy(),0)/np.sqrt(np.shape(probT[:,0,:].numpy())[0])
         plt.fill_between(xaxis, y-conf_std, y+conf_std, alpha=.1)
-        
+
         plt.ylabel(r"bits per pixel nll")
         plt.xlabel(r"Frame number:$X_{t}$")
         plt.title(r'$P(X_{'+str(self.n_conditions)+'}= X_t \mid X_{<'+str(self.n_conditions)+'})$')
@@ -219,6 +220,7 @@ class Evaluator(object):
         plt.savefig(self.path + 'eval_folder/Probfuture' + '.png', bbox_inches='tight')
 
         plt.close()
+
     def compute_loss(self, nll, kl, dims, t=10):
 
         kl_store = kl.data
@@ -228,18 +230,18 @@ class Evaluator(object):
         bits_per_dim_loss = float(-elbo/(np.log(2.)*torch.prod(torch.tensor(dims))*t))
         kl_loss = float(kl_store/t)
         recon_loss = float(nll_store/t)
-        
+
         return bits_per_dim_loss, kl_loss, recon_loss
-    
+
     def get_eval_values(self, model_name):
-      start_predictions = self.start_predictions 
-      
+      start_predictions = self.start_predictions
+
       SSIM_values = []
       PSNR_values = []
       MSE_values = []
       LPIPS_values = []
-      BPD = [] 
-      DKL=[] 
+      BPD = []
+      DKL=[]
       RECON = []
       preds = []
       gt = []
@@ -247,19 +249,25 @@ class Evaluator(object):
       NLL_PRI = []
       NLL_PO = []
       AG = [] # Amotization gap.
+      SSIM_std_values=[]
+      PSNR_std_values=[]
+      LPIPS_std_values=[]
 
       with torch.no_grad():
           self.model.eval()
-          for batch_i, image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
+          for batch_i, true_image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
+              SSIM_std = []
+              PSNR_std = []
+              LPIPS_std = []
               for time in range(0, self.resample):
-                  
+
                   if self.choose_data=='bair':
-                      image = image[0].to(device)
+                      image = true_image[0].to(device)
                   else:
-                      image = image.to(device)  
+                      image = true_image.to(device)
                   image = self.solver.preprocess(image)
                   image_notchanged = image
-                
+
                   x_true, predictions = self.model.predict(image, self.n_frames-start_predictions, start_predictions)
                   # Computes eval loss
                   if model_name == "rfn.pt":
@@ -267,13 +275,13 @@ class Evaluator(object):
                       # It doesnt make sense to get loss for longer seqs than trained on, atleast not if need to be compared to the trained loss.
                       imageloss = image[:,:self.n_trained,:,:,:]
                       _, kl, nll = self.model.loss(imageloss, logdet)
-                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
-                                                                               kl=kl, 
-                                                                               dims=imageloss.shape[2:], 
+                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll,
+                                                                               kl=kl,
+                                                                               dims=imageloss.shape[2:],
                                                                                t=imageloss.shape[1]-1)
 
 
-                      if time == 0:# Doesnt makes sense to get these for more then one time. Or i gueess you could if you wanted to. 
+                      if time == 0:# Doesnt makes sense to get these for more then one time. Or i gueess you could if you wanted to.
                           #zts, hts, cts = self.model.get_zt_ht_from_seq(imageloss,3)
                           dims = imageloss.shape[2:]
                           nll_prob = self.model.probability_future(image,start_predictions)/(np.log(2.)*torch.prod(torch.tensor(dims)))
@@ -285,20 +293,20 @@ class Evaluator(object):
 
                   else:
                       kl, nll = self.model.loss(image)
-                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll, 
-                                                                               kl=kl, 
-                                                                               dims=image.shape[2:], 
+                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll,
+                                                                               kl=kl,
+                                                                               dims=image.shape[2:],
                                                                                t=image.shape[1]-1)
-                
+
                   image  = self.solver.preprocess(image, reverse=True)
                   predictions  = self.solver.preprocess(predictions, reverse=True)
 
                   ground_truth = image[:, start_predictions:,:,:,:].type(torch.FloatTensor).to(device)
                   predictions = predictions.permute(1,0,2,3,4).type(torch.FloatTensor).to(device)
-                
+
                   mse, ssim, psnr = self.eval_seq(predictions, ground_truth)
                   lpips = self.get_lpips(predictions, ground_truth)
-                  
+
                   #[seq_id, n_frames] = 1 batch
                   if time == 0:
                       psnr_best = psnr
@@ -309,19 +317,38 @@ class Evaluator(object):
                   else:
                       psnr_better_id = psnr_best.mean(-1) < psnr.mean(-1)
                       psnr_best[psnr_better_id, :] = psnr[psnr_better_id, :]
-                      
+
                       ssim_better_id = ssim_best.mean(-1) < ssim.mean(-1)
                       ssim_best[ssim_better_id, :] = ssim[ssim_better_id, :]
-                      
+
                       mse_better_id = mse_best.mean(-1) > mse.mean(-1)
                       mse_best[mse_better_id, :] = mse[mse_better_id, :]
-                      
+
                       lpips_better_id = lpips_best.mean(-1) > lpips.mean(-1)
                       lpips_best[lpips_better_id, :] = lpips[lpips_better_id, :]
-                      
+
                       #Get better preds based on SSIM
                       best_preds_ssim[ssim_better_id,:,:,:,:] = predictions[ssim_better_id,:,:,:,:]
-                  
+
+                  #save sequence mean for each sample
+                  SSIM_std.append(ssim.mean(0))
+                  PSNR_std.append(psnr.mean(0))
+                  LPIPS_std.append(lpips.mean(0))
+
+             # [resample, 24 means] Approximate uncertainty of the estimate for each sequence sample
+              SSIM_std=torch.stack(SSIM_std)
+              SSIM_std_mean = SSIM_std.std(0)/np.sqrt(SSIM_std.shape[0])
+              SSIM_std_values.append(SSIM_std_mean)
+
+              PSNR_std=torch.stack(PSNR_std)
+              PSNR_std_mean = PSNR_std.std(0)/np.sqrt(PSNR_std.shape[0])
+              PSNR_std_values.append(PSNR_std_mean)
+
+              LPIPS_std=torch.stack(LPIPS_std)
+              LPIPS_std_mean = LPIPS_std.std(0)/np.sqrt(LPIPS_std.shape[0])
+              LPIPS_std_values.append(LPIPS_std_mean)
+
+              #Store values
               preds.append(best_preds_ssim)
               gt.append(ground_truth)
               SSIM_values.append(ssim_best)
@@ -329,15 +356,16 @@ class Evaluator(object):
               MSE_values.append(mse_best)
               LPIPS_values.append(lpips_best)
               BPD.append(bits_per_dim_loss)
-              DKL.append(kl_loss) 
+              DKL.append(kl_loss)
               RECON.append(recon_loss)
+
               if model_name == "rfn.pt" and self.extra_plots:
                   NLL_PROB.append(nll_prob)
                   NLL_PRI.append(nllprior)
                   NLL_PO.append(nllposterior)
                   AG.append(amortization_gap)
-                  
-               
+
+
           if model_name == "rfn.pt" and self.extra_plots:
               NLL_PROB = torch.cat(NLL_PROB,dim = 0)
               NLL_PRI = torch.cat(NLL_PRI, dim = 1)
@@ -346,145 +374,95 @@ class Evaluator(object):
               print(NLL_PRI.mean())
               print(NLL_PO.mean())
               print('Amortization gap: '+str(AG.mean()))
-                  
+
           # Shape: [seq_id, n_frames]
           PSNR_values = torch.cat(PSNR_values)
           MSE_values = torch.cat(MSE_values)
           SSIM_values = torch.cat(SSIM_values)
           LPIPS_values = torch.cat(LPIPS_values)
+
+          #get mean uncertainty over batches
+          SSIM_std_values = torch.stack(SSIM_std_values).mean(0)
+          PSNR_std_values = torch.stack(PSNR_std_values).mean(0)
+          LPIPS_std_values = torch.stack(LPIPS_std_values).mean(0)
+
           # Sort gt and preds based on highest to lowest SSIM values
           ordered = torch.argsort(SSIM_values.mean(-1), descending=True)
           preds = torch.cat(preds)[ordered,...]
           gt = torch.cat(gt)[ordered,...]
-          
+
           # Shape: [one avg. loss for each minibatch]
           BPD = torch.FloatTensor(BPD)
           DKL = torch.FloatTensor(DKL)
           RECON = torch.FloatTensor(RECON)
-      
-          #TODO: Det er lidt mærkeligt at den skal være inde i eval loopet. Så har rykket den ud
-              # Måske gem den gennemsnitlige loss værdi for alle de forskellige inputs og så plot?
+
           if self.extra_plots:
             self.plot_elbo_gap(image_notchanged)
             self.plot_prob_of_t(NLL_PROB)
 
-      
+
       if self.debug_plot:
           ns = self.num_samples_to_plot
           self.plot_samples(predictions.byte(), ground_truth.byte(), name="random_samples")
-          self.plot_samples(preds[:ns,...].byte(), gt[:ns,...].byte(), 
+          self.plot_samples(preds[:ns,...].byte(), gt[:ns,...].byte(),
                             name="best_samples", eval_score = SSIM_values[ordered,...][:ns,...])
-          self.plot_samples(preds[-ns:,...].byte(), gt[-ns:,...].byte(), 
+          self.plot_samples(preds[-ns:,...].byte(), gt[-ns:,...].byte(),
                             name="worst_samples", eval_score = SSIM_values[ordered,...][-ns:,...])
-      return MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON
-    
+      return MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON, SSIM_std_values, PSNR_std_values, LPIPS_std_values
+
     def test_temp_values(self, path, label_names, experiment_names):
         markersize = 5
         n_train = self.n_trained
-        markers = ["o", "v", "x", "*", "^", "s", "H", "P", "X"]
-        
+
         for i in range(0,len(experiment_names)):
             fig, ax = plt.subplots(1, 3 ,figsize = (20,5))
             fig2, ax2 = plt.subplots(1, 3 ,figsize = (20,5))
             for temp in self.temperatures:
                 lname = label_names[i] + " "+ str(temp)
-                mark = markers[i]
-                alpha = 0.05
+                mark = "o"
                 temp_id = "/t" + str(temp).replace('.','')
                 eval_dict = torch.load(path + experiment_names[i] + '/eval_folder/'+temp_id+'evaluations.pt')
                 SSIM  = eval_dict['SSIM_values']
                 PSNR  = eval_dict['PSNR_values']
                 LPIPS  = eval_dict['LPIPS_values']
-                
+
                 print("Temperature is set to " + str(eval_dict['temperature']) + " for experiment " +lname)
-                
+
                 y = SSIM.mean(0).numpy()
                 xaxis = np.arange(0+self.n_conditions, len(y)+self.n_conditions)
-                conf_std = 1.96 * np.std(SSIM.numpy(),0)/np.sqrt(np.shape(SSIM.numpy())[0])
                 ax[0].plot(xaxis, y, label = lname, marker=mark, markersize=markersize)
-                ax[0].fill_between(xaxis, y-conf_std, y+conf_std, alpha=.1)
-                
+
                 y = PSNR.mean(0).numpy()
-                twostd = 1.96 * np.std(PSNR.numpy(),0)/np.sqrt(np.shape(PSNR.numpy())[0])
                 ax[1].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
-                ax[1].fill_between(xaxis, y-twostd, y+twostd, alpha=.1)
-                
+
                 y = LPIPS.mean(0).numpy()
-                twostd = 1.96 * np.std(LPIPS.numpy(),0)/np.sqrt(np.shape(LPIPS.numpy())[0])
                 ax[2].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
-                ax[2].fill_between(xaxis, y-twostd, y+twostd, alpha=.1)
-            
-                y = np.median(SSIM.numpy(),0)
-                ax2[0].plot(xaxis, y, label = lname, marker=mark,markersize=markersize)
-                ax2[0].fill_between(xaxis, 
-                  np.quantile(SSIM.numpy(), alpha/2, axis = 0), 
-                  np.quantile(SSIM.numpy(), 1-alpha/2, axis = 0), alpha=.1)
-                
-                y = np.median(PSNR.numpy(),0)
-                ax2[1].plot(xaxis, y, label = lname, marker=mark, markersize=markersize)
-                ax2[1].fill_between(xaxis, 
-                  np.quantile(PSNR.numpy(), alpha/2, axis = 0), 
-                  np.quantile(PSNR.numpy(), 1-alpha/2, axis = 0), alpha=.1)
-                
-                y = np.median(LPIPS.numpy(),0)
-                ax2[2].plot(np.arange(0, len(y)), y, label = lname, marker=mark, 
-                   markersize=markersize)
-                ax2[2].fill_between(np.arange(0, len(y)), 
-                  np.quantile(LPIPS.numpy(), alpha/2, axis = 0), 
-                  np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=.1)
-            
+
+
             ax[0].set_ylabel('score')
             ax[0].set_xlabel('t')
             ax[0].set_title('Avg. SSIM with 95% confidence interval')
             ax[0].axvline(x=n_train, color='k', linestyle='--')
             ax[0].legend()
             ax[0].grid()
-            
+
             ax[1].set_ylabel('score')
             ax[1].set_xlabel('t')
             ax[1].set_title('Avg. PSNR with 95% confidence interval')
             ax[1].axvline(x=n_train, color='k', linestyle='--')
             ax[1].legend()
             ax[1].grid()
-            
-            ax[2].set_ylabel('score')
-            ax[2].set_xlabel('t')
-            ax[2].set_title('Avg. LPIPS with 95% confidence interval')
-            ax[2].axvline(x=n_train, color='k', linestyle='--')
-            ax[2].legend()
-            ax[2].grid()
-            
-            ax2[0].set_ylabel('score')
-            ax2[0].set_xlabel('t')
-            ax2[0].set_title('Avg. SSIM with 95% quantiles')
-            ax2[0].axvline(x=n_train, color='k', linestyle='--')
-            ax2[0].legend()
-            ax2[0].grid()
-            
-            ax2[1].set_ylabel('score')
-            ax2[1].set_xlabel('t')
-            ax2[1].set_title('Avg. PSNR with 95% quantiles')
-            ax2[1].axvline(x=n_train, color='k', linestyle='--')
-            ax2[1].legend()
-            ax2[1].grid()
-            
-            ax2[2].set_ylabel('score')
-            ax2[2].set_xlabel('t')
-            ax2[2].set_title('Avg. LPIPS with 95% quantiles')
-            ax2[2].axvline(x=n_train, color='k', linestyle='--')
-            ax2[2].legend()
-            ax2[2].grid()
-            
+
             fig.savefig(path + experiment_names[i] + '/eval_folder/temps_eval_plots_mean.png', bbox_inches='tight')
-            fig2.savefig(path + experiment_names[i] +  '/eval_folder/temps_eval_plots_median.png', bbox_inches='tight')  
-    
+
     def plot_eval_values(self, path, label_names, experiment_names):
         markersize = 5
         n_train = self.n_trained
         fig, ax = plt.subplots(1, 3 ,figsize = (20,5))
         fig2, ax2 = plt.subplots(1, 3 ,figsize = (20,5))
+        fig3, ax3 = plt.subplots(1, 3 ,figsize = (20,5))
         markers = ["o", "v", "x", "*", "^", "s", "H", "P", "X"]
-        
+
         for i in range(0,len(experiment_names)):
             lname = label_names[i]
             mark = markers[i]
@@ -493,86 +471,118 @@ class Evaluator(object):
             SSIM  = eval_dict['SSIM_values']
             PSNR  = eval_dict['PSNR_values']
             LPIPS  = eval_dict['LPIPS_values']
-            
+            SSIM_std_mean = eval_dict['SSIM_std_mean']
+            PSNR_std_mean = eval_dict['PSNR_std_mean']
+            LPIPS_std_mean = eval_dict['LPIPS_std_mean']
             print("Temperature is set to " + str(eval_dict['temperature']) + " for experiment " +lname)
-            
+
             y = SSIM.mean(0).numpy()
             xaxis = np.arange(0+self.n_conditions, len(y)+self.n_conditions)
             conf_std = 1.96 * np.std(SSIM.numpy(),0)/np.sqrt(np.shape(SSIM.numpy())[0])
             ax[0].plot(xaxis, y, label = lname, marker=mark, markersize=markersize)
             ax[0].fill_between(xaxis, y-conf_std, y+conf_std, alpha=.1)
-            
+
             y = PSNR.mean(0).numpy()
             twostd = 1.96 * np.std(PSNR.numpy(),0)/np.sqrt(np.shape(PSNR.numpy())[0])
             ax[1].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
             ax[1].fill_between(xaxis, y-twostd, y+twostd, alpha=.1)
-            
+
             y = LPIPS.mean(0).numpy()
             twostd = 1.96 * np.std(LPIPS.numpy(),0)/np.sqrt(np.shape(LPIPS.numpy())[0])
             ax[2].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
             ax[2].fill_between(xaxis, y-twostd, y+twostd, alpha=.1)
-        
+
             y = np.median(SSIM.numpy(),0)
             ax2[0].plot(xaxis, y, label = lname, marker=mark,markersize=markersize)
-            ax2[0].fill_between(xaxis, 
-              np.quantile(SSIM.numpy(), alpha/2, axis = 0), 
+            ax2[0].fill_between(xaxis,
+              np.quantile(SSIM.numpy(), alpha/2, axis = 0),
               np.quantile(SSIM.numpy(), 1-alpha/2, axis = 0), alpha=.1)
-            
+
             y = np.median(PSNR.numpy(),0)
             ax2[1].plot(xaxis, y, label = lname, marker=mark, markersize=markersize)
-            ax2[1].fill_between(xaxis, 
-              np.quantile(PSNR.numpy(), alpha/2, axis = 0), 
+            ax2[1].fill_between(xaxis,
+              np.quantile(PSNR.numpy(), alpha/2, axis = 0),
               np.quantile(PSNR.numpy(), 1-alpha/2, axis = 0), alpha=.1)
-            
+
             y = np.median(LPIPS.numpy(),0)
-            ax2[2].plot(np.arange(0, len(y)), y, label = lname, marker=mark, 
+            ax2[2].plot(np.arange(0, len(y)), y, label = lname, marker=mark,
                markersize=markersize)
-            ax2[2].fill_between(np.arange(0, len(y)), 
-              np.quantile(LPIPS.numpy(), alpha/2, axis = 0), 
+            ax2[2].fill_between(np.arange(0, len(y)),
+              np.quantile(LPIPS.numpy(), alpha/2, axis = 0),
               np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=.1)
-            
+
+            y = SSIM.mean(0).numpy()
+            ax3[0].errorbar(xaxis, y, yerr=SSIM_std_mean,label = lname)
+
+            y = PSNR.mean(0).numpy()
+            ax3[1].errorbar(xaxis,y, yerr=PSNR_std_mean, label = lname)
+
+            y = LPIPS.mean(0).numpy()
+            ax3[2].errorbar(xaxis,y, yerr=LPIPS_std_mean, label = lname)
+
         ax[0].set_ylabel(r'score')
         ax[0].set_xlabel(r'$t$')
         ax[0].set_title(r'Avg. SSIM with 95% confidence interval')
         ax[0].axvline(x=n_train, color='k', linestyle='--')
         ax[0].legend()
         ax[0].grid()
-        
+
         ax[1].set_ylabel(r'score')
         ax[1].set_xlabel(r'$t$')
         ax[1].set_title(r'Avg. PSNR with 95% confidence interval')
         ax[1].axvline(x=n_train, color='k', linestyle='--')
         ax[1].legend()
         ax[1].grid()
-        
+
         ax[2].set_ylabel(r'score')
         ax[2].set_xlabel(r'$t$')
         ax[2].set_title(r'Avg. LPIPS with 95% confidence interval')
         ax[2].axvline(x=n_train, color='k', linestyle='--')
         ax[2].legend()
         ax[2].grid()
-        
+
         ax2[0].set_ylabel(r'score')
         ax2[0].set_xlabel(r'$t$')
         ax2[0].set_title(r'Avg. SSIM with 95% quantiles')
         ax2[0].axvline(x=n_train, color='k', linestyle='--')
         ax2[0].legend()
         ax2[0].grid()
-        
+
         ax2[1].set_ylabel(r'score')
         ax2[1].set_xlabel(r'$t$')
         ax2[1].set_title(r'Avg. PSNR with 95% quantiles')
         ax2[1].axvline(x=n_train, color='k', linestyle='--')
         ax2[1].legend()
         ax2[1].grid()
-        
+
         ax2[2].set_ylabel(r'score')
         ax2[2].set_xlabel(r'$t$')
         ax2[2].set_title(r'Avg. LPIPS with 95% quantiles')
         ax2[2].axvline(x=n_train, color='k', linestyle='--')
         ax2[2].legend()
         ax2[2].grid()
-        
+
+        ax3[0].set_ylabel(r'score')
+        ax3[0].set_xlabel(r'$t$')
+        ax3[0].set_title(r'Avg. SSIM')
+        ax3[0].axvline(x=n_train, color='k', linestyle='--')
+        ax3[0].legend()
+        ax3[0].grid()
+
+        ax3[1].set_ylabel(r'score')
+        ax3[1].set_xlabel(r'$t$')
+        ax3[1].set_title(r'Avg. PSNR')
+        ax3[1].axvline(x=n_train, color='k', linestyle='--')
+        ax3[1].legend()
+        ax3[1].grid()
+
+        ax3[2].set_ylabel(r'score')
+        ax3[2].set_xlabel(r'$t$')
+        ax3[2].set_title(r'Avg. LPIPS')
+        ax3[2].axvline(x=n_train, color='k', linestyle='--')
+        ax3[2].legend()
+        ax3[2].grid()
+
         fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_mean.png', bbox_inches='tight')
-        fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_median.png', bbox_inches='tight') 
-    
+        fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_median.png', bbox_inches='tight')
+        fig3.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_errorbars.png', bbox_inches='tight')

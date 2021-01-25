@@ -74,7 +74,7 @@ if __name__ == "__main__":
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
                         default=0.5, type=restricted_float)
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
-                        default=0.002, type=float)
+                        default=0.0001, type=float)
     parser.add_argument("--n_bits", help="Specify number of bits", 
                         default=8, type=int)
     parser.add_argument("--n_epochs", help="Specify number of epochs", 
@@ -83,20 +83,20 @@ if __name__ == "__main__":
     parser.add_argument("--path", help="Specify path to experiment", 
                         default='/content/', type=str)
     parser.add_argument("--learning_rate", help="Specify learning_rate", 
-                        default=0.0001, type=float)
+                        default=0.001, type=float)
     parser.add_argument("--preprocess_range", help="Specify the range of the data for preprocessing", 
                         choices=['0.5','1.0', 'minmax'], default='minmax', type=str)
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
                         default=255, type=int)
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
-                        default=0.0001, type=float)
+                        default=0.01, type=float)
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
-                        default=0.0001, type=float)
+                        default=0.000001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
-                        default=2000, type=int)
+                        default=4000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
                         default=5, type=int)
-    parser.add_argument("--n_conditions", help="Specify number of predictions", 
+    parser.add_argument("--n_conditions", help="Specify number of conditions", 
                         default=5, type=int)
     add_bool_arg(parser, "multigpu", default=False, help="Specify if we want to use multi GPUs")
     add_bool_arg(parser, "load_model", default=False, 
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=256, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
-                        default=13, type=int) # Very bad if too high, very bad if too low
+                        default=10, type=int) # Very bad if too high, very bad if too low
     parser.add_argument("--loss_type", help="Specify the type of loss used", 
                         default="mse", choices = ["bernoulli", "mse", "gaussian"], type=str)
     parser.add_argument("--norm_type", help="Specify the type of loss used", 
