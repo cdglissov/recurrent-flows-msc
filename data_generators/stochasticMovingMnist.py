@@ -5,7 +5,7 @@ class MovingMNIST(object):
     
     """Data Handler that creates Bouncing MNIST dataset on the fly."""
 
-    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=32,digit_size=28, deterministic=True, three_channels = True, step_length=4, normalize = True, make_target = False):
+    def __init__(self, train, data_root, seq_len=20, num_digits=2, image_size=32,digit_size=28, deterministic=True, three_channels = True, step_length=4, normalize = False, make_target = False, set_starting_position = False, seed = None):
         path = data_root
         self.seq_len = seq_len
         self.num_digits = num_digits  
@@ -18,6 +18,11 @@ class MovingMNIST(object):
         self.three_channels = three_channels
         self.normalize = normalize
         self.make_target = make_target
+        self.set_starting_position = set_starting_position
+        self.seed = seed
+        if self.set_starting_position:
+            self.sx = 16 #np.random.randint(self.image_size-self.digit_size)
+            self.sy = 4  #np.random.randint(self.image_size-self.digit_size)
         self.data = datasets.MNIST(
                 path,
                 train=train,
@@ -25,7 +30,7 @@ class MovingMNIST(object):
                 transform=transforms.Compose(
                     [transforms.Resize(self.digit_size, interpolation=1),
                      transforms.ToTensor()]))
-
+        
         self.N = len(self.data) 
 
     def set_seed(self, seed):
@@ -37,7 +42,9 @@ class MovingMNIST(object):
         return self.N
 
     def __getitem__(self, index):
-        self.set_seed(index)
+        #self.set_seed(index)
+        if not self.seed == None:
+            self.set_seed(self.seed)
         image_size = self.image_size
        
         x = np.zeros((self.seq_len,
@@ -47,12 +54,19 @@ class MovingMNIST(object):
                         dtype=np.float32)
         
         for n in range(self.num_digits):
-            idx = np.random.randint(self.N)
-            digit, _ = self.data[idx]
-            digit=digit.numpy()
-            ds=digit.shape[1]
+            if self.set_starting_position:
+                digit, _ = self.data[index]
+            else:
+                idx = np.random.randint(self.N)
+                digit, _ = self.data[idx]
+            digit = digit.numpy()
+            ds = digit.shape[1]
             sx = np.random.randint(image_size-ds)
             sy = np.random.randint(image_size-ds)
+            if self.set_starting_position:
+                sx = self.sx
+                sy = self.sy
+                    
             dx = np.random.randint(-self.step_length, self.step_length+1)
             dy = np.random.randint(-self.step_length, self.step_length+1)
             for t in range(self.seq_len):
