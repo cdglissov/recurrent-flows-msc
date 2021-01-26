@@ -221,6 +221,92 @@ class Evaluator(object):
 
         plt.close()
 
+    def get_interpolations(self):
+        ## Only works for RFN when trained on one digit.
+        ## Two dataset with two different seeds 
+        interpolation_set = MovingMNIST(False, 'Mnist', 
+                                 seq_len=self.n_frames, 
+                                 image_size=self.image_size, 
+                                 digit_size=self.digit_size, 
+                                 num_digits=self.num_digits, 
+												 deterministic=False, 
+                                 three_channels=False, 
+                                 step_length=self.step_length, 
+                                 normalize=False, set_starting_position = True, seed = 3)
+        interpolation_loader = DataLoader(interpolation_set, batch_size=self.batch_size, 
+                                 num_workers=self.num_workers, shuffle=False, drop_last=True)
+        interpolation_set_2 = MovingMNIST(False, 'Mnist', 
+                                 seq_len=self.n_frames, 
+                                 image_size=self.image_size, 
+                                 digit_size=self.digit_size, 
+                                 num_digits=self.num_digits, 
+												 deterministic=False, 
+                                 three_channels=False, 
+                                 step_length=self.step_length, 
+                                 normalize=False, set_starting_position = True, seed = 10)
+        interpolation_loader_2 = DataLoader(interpolation_set_2, batch_size=self.batch_size, 
+                                 num_workers=self.num_workers, shuffle=False, drop_last=True)
+        # So two dataset with the same loader
+        set1 = next(iter(interpolation_loader)).to(device)
+        set2 = next(iter(interpolation_loader_2)).to(device)
+        
+        num_timestep = 7
+        num_interpolations = 5
+        num_batch = 10 # Chooses the batch so different numbers
+        
+        set1 = self.solver.preprocess(set1)
+        set2 = self.solver.preprocess(set2)
+        
+        zts_1, hts_1 = self.model.get_zt_ht_from_seq(set1,num_timestep)
+        zts_2, hts_2 = self.model.get_zt_ht_from_seq(set2,num_timestep)
+        
+        zts_1 = zts_1.to(device)
+        hts_1 = hts_1.to(device)
+        zts_2 = zts_2.to(device)
+        hts_2 = hts_2.to(device)
+        
+        num = np.arange(0,num_interpolations+2)/(num_interpolations + 1)
+        
+        # When t = 1 ,hts = hts_1
+        # When t = 0, hts = hts_2
+        interpolations = []
+        for i in range(0,len(num)):
+            t = num[i]
+            zts = t * (zts_1 - zts_2) + zts_2
+            hts = t * (hts_1 - hts_2) + hts_2
+            prediction = self.model.predicts_from_zt_ht(set1, zts, hts)
+            prediction = self.solver.preprocess(prediction, reverse=True)
+            prediction = prediction.permute(1,0,2,3,4).type(torch.FloatTensor).to(device)
+            interpolations.append(prediction)
+        set1  = self.solver.preprocess(set1, reverse=True)
+        set2  = self.solver.preprocess(set2, reverse=True)
+        weight = torch.range(1,num_timestep,1).unsqueeze(1).unsqueeze(2).unsqueeze(3).to(device)
+        fig, ax = plt.subplots(1, 4 + num_interpolations, figsize = (20,180))
+        truevals = (weight*set2[num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
+        ax[0].imshow(self.convert_to_numpy(truevals))
+        ax[0].axis('off')
+        ax[0].set_title(r"True seq")
+        interpolation = (weight*interpolations[0][num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
+        ax[1].imshow(self.convert_to_numpy(interpolation))
+        ax[1].axis('off')
+        ax[1].set_title(r"Reconstruction")
+        for i in range(1,num_interpolations+1):
+            interpolation = (weight*interpolations[i][num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
+            ax[1+i].imshow(self.convert_to_numpy(interpolation))
+            ax[1+i].axis('off')
+            ax[1+i].set_title(r"Interpolation")
+    
+            
+        interpolation = (weight*interpolations[num_interpolations+1][num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
+        ax[num_interpolations+2].imshow(self.convert_to_numpy(interpolation))
+        ax[num_interpolations+2].axis('off')
+        ax[num_interpolations+2].set_title(r"Reconstruction")
+        truevals = (weight*set1[num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
+        ax[num_interpolations+3].imshow(self.convert_to_numpy(truevals))
+        ax[num_interpolations+3].axis('off')
+        ax[num_interpolations+3].set_title(r"True seq")
+        fig.savefig(self.path +'eval_folder/' + 'interpolations' +  '.pdf', bbox_inches='tight')
+	
     def compute_loss(self, nll, kl, dims, t=10):
 
         kl_store = kl.data
