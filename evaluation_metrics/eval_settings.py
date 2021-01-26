@@ -46,12 +46,14 @@ def main(settings):
 
 
             if not settings.test_temperature:
+                if settings.eval_parameters:
+                    evaluator.param_plots(path_save_measures, n_conditions=settings.n_conditions)
                 evaluator.model.temperature = settings.temperatures[i]
                 if settings.calc_fvd:
                     print("Computing FVD")
                     FVD_values = evaluator.get_fvd_values(model_name, settings.fvd_predicts)
                     print("Done - FVD")
-                
+
                 MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON, SSIM_std_values, PSNR_std_values, LPIPS_std_values = evaluator.get_eval_values(model_name)
                 dict_values = {"SSIM_values": SSIM_values.cpu(),
                             "PSNR_values": PSNR_values.cpu(),
@@ -182,7 +184,9 @@ if __name__ == "__main__":
                         default=5, type=int)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
                         default=["RFN", "VRNN"], type=str)
-
+    add_bool_arg(parser, "eval_parameters", default=True,
+                 help="If true then parameter analysis plot will be created")
+                 
     # FVD settings
     add_bool_arg(parser, "calc_fvd", default=True,
                  help="Enabling this allows us to compute FVD")

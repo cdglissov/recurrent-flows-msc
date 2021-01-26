@@ -58,7 +58,6 @@ class ListGlow(nn.Module):
         Bc, Cc, Hc, Wc = base_dist_size
         layers = []
         
-        
         for l in range(0, self.L):
             layers.append(Squeeze2d())
             Cx, Hx, Wx = Cx * 4, Hx // 2, Wx // 2
@@ -141,8 +140,7 @@ class ListGlow(nn.Module):
         obj = obj + batch_reduce(gaussian_likelihood.log_prob(z)) #p_z
         return z, -obj
 
-
-    def sample(self, z, condition, base_condition, num_samples = 32, temperature=0.8):
+    def sample(self, z, condition, base_condition, num_samples = 32, temperature=0.8, eval_params = False):
     
         with torch.no_grad():
           if z == None:
@@ -156,4 +154,7 @@ class ListGlow(nn.Module):
             prior = td.Normal(mean, torch.exp(log_scale)*temperature)
             z = prior.sample().to(device)
           x, _ = self.g(z, condition, logdet = None, temperature = temperature)
-        return x
+        if eval_params == True:
+            return x, (mean, torch.exp(log_scale))
+        else:
+            return x

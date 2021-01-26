@@ -10,6 +10,7 @@ from Utils import set_gpu
 import matplotlib.pyplot as plt
 plt.rcParams.update({'text.usetex': True})
 from data_generators import MovingMNIST
+from data_generators import MovingMNIST_synchronized
 from data_generators import PushDataset
 device = set_gpu(True)
 import numpy as np
@@ -223,50 +224,50 @@ class Evaluator(object):
 
     def get_interpolations(self):
         ## Only works for RFN when trained on one digit.
-        ## Two dataset with two different seeds 
-        interpolation_set = MovingMNIST(False, 'Mnist', 
-                                 seq_len=self.n_frames, 
-                                 image_size=self.image_size, 
-                                 digit_size=self.digit_size, 
-                                 num_digits=self.num_digits, 
-												 deterministic=False, 
-                                 three_channels=False, 
-                                 step_length=self.step_length, 
+        ## Two dataset with two different seeds
+        interpolation_set = MovingMNIST(False, 'Mnist',
+                                 seq_len=self.n_frames,
+                                 image_size=self.image_size,
+                                 digit_size=self.digit_size,
+                                 num_digits=self.num_digits,
+												 deterministic=False,
+                                 three_channels=False,
+                                 step_length=self.step_length,
                                  normalize=False, set_starting_position = True, seed = 3)
-        interpolation_loader = DataLoader(interpolation_set, batch_size=self.batch_size, 
+        interpolation_loader = DataLoader(interpolation_set, batch_size=self.batch_size,
                                  num_workers=self.num_workers, shuffle=False, drop_last=True)
-        interpolation_set_2 = MovingMNIST(False, 'Mnist', 
-                                 seq_len=self.n_frames, 
-                                 image_size=self.image_size, 
-                                 digit_size=self.digit_size, 
-                                 num_digits=self.num_digits, 
-												 deterministic=False, 
-                                 three_channels=False, 
-                                 step_length=self.step_length, 
+        interpolation_set_2 = MovingMNIST(False, 'Mnist',
+                                 seq_len=self.n_frames,
+                                 image_size=self.image_size,
+                                 digit_size=self.digit_size,
+                                 num_digits=self.num_digits,
+												 deterministic=False,
+                                 three_channels=False,
+                                 step_length=self.step_length,
                                  normalize=False, set_starting_position = True, seed = 10)
-        interpolation_loader_2 = DataLoader(interpolation_set_2, batch_size=self.batch_size, 
+        interpolation_loader_2 = DataLoader(interpolation_set_2, batch_size=self.batch_size,
                                  num_workers=self.num_workers, shuffle=False, drop_last=True)
         # So two dataset with the same loader
         set1 = next(iter(interpolation_loader)).to(device)
         set2 = next(iter(interpolation_loader_2)).to(device)
-        
+
         num_timestep = 7
         num_interpolations = 5
         num_batch = 10 # Chooses the batch so different numbers
-        
+
         set1 = self.solver.preprocess(set1)
         set2 = self.solver.preprocess(set2)
-        
+
         zts_1, hts_1 = self.model.get_zt_ht_from_seq(set1,num_timestep)
         zts_2, hts_2 = self.model.get_zt_ht_from_seq(set2,num_timestep)
-        
+
         zts_1 = zts_1.to(device)
         hts_1 = hts_1.to(device)
         zts_2 = zts_2.to(device)
         hts_2 = hts_2.to(device)
-        
+
         num = np.arange(0,num_interpolations+2)/(num_interpolations + 1)
-        
+
         # When t = 1 ,hts = hts_1
         # When t = 0, hts = hts_2
         interpolations = []
@@ -295,8 +296,8 @@ class Evaluator(object):
             ax[1+i].imshow(self.convert_to_numpy(interpolation))
             ax[1+i].axis('off')
             ax[1+i].set_title(r"Interpolation")
-    
-            
+
+
         interpolation = (weight*interpolations[num_interpolations+1][num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
         ax[num_interpolations+2].imshow(self.convert_to_numpy(interpolation))
         ax[num_interpolations+2].axis('off')
@@ -306,7 +307,7 @@ class Evaluator(object):
         ax[num_interpolations+3].axis('off')
         ax[num_interpolations+3].set_title(r"True seq")
         fig.savefig(self.path +'eval_folder/' + 'interpolations' +  '.pdf', bbox_inches='tight')
-	
+
     def compute_loss(self, nll, kl, dims, t=10):
 
         kl_store = kl.data
@@ -687,20 +688,123 @@ class Evaluator(object):
               else:
                   image = true_image.to(device)
               image = self.solver.preprocess(image)
-              
+
 
               x_true, predictions = self.model.predict(image, n_predicts, start_predictions)
 
               image  = self.solver.preprocess(image, reverse=True)
               predictions  = self.solver.preprocess(predictions, reverse=True)
-              
+
               # should be [t, b, c, h, w]
               ground_truth = image[:, start_predictions:,:,:,:].permute(1,0,2,3,4).cpu()
               predictions = predictions.cpu()
-              
+
               FVD = fvd(ground_truth, predictions)
-              
+
               #Store values
               FVD_values.append(FVD/n_predicts)
 
       return FVD_values
+
+    def param_plots(self, path, n_conditions):
+
+        print("Init parameter analysis")
+        seq_len=30
+        param_test_set = MovingMNIST_synchronized(False, 'Mnist', seq_len=seq_len,
+                                                  num_digits=self.num_digits,
+                                                  image_size=self.image_size, digit_size=self.digit_size,
+                                                  deterministic=False, three_channels = False,
+                                                  step_length=self.step_length, normalize = False,
+                                                  make_target = False, seed = None)
+
+        te_split_len = 200
+        param_test_set = torch.utils.data.random_split(param_test_set,
+                                [te_split_len, len(param_test_set)-te_split_len])[0]
+
+        test_loader = DataLoader(param_test_set, batch_size=self.batch_size,
+                                 num_workers=self.num_workers, shuffle=True, drop_last=True)
+        mu_p_params=[]
+        std_p_params=[]
+        mu_q_params=[]
+        std_q_params=[]
+        mu_flow_params=[]
+        std_flow_params=[]
+        temp=next(iter(param_test_set))
+        digit_one = list(np.where(param_test_set.dataset.hit_boundary==1)[0])
+        digit_two = list(np.where(param_test_set.dataset.hit_boundary==2)[0])
+
+        with torch.no_grad():
+          self.model.eval()
+          for batch_i, true_image in enumerate(tqdm(test_loader, desc="Running", position=0, leave=True)):
+              if self.choose_data=='bair':
+                image = true_image[0].to(device)
+              else:
+                image = true_image.to(device)
+              image = self.solver.preprocess(image)
+
+              mu_p, std_p, mu_q, std_q, mu_flow, std_flow = self.model.param_analysis(x=image,
+                                                                                      n_conditions=n_conditions,
+                                                                                      n_predictions=seq_len-n_conditions)
+              mu_p_params.append(mu_p.sum([2,3,4]))
+              std_p_params.append(std_p.sum([2,3,4]))
+              mu_q_params.append(mu_q.sum([2,3,4]))
+              std_q_params.append(std_q.sum([2,3,4]))
+              mu_flow_params.append(mu_flow.sum([2,3,4]))
+              std_flow_params.append(std_flow.sum([2,3,4]))
+
+
+        mu_p_params=torch.stack(mu_p_params).mean([0,2]).cpu().numpy()
+        std_p_params=torch.stack(std_p_params).mean([0,2]).cpu().numpy()
+        mu_q_params=torch.stack(mu_q_params).mean([0,2]).cpu().numpy()
+        std_q_params=torch.stack(std_q_params).mean([0,2]).cpu().numpy()
+        mu_flow_params=torch.stack(mu_flow_params).mean([0,2]).cpu().numpy()
+        std_flow_params=torch.stack(std_flow_params).mean([0,2]).cpu().numpy()
+
+
+        fig, ax = plt.subplots(3, 2 ,figsize = (20,10))
+
+        names = [r"$\mu_{prior}$",r"$\sigma_{prior}$",
+         r"$\mu_{posterior}$", r"$\sigma_{posterior}$",
+         r"$\mu_{flow}$", r"$\sigma_{flow}$" ]
+
+        #alpha = 0.05
+        xaxis = np.arange(0, seq_len, 1)
+        ax[0,0].plot(xaxis, mu_p_params, label=names[0])
+        ax[0,0].set_xlim([0, seq_len-2])
+
+        xaxis = np.arange(0, n_conditions-1, 1)
+        ax[1,0].plot(xaxis, mu_q_params, label=names[2])
+        ax[1,0].set_xlim([0, n_conditions-2])
+
+        xaxis = np.arange(n_conditions, seq_len, 1)
+        ax[2,0].plot(xaxis, mu_flow_params, label=names[4])
+        ax[2,0].set_xlim([n_conditions, seq_len-1])
+
+        xaxis = np.arange(0, seq_len, 1)
+        ax[0,1].plot(xaxis, std_p_params, label=names[1])
+        ax[0,1].set_xlim([0, seq_len-2])
+
+        xaxis = np.arange(0, n_conditions-1, 1)
+        ax[1,1].plot(xaxis, std_q_params, label=names[3])
+        ax[1,1].set_xlim([0, n_conditions-2])
+
+        xaxis = np.arange(n_conditions, seq_len, 1)
+        ax[2,1].plot(xaxis, std_flow_params, label=names[5])
+        ax[2,1].set_xlim([n_conditions,seq_len-1])
+
+        ax[0,0].set_ylabel(r'Average')
+        ax[1,0].set_ylabel(r'Average')
+        ax[2,0].set_ylabel(r'Average')
+        ax[2,0].set_xlabel(r'$t$')
+        ax[2,1].set_xlabel(r'$t$')
+
+        for i in range(0,3):
+            for j in range(0,2):
+                for k in range(0,len(digit_one)):
+                    ax[i,j].axvline(x=(digit_one[k]), color='r', linestyle='--', linewidth=1)
+                    ax[i,j].axvline(x=(digit_two[k]), color='b', linestyle='--', linewidth=1)
+                ax[i,j].legend()
+                ax[i,j].grid()
+
+        fig.savefig(path + '/parameter_analysis.png', bbox_inches='tight')
+        print("Parameter analysis has finished")
