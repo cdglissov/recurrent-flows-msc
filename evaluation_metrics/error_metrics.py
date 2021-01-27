@@ -47,6 +47,7 @@ class Evaluator(object):
         # Number of frames the model has been trained on
         self.n_trained = args.n_frames
         self.temperatures = settings.temperatures
+        self.use_validation_set = settings.use_validation_set
 
     def build(self):
         self.test_loader = self.create_loaders()
@@ -69,8 +70,15 @@ class Evaluator(object):
         self.lpipsNet = lpips.LPIPS(net='alex').to(device)
 
     def create_loaders(self):
+        if self.use_validation_set:
+            train_mnist=True
+            train_bair='train'
+        else:
+            train_mnist=False
+            train_bair='test'
+
         if self.choose_data=='mnist':
-            testset = MovingMNIST(False, 'Mnist',
+            testset = MovingMNIST(train_mnist, 'Mnist',
                                  seq_len=self.n_frames,
                                  image_size=self.image_size,
                                  digit_size=self.digit_size,
@@ -87,12 +95,17 @@ class Evaluator(object):
 
         if self.choose_data=='bair':
             	string=str(os.path.abspath(os.getcwd()))
-            	testset = PushDataset(split='test',
+            	testset = PushDataset(split=train_bair,
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
 
-        test_loader = DataLoader(testset, batch_size=self.batch_size,
-                                 num_workers=self.num_workers, shuffle=True, drop_last=True)
+        if self.use_validation_set:
+            testset_sub = torch.utils.data.Subset(testset, list(range(0, 256, 1)))
+            test_loader = DataLoader(testset_sub, batch_size=self.batch_size,
+                                     num_workers=self.num_workers, shuffle=False, drop_last=True)
+        else:
+            test_loader = DataLoader(testset, batch_size=self.batch_size,
+                                     num_workers=self.num_workers, shuffle=False, drop_last=True)
         return test_loader
 
     def convert_to_numpy(self, x):
@@ -418,7 +431,7 @@ class Evaluator(object):
                       #Get better preds based on SSIM
                       best_preds_ssim[ssim_better_id,:,:,:,:] = predictions[ssim_better_id,:,:,:,:]
 
-                  #save sequence for each sample 
+                  #save sequence for each sample
                   SSIM_mean.append(ssim)
                   PSNR_mean.append(psnr)
                   LPIPS_mean.append(lpips)
@@ -477,8 +490,8 @@ class Evaluator(object):
           PSNR_std_values = torch.cat(PSNR_std_values, 0)
           LPIPS_std_values = torch.cat(LPIPS_std_values, 0)
           print(LPIPS_std_values.shape)
-         
-          
+
+
 
           # Sort gt and preds based on highest to lowest SSIM values
           ordered = torch.argsort(SSIM_values.mean(-1), descending=True)
@@ -565,7 +578,7 @@ class Evaluator(object):
             SSIM  = eval_dict['SSIM_values']  # This is max values
             PSNR  = eval_dict['PSNR_values']    # This is max values
             LPIPS  = eval_dict['LPIPS_values']  # This is max values
-            SSIM_std_mean = eval_dict['SSIM_std_mean'] # This is this is mean of resample. So the mean of [resample, batch, time].mean(0) to [batch,time] 
+            SSIM_std_mean = eval_dict['SSIM_std_mean'] # This is this is mean of resample. So the mean of [resample, batch, time].mean(0) to [batch,time]
             PSNR_std_mean = eval_dict['PSNR_std_mean']
             LPIPS_std_mean = eval_dict['LPIPS_std_mean']
             print("Temperature is set to " + str(eval_dict['temperature']) + " for experiment " +lname)
@@ -604,7 +617,7 @@ class Evaluator(object):
             ax2[2].fill_between(np.arange(0, len(y)),
               np.quantile(LPIPS.numpy(), alpha/2, axis = 0),
               np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=.1)
-            
+
             y = SSIM_std_mean.mean(0).numpy()
             conf_std = 1.96 * np.std(SSIM_std_mean.numpy(),0)/np.sqrt(np.shape(SSIM_std_mean.numpy())[0])
             ax3[0].errorbar(xaxis, y, yerr=conf_std,label = lname)

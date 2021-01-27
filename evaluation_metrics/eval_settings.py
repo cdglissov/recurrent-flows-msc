@@ -49,12 +49,14 @@ def main(settings):
             if settings.eval_parameters:
                 evaluator.param_plots(path_save_measures, n_conditions=settings.n_conditions)
             evaluator.model.temperature = settings.temperatures[i]
+
             if settings.calc_fvd:
                 print("Computing FVD")
                 FVD_values = evaluator.get_fvd_values(model_name, settings.fvd_predicts)
                 print("Done - FVD")
             else:
                 FVD_values = []
+
             if settings.calc_eval:
                 MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON, SSIM_std_values, PSNR_std_values, LPIPS_std_values = evaluator.get_eval_values(model_name)
                 dict_values = {"SSIM_values": SSIM_values.cpu(),
@@ -70,9 +72,9 @@ def main(settings):
                             "LPIPS_std_mean": LPIPS_std_values,
                             "FVD_values": FVD_values
                             }
-    
+
                 torch.save(dict_values, path_save_measures + '/evaluations.pt')
-    
+
                 with open(path_save_measures+'/eval_avg_losses.txt', 'w') as f:
                     print("SSIM:", SSIM_values.mean(0), file=f)
                     print("PSNR:", PSNR_values.mean(0), file=f)
@@ -158,6 +160,8 @@ if __name__ == "__main__":
                         default=['srnn.pt','srnn.pt','srnn.pt'], type=str)
 
     #CALCULATE VALUES SETTINGS:
+    add_bool_arg(parser, "use_validation_set", default=True,
+                 help="If true then a validation set is used to tune parameters")
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences",
                         default=5, type=int)
     parser.add_argument("--n_frames", help="Specify the sequence length of the test data",
@@ -188,7 +192,7 @@ if __name__ == "__main__":
                         default=5, type=int)
     add_bool_arg(parser, "eval_parameters", default=False,
                  help="If true then parameter analysis plot will be created")
-                 
+
     # FVD settings
     add_bool_arg(parser, "calc_fvd", default=False,
                  help="Enabling this allows us to compute FVD")
