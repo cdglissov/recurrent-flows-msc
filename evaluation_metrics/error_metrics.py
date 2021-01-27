@@ -1,6 +1,6 @@
 import sys
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows/')
+sys.path.insert(1, './deepflows_18_01/')
 import torch
 import torch.utils.data
 from torch.utils.data import DataLoader
@@ -8,7 +8,7 @@ import os
 import lpips
 from Utils import set_gpu
 import matplotlib.pyplot as plt
-plt.rcParams.update({'text.usetex': True})
+plt.rcParams.update({'text.usetex': True}) # To run latex
 from data_generators import MovingMNIST
 from data_generators import MovingMNIST_synchronized
 from data_generators import PushDataset
@@ -81,7 +81,7 @@ class Evaluator(object):
                                  normalize=False)
 
             if self.debug_mnist:
-                te_split_len = 200
+                te_split_len = 800
                 testset = torch.utils.data.random_split(testset,
                                 [te_split_len, len(testset)-te_split_len])[0]
 
@@ -343,11 +343,12 @@ class Evaluator(object):
       with torch.no_grad():
           self.model.eval()
           for batch_i, true_image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
-              SSIM_std = []
-              PSNR_std = []
-              LPIPS_std = []
-              for time in range(0, self.resample):
 
+              SSIM_mean = []
+              PSNR_mean = []
+              LPIPS_mean = []
+              for time in range(0, self.resample):
+                  print(time)
                   if self.choose_data=='bair':
                       image = true_image[0].to(device)
                   else:
@@ -355,7 +356,7 @@ class Evaluator(object):
                   image = self.solver.preprocess(image)
                   image_notchanged = image
 
-                  x_true, predictions = self.model.predict(image, self.n_frames-start_predictions, start_predictions)
+                  x_true, predictions = self.model.predict(image, start_predictions, self.n_frames-start_predictions)
                   # Computes eval loss
                   if model_name == "rfn.pt":
                       logdet = 0
@@ -417,23 +418,25 @@ class Evaluator(object):
                       #Get better preds based on SSIM
                       best_preds_ssim[ssim_better_id,:,:,:,:] = predictions[ssim_better_id,:,:,:,:]
 
-                  #save sequence mean for each sample
-                  SSIM_std.append(ssim.mean(0))
-                  PSNR_std.append(psnr.mean(0))
-                  LPIPS_std.append(lpips.mean(0))
+                  #save sequence for each sample 
+                  SSIM_mean.append(ssim)
+                  PSNR_mean.append(psnr)
+                  LPIPS_mean.append(lpips)
 
-             # [resample, 24 means] Approximate uncertainty of the estimate for each sequence sample
-              SSIM_std=torch.stack(SSIM_std)
-              SSIM_std_mean = SSIM_std.std(0)/np.sqrt(SSIM_std.shape[0])
-              SSIM_std_values.append(SSIM_std_mean)
+             # [resample, batch, time] Approximate uncertainty of the estimate for each sequence sample
+              SSIM_mean=torch.stack(SSIM_mean)
+              # To [batch, time]
+              SSIM_mean = SSIM_mean.mean(0)
+              #SSIM_std_mean = SSIM_std.std(0)/np.sqrt(SSIM_std.shape[0])
+              SSIM_std_values.append(SSIM_mean)
 
-              PSNR_std=torch.stack(PSNR_std)
-              PSNR_std_mean = PSNR_std.std(0)/np.sqrt(PSNR_std.shape[0])
-              PSNR_std_values.append(PSNR_std_mean)
+              PSNR_mean = torch.stack(PSNR_mean).mean(0)
+              #PSNR_std_mean = PSNR_std.std(0)/np.sqrt(PSNR_std.shape[0])
+              PSNR_std_values.append(PSNR_mean)
 
-              LPIPS_std=torch.stack(LPIPS_std)
-              LPIPS_std_mean = LPIPS_std.std(0)/np.sqrt(LPIPS_std.shape[0])
-              LPIPS_std_values.append(LPIPS_std_mean)
+              LPIPS_mean = torch.stack(LPIPS_mean).mean(0)
+              #LPIPS_std_mean = LPIPS_std.std(0)/np.sqrt(LPIPS_std.shape[0])
+              LPIPS_std_values.append(LPIPS_mean)
 
               #Store values
               preds.append(best_preds_ssim)
@@ -464,14 +467,18 @@ class Evaluator(object):
 
           # Shape: [seq_id, n_frames]
           PSNR_values = torch.cat(PSNR_values)
+          print(PSNR_values.shape)
           MSE_values = torch.cat(MSE_values)
           SSIM_values = torch.cat(SSIM_values)
           LPIPS_values = torch.cat(LPIPS_values)
 
           #get mean uncertainty over batches
-          SSIM_std_values = torch.stack(SSIM_std_values).mean(0)
-          PSNR_std_values = torch.stack(PSNR_std_values).mean(0)
-          LPIPS_std_values = torch.stack(LPIPS_std_values).mean(0)
+          SSIM_std_values = torch.cat(SSIM_std_values, 0)
+          PSNR_std_values = torch.cat(PSNR_std_values, 0)
+          LPIPS_std_values = torch.cat(LPIPS_std_values, 0)
+          print(LPIPS_std_values.shape)
+         
+          
 
           # Sort gt and preds based on highest to lowest SSIM values
           ordered = torch.argsort(SSIM_values.mean(-1), descending=True)
@@ -555,10 +562,10 @@ class Evaluator(object):
             mark = markers[i]
             alpha = 0.05
             eval_dict = torch.load(path + experiment_names[i] + '/eval_folder/evaluations.pt')
-            SSIM  = eval_dict['SSIM_values']
-            PSNR  = eval_dict['PSNR_values']
-            LPIPS  = eval_dict['LPIPS_values']
-            SSIM_std_mean = eval_dict['SSIM_std_mean']
+            SSIM  = eval_dict['SSIM_values']  # This is max values
+            PSNR  = eval_dict['PSNR_values']    # This is max values
+            LPIPS  = eval_dict['LPIPS_values']  # This is max values
+            SSIM_std_mean = eval_dict['SSIM_std_mean'] # This is this is mean of resample. So the mean of [resample, batch, time].mean(0) to [batch,time] 
             PSNR_std_mean = eval_dict['PSNR_std_mean']
             LPIPS_std_mean = eval_dict['LPIPS_std_mean']
             print("Temperature is set to " + str(eval_dict['temperature']) + " for experiment " +lname)
@@ -597,82 +604,86 @@ class Evaluator(object):
             ax2[2].fill_between(np.arange(0, len(y)),
               np.quantile(LPIPS.numpy(), alpha/2, axis = 0),
               np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=.1)
+            
+            y = SSIM_std_mean.mean(0).numpy()
+            conf_std = 1.96 * np.std(SSIM_std_mean.numpy(),0)/np.sqrt(np.shape(SSIM_std_mean.numpy())[0])
+            ax3[0].errorbar(xaxis, y, yerr=conf_std,label = lname)
 
-            y = SSIM.mean(0).numpy()
-            ax3[0].errorbar(xaxis, y, yerr=1.96*SSIM_std_mean,label = lname)
+            y = PSNR_std_mean.mean(0).numpy()
+            conf_std = 1.96 * np.std(PSNR_std_mean.numpy(),0)/np.sqrt(np.shape(PSNR_std_mean.numpy())[0])
+            ax3[1].errorbar(xaxis, y, yerr=conf_std, label = lname)
 
-            y = PSNR.mean(0).numpy()
-            ax3[1].errorbar(xaxis,y, yerr=1.96*PSNR_std_mean, label = lname)
-
-            y = LPIPS.mean(0).numpy()
-            ax3[2].errorbar(xaxis,y, yerr=1.96*LPIPS_std_mean, label = lname)
+            #y = LPIPS.mean(0).numpy()
+            y = LPIPS_std_mean.mean(0).numpy()
+            conf_std = 1.96 * np.std(LPIPS_std_mean.numpy(),0)/np.sqrt(np.shape(LPIPS_std_mean.numpy())[0])
+            ax3[2].errorbar(xaxis, y, yerr=conf_std, label = lname)
 
         ax[0].set_ylabel(r'score')
         ax[0].set_xlabel(r'$t$')
-        ax[0].set_title(r'Avg. SSIM with 95% confidence interval')
+        ax[0].set_title(r'Max. SSIM with 95$\%$ confidence interval')
         ax[0].axvline(x=n_train, color='k', linestyle='--')
         ax[0].legend()
         ax[0].grid()
 
         ax[1].set_ylabel(r'score')
         ax[1].set_xlabel(r'$t$')
-        ax[1].set_title(r'Avg. PSNR with 95% confidence interval')
+        ax[1].set_title(r'Max. PSNR with 95$\%$ confidence interval')
         ax[1].axvline(x=n_train, color='k', linestyle='--')
         ax[1].legend()
         ax[1].grid()
 
         ax[2].set_ylabel(r'score')
         ax[2].set_xlabel(r'$t$')
-        ax[2].set_title(r'Avg. LPIPS with 95% confidence interval')
+        ax[2].set_title(r'Min. LPIPS with 95$\%$ confidence interval')
         ax[2].axvline(x=n_train, color='k', linestyle='--')
         ax[2].legend()
         ax[2].grid()
 
         ax2[0].set_ylabel(r'score')
         ax2[0].set_xlabel(r'$t$')
-        ax2[0].set_title(r'Avg. SSIM with 95% quantiles')
+        ax2[0].set_title('Max. SSIM with 95$\%$ quantiles')
         ax2[0].axvline(x=n_train, color='k', linestyle='--')
         ax2[0].legend()
         ax2[0].grid()
 
         ax2[1].set_ylabel(r'score')
         ax2[1].set_xlabel(r'$t$')
-        ax2[1].set_title(r'Avg. PSNR with 95% quantiles')
+        ax2[1].set_title('Max. PSNR with 95$\%$ quantiles')
         ax2[1].axvline(x=n_train, color='k', linestyle='--')
         ax2[1].legend()
         ax2[1].grid()
 
         ax2[2].set_ylabel(r'score')
         ax2[2].set_xlabel(r'$t$')
-        ax2[2].set_title(r'Avg. LPIPS with 95% quantiles')
+        ax2[2].set_title('Max. LPIPS with 95$\%$ quantiles')
         ax2[2].axvline(x=n_train, color='k', linestyle='--')
         ax2[2].legend()
         ax2[2].grid()
 
         ax3[0].set_ylabel(r'score')
         ax3[0].set_xlabel(r'$t$')
-        ax3[0].set_title(r'Avg. SSIM with uncertainty')
+        ax3[0].set_title(r'Avg. SSIM')
         ax3[0].axvline(x=n_train, color='k', linestyle='--')
         ax3[0].legend()
         ax3[0].grid()
 
         ax3[1].set_ylabel(r'score')
         ax3[1].set_xlabel(r'$t$')
-        ax3[1].set_title(r'Avg. PSNR with uncertainty')
+        ax3[1].set_title(r'Avg. PSNR')
         ax3[1].axvline(x=n_train, color='k', linestyle='--')
         ax3[1].legend()
         ax3[1].grid()
 
         ax3[2].set_ylabel(r'score')
         ax3[2].set_xlabel(r'$t$')
-        ax3[2].set_title(r'Avg. LPIPS with uncertainty')
+        ax3[2].set_title(r'Avg. LPIPS')
         ax3[2].axvline(x=n_train, color='k', linestyle='--')
         ax3[2].legend()
         ax3[2].grid()
 
-        fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_mean.png', bbox_inches='tight')
-        fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_median.png', bbox_inches='tight')
-        fig3.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_errorbars.png', bbox_inches='tight')
+        fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_max.png', bbox_inches='tight')
+        fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_max_median.png', bbox_inches='tight')
+        fig3.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_mean_mean.png', bbox_inches='tight')
 
     def get_fvd_values(self, model_name, n_predicts):
       start_predictions = self.start_predictions
@@ -729,7 +740,7 @@ class Evaluator(object):
         std_q_params=[]
         mu_flow_params=[]
         std_flow_params=[]
-        temp=next(iter(param_test_set))
+        temp = next(iter(param_test_set))
         digit_one = list(np.where(param_test_set.dataset.hit_boundary==1)[0])
         digit_two = list(np.where(param_test_set.dataset.hit_boundary==2)[0])
 
