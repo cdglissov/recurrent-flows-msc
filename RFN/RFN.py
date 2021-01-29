@@ -1,7 +1,7 @@
 from Flow import ListGlow
 import torch
 import torch.nn as nn
-from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTMOld, free_bits_kl, batch_reduce
+from Utils import VGG_upscaler, VGG_downscaler, SimpleParamNet, ConvLSTM, free_bits_kl, batch_reduce
 import torch.distributions as td
 
 class RFN(nn.Module):
@@ -73,7 +73,7 @@ class RFN(nn.Module):
                                    size_skips = dims_skip, tanh = self.upscaler_tanh)
 
       # ConvLSTM
-      self.lstm = ConvLSTMOld(in_channels = c_features, hidden_channels=self.h_dim,
+      self.lstm = ConvLSTM(in_channels = c_features, hidden_channels=self.h_dim,
                            kernel_size=[3, 3], bias=True, peephole=True)
 
       # Prior
