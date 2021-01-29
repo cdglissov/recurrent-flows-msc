@@ -267,12 +267,13 @@ class SRNN(nn.Module):
             print("undefined loss")
       ## Disclaimer is not entirely sure how this connect with res_q inference
       if self.D > 1: # is the number of over samples, if D=1 no over shooting will happen.
-          overshot_loss = 0
+          
           overshot_w = self.overshot_w # Weight of overshot.
           Dinit = self.D 
           kl_loss = 0
     
           for i in range(1, t):
+              overshot_loss = 0
               idt = i-1 # index t, Does this to make index less confusing
               zprev = store_ztx[idt, : , :]
               D = min(t-i, Dinit) #Do this so that for ts at t-D still do overshoting but with less overshooting # Dont know if this is the correct way to do it but makes sense
