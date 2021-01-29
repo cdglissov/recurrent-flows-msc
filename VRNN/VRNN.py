@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 from Utils import get_layer_size, Flatten, UnFlatten, set_gpu, batch_reduce
-from torch.autograd import Variable
 import torch.distributions as td
-from Utils import ConvLSTMOld, NormLayer
+from Utils import ConvLSTM, NormLayer
 
 device = set_gpu(True)
 
@@ -148,7 +147,7 @@ class VRNN(nn.Module):
 
 
       #LSTM
-      self.lstm = ConvLSTMOld(in_channels = phi_x_t_channels + phi_z_channels, 
+      self.lstm = ConvLSTM(in_channels = phi_x_t_channels + phi_z_channels, 
                            hidden_channels=self.h_dim, 
                            kernel_size=[3, 3], 
                            bias=True, 

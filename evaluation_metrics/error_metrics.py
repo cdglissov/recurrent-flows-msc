@@ -12,6 +12,7 @@ plt.rcParams.update({'text.usetex': True}) # To run latex
 from data_generators import MovingMNIST
 from data_generators import MovingMNIST_synchronized
 from data_generators import PushDataset
+from data_generators import KTH
 device = set_gpu(True)
 import numpy as np
 from skimage.metrics import peak_signal_noise_ratio
@@ -71,14 +72,15 @@ class Evaluator(object):
 
     def create_loaders(self):
         if self.use_validation_set:
-            train_mnist=True
+            train_boolean=True
             train_bair='train'
         else:
-            train_mnist=False
+            train_boolean=False
             train_bair='test'
 
         if self.choose_data=='mnist':
-            testset = MovingMNIST(train_mnist, 'Mnist',
+            plt.rcParams['image.cmap']='gray'
+            testset = MovingMNIST(train_boolean, 'Mnist',
                                  seq_len=self.n_frames,
                                  image_size=self.image_size,
                                  digit_size=self.digit_size,
@@ -94,11 +96,21 @@ class Evaluator(object):
                                 [te_split_len, len(testset)-te_split_len])[0]
 
         if self.choose_data=='bair':
-            	string=str(os.path.abspath(os.getcwd()))
-            	testset = PushDataset(split=train_bair,
+            plt.rcParams['image.cmap']='viridis'
+            string=str(os.path.abspath(os.getcwd()))
+            testset = PushDataset(split=train_bair,
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
-
+        
+        if self.choose_data =='kth':
+            plt.rcParams['image.cmap']='gray'
+            string=str(os.path.abspath(os.getcwd()))
+            testset = KTH(
+                        train=train_boolean, 
+                        data_root=string+"/kth_data",
+                        seq_len=self.n_frames, 
+                        image_size=self.image_size)
+            
         if self.use_validation_set:
             testset_sub = torch.utils.data.Subset(testset, list(range(0, 256, 1)))
             test_loader = DataLoader(testset_sub, batch_size=self.batch_size,
@@ -752,6 +764,7 @@ class Evaluator(object):
 
         print("Init parameter analysis")
         seq_len=30
+        plt.rcParams['image.cmap']='gray'
         param_test_set = MovingMNIST_synchronized(False, 'Mnist', seq_len=seq_len,
                                                   num_digits=self.num_digits,
                                                   image_size=self.image_size, digit_size=self.digit_size,
@@ -771,7 +784,6 @@ class Evaluator(object):
         std_q_params=[]
         mu_flow_params=[]
         std_flow_params=[]
-        temp = next(iter(param_test_set))
         digit_one = list(np.where(param_test_set.dataset.hit_boundary==1)[0])
         digit_two = list(np.where(param_test_set.dataset.hit_boundary==2)[0])
 

@@ -6,6 +6,7 @@ import os
 from torch.utils.data import DataLoader
 from data_generators import MovingMNIST
 from data_generators import PushDataset
+from data_generators import KTH
 import matplotlib.pyplot as plt
 from .SRNN import SRNN
 from Utils import set_gpu
@@ -102,7 +103,8 @@ class Solver(object):
 
     def create_loaders(self):
         if self.choose_data=='mnist':
-            	testset = MovingMNIST(False, 'Mnist',
+            plt.rcParams['image.cmap']='gray'
+            testset = MovingMNIST(False, 'Mnist',
                                                          seq_len=self.n_frames,
                                                          image_size=self.image_size,
                                                          digit_size=self.digit_size,
@@ -111,7 +113,7 @@ class Solver(object):
                                                          three_channels=False,
                                                          step_length=self.step_length,
                                                          normalize=False)
-            	trainset = MovingMNIST(True, 'Mnist',
+            trainset = MovingMNIST(True, 'Mnist',
                                                           seq_len=self.n_frames,
                                                           image_size=self.image_size,
                                                           digit_size=self.digit_size,
@@ -121,14 +123,28 @@ class Solver(object):
                                                           step_length=self.step_length,
                                                           normalize=False)
         if self.choose_data=='bair':
-            	string=str(os.path.abspath(os.getcwd()))
-            	trainset = PushDataset(split='train',
+            plt.rcParams['image.cmap']='viridis'
+            string=str(os.path.abspath(os.getcwd()))
+            trainset = PushDataset(split='train',
                                               dataset_dir=string+'/bair_robot_data/processed_data/',
                                               seq_len=self.n_frames)
-            	testset = PushDataset(split='test',
+            testset = PushDataset(split='test',
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
-
+        if self.choose_data =='kth':
+            plt.rcParams['image.cmap']='gray'
+            string=str(os.path.abspath(os.getcwd()))
+            trainset = KTH(
+                        train=True, 
+                        data_root=string+"/kth_data",
+                        seq_len=self.n_frames, 
+                        image_size=self.image_size)
+            testset = KTH(
+                        train=False, 
+                        data_root=string+"/kth_data",
+                        seq_len=self.n_frames, 
+                        image_size=self.image_size)
+            
         train_loader = DataLoader(trainset,batch_size=self.batch_size, shuffle=True, drop_last=True)
         test_loader = DataLoader(testset, batch_size=self.batch_size, shuffle=True, drop_last=True)
         return train_loader, test_loader

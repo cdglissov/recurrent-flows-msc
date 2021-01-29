@@ -56,7 +56,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
-                        choices=['mnist', 'bair'], default='bair', type=str)
+                        choices=['mnist', 'bair', 'kth'], default='bair', type=str)
     parser.add_argument("--image_size", help="Specify the image size of mnist", 
                         default=64, type=int)
     parser.add_argument("--digit_size", help="Specify the size of mnist digit", 

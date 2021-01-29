@@ -2,16 +2,16 @@ import torch
 import torch.nn as nn
 from Utils import get_layer_size, Flatten, UnFlatten, set_gpu, batch_reduce
 import torch.distributions as td
-from Utils import ConvLSTMOld, NormLayer
+from Utils import ConvLSTM, NormLayer
 
 device = set_gpu(True)
 
-# add resq, 
+# add resq,
 #https://medium.com/@aminamollaysa/summary-of-the-recurrent-latent-variable-model-vrnn-4096b52e731
 class SRNN(nn.Module):
     def __init__(self, args):
       super(SRNN, self).__init__()
-      
+
       norm_type = args.norm_type
       self.batch_size = args.batch_size
       self.u_dim = args.condition_dim
@@ -28,8 +28,8 @@ class SRNN(nn.Module):
       bx, cx, hx, wx = self.x_dim
       self.mse_criterion = nn.MSELoss(reduction='none')
       self.res_q = args.res_q
-      
-      # Remember to downscale more when using 64x64. Overall the net should probably increase in size when using 
+
+      # Remember to downscale more when using 64x64. Overall the net should probably increase in size when using
       # 64x64 images
       self.phi_x_t_channels = 256
       self.phi_x_t = nn.Sequential(
@@ -50,7 +50,7 @@ class SRNN(nn.Module):
                         dilations=[1, 1,1])
       self.h = h
       self.w = w
-      
+
       # Extractor of z
       phi_z_channels = 128
       self.phi_z = nn.Sequential(
@@ -63,7 +63,7 @@ class SRNN(nn.Module):
         NormLayer(phi_z_channels, norm_type),
         nn.ReLU()
         ) #4x4
-      
+
       # Encoder structure
       if self.enable_smoothing:
           self.enc = nn.Sequential(
@@ -79,7 +79,7 @@ class SRNN(nn.Module):
             nn.ReLU(),
             Flatten(),
             )
-      
+
       self.enc_mean =  nn.Sequential(
         nn.Linear((256)*h//2*w//2, 512),
         nn.ReLU(),
@@ -87,7 +87,7 @@ class SRNN(nn.Module):
         nn.ReLU(),
         nn.Linear(256, z_dim), #maybe tanh here?
         )
-      
+
       self.enc_std = nn.Sequential(
         nn.Linear((256)*h//2*w//2, 512),
         nn.ReLU(),
@@ -98,13 +98,13 @@ class SRNN(nn.Module):
         )
 
       # Prior structure
-      self.prior = nn.Sequential( 
+      self.prior = nn.Sequential(
         nn.Conv2d(h_dim + phi_z_channels, 256, kernel_size = 3, stride = 2, padding = 1),
         NormLayer(256, norm_type),
         nn.ReLU(),
         Flatten(),
         )
-      
+
       self.prior_mean = nn.Sequential(
         nn.Linear((256)*h//2*w//2, 512),
         nn.ReLU(),
@@ -112,7 +112,7 @@ class SRNN(nn.Module):
         nn.ReLU(),
         nn.Linear(256, z_dim),
         )
-      
+
       self.prior_std = nn.Sequential(
         nn.Linear((256)*h//2*w//2, 512),
         nn.ReLU(),
@@ -121,7 +121,7 @@ class SRNN(nn.Module):
         nn.Linear(256, z_dim),
         nn.Softplus()
         )
-      
+
       # Decoder structure
       self.dec = nn.Sequential(
             nn.ConvTranspose2d(h_dim + phi_z_channels, 512, kernel_size=4, stride=2, padding=1, output_padding=0),
@@ -130,47 +130,47 @@ class SRNN(nn.Module):
             nn.Conv2d(512, 256,  kernel_size=3, stride=1, padding=1),
             NormLayer(256, norm_type),
             nn.ReLU(),
-            nn.ConvTranspose2d(256, 64, kernel_size=4, stride=2, padding=1, output_padding=0), 
+            nn.ConvTranspose2d(256, 64, kernel_size=4, stride=2, padding=1, output_padding=0),
             NormLayer(64, norm_type),
             nn.ReLU(),
             nn.Conv2d(64, 64,  kernel_size=3, stride=1, padding=1),
             NormLayer(64, norm_type),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1, output_padding=0), 
+            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1, output_padding=0),
             NormLayer(32, norm_type),
             nn.ReLU(),
         )
-      
-      
+
+
       self.dec_mean = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1), 
                                 nn.Sigmoid()
                                 )
-      self.dec_std = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1), 
+      self.dec_std = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1),
                                nn.Softplus()
                                )
 
       self.z_0 = nn.Parameter(torch.zeros(self.batch_size, z_dim))
       self.z_0x = nn.Parameter(torch.zeros(self.batch_size, z_dim))
-      
+
       self.h_0 = nn.Parameter(torch.zeros(self.batch_size, self.h_dim, h, w))
       self.c_0 = nn.Parameter(torch.zeros(self.batch_size, self.h_dim, h, w))
-      
+
       self.a_0 = nn.Parameter(torch.zeros(self.batch_size, self.a_dim, h, w))
       self.ca_0 = nn.Parameter(torch.zeros(self.batch_size, self.a_dim, h, w))
 
       #LSTM
-      self.lstm_h = ConvLSTMOld(in_channels = self.phi_x_t_channels, 
-                           hidden_channels=self.h_dim, 
-                           kernel_size=[3, 3], 
-                           bias=True, 
+      self.lstm_h = ConvLSTM(in_channels = self.phi_x_t_channels,
+                           hidden_channels=self.h_dim,
+                           kernel_size=[3, 3],
+                           bias=True,
                            peephole=True)
-      
-      self.lstm_a = ConvLSTMOld(in_channels = self.phi_x_t_channels + self.h_dim, 
-                           hidden_channels=self.h_dim, 
-                           kernel_size=[3, 3], 
-                           bias=True, 
+
+      self.lstm_a = ConvLSTM(in_channels = self.phi_x_t_channels + self.h_dim,
+                           hidden_channels=self.h_dim,
+                           kernel_size=[3, 3],
+                           bias=True,
                            peephole=True)
-      
+
       self.D = args.num_shots + 1 # Plus one as that is more intuative
       self.overshot_w = args.overshot_w #Weight for overshoots.
     def get_inits(self):
@@ -182,8 +182,8 @@ class SRNN(nn.Module):
     def loss(self, xt):
 
       b, t, c, h, w = xt.shape
-      hprev, cprev, zprev, zprevx, aprev, caprev, loss, kl_loss, nll_loss = self.get_inits()   
-      
+      hprev, cprev, zprev, zprevx, aprev, caprev, loss, kl_loss, nll_loss = self.get_inits()
+
       store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
       store_at = torch.zeros((t-1, *hprev.shape)).cuda()
       store_x_features = torch.zeros((self.batch_size, t, self.phi_x_t_channels, 8, 8)).cuda()
@@ -196,7 +196,7 @@ class SRNN(nn.Module):
         store_ht[i-1,:,:,:,:] = ht
         hprev = ht
         cprev = ct
-    
+
       if self.enable_smoothing:
           #Find at
           for i in range(1, t):
@@ -206,14 +206,14 @@ class SRNN(nn.Module):
             aprev = at
             caprev = c_at
             store_at[t-i-1,:,:,:,:] = at
-      
+
       store_ztx_mean = torch.zeros((t-1, *zprevx.shape)).cuda()
       store_ztx_std = torch.zeros((t-1, *zprevx.shape)).cuda()
       store_ztx = torch.zeros((t-1, *zprev.shape)).cuda()
       for i in range(1, t):
         ht = store_ht[i-1,:,:,:,:]
 
-        
+
         if self.enable_smoothing:
             at = store_at[i-1,:,:,:,:]
             enc_t = self.enc(torch.cat([at, self.phi_z(zprevx)], 1))
@@ -221,41 +221,41 @@ class SRNN(nn.Module):
             xt_features = self.phi_x_t(xt[:, i, :, :, :])
             enc_t = self.enc(torch.cat([ht, self.phi_z(zprevx), xt_features], 1))
         enc_std_t = self.enc_std(enc_t)
-        
+
         if self.res_q:
             prior_t = self.prior(torch.cat([ht, self.phi_z(zprevx)],1)) ## Notice zprevx here, this is intentional
-            prior_mean_t = self.prior_mean(prior_t) 
-            
+            prior_mean_t = self.prior_mean(prior_t)
+
             enc_mean_t = prior_mean_t + self.enc_mean(enc_t)
         else:
             prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
-            prior_mean_t = self.prior_mean(prior_t) 
-            
+            prior_mean_t = self.prior_mean(prior_t)
+
             enc_mean_t = self.enc_mean(enc_t)
-            
-        
+
+
         prior_std_t = self.prior_std(prior_t)
         prior_dist = td.Normal(prior_mean_t, prior_std_t)
-        
+
         enc_dist = td.Normal(enc_mean_t, enc_std_t)
 
         z_tx = enc_dist.rsample()
         z_t = prior_dist.rsample()
-        
+
         store_ztx_mean[i-1,:,:] = enc_mean_t
         store_ztx_std[i-1,:,:] = enc_std_t
-        
+
         store_ztx[i-1,:,:] = z_tx
 
         dec_t = self.dec(torch.cat([ht, self.phi_z(z_tx)], 1))
         dec_mean_t = self.dec_mean(dec_t)
-        
+
         zprevx = z_tx
         zprev = z_t
         if self.D == 1:
             kl_loss = kl_loss + self.beta * td.kl_divergence(enc_dist, prior_dist)
 
- 
+
         if self.loss_type == "bernoulli":
             nll_loss = nll_loss - td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :])
         if self.loss_type == "gaussian":
@@ -267,11 +267,11 @@ class SRNN(nn.Module):
             print("undefined loss")
       ## Disclaimer is not entirely sure how this connect with res_q inference
       if self.D > 1: # is the number of over samples, if D=1 no over shooting will happen.
-          
+
           overshot_w = self.overshot_w # Weight of overshot.
-          Dinit = self.D 
+          Dinit = self.D
           kl_loss = 0
-    
+
           for i in range(1, t):
               overshot_loss = 0
               idt = i-1 # index t, Does this to make index less confusing
@@ -291,24 +291,24 @@ class SRNN(nn.Module):
                   else:
                       enc_dist = td.Normal(store_ztx_mean[idt + d, :, :], store_ztx_std[idt + d, :, :])
                   overshot_loss = overshot_loss + overshot_w * td.kl_divergence(enc_dist, prior_dist)
-              kl_loss = kl_loss + 1/D * overshot_loss * self.beta 
-      
+              kl_loss = kl_loss + 1/D * overshot_loss * self.beta
+
 
       return batch_reduce(kl_loss).mean(), batch_reduce(nll_loss).mean()
 
 
     def predict(self, xt, n_predictions, n_conditions):
       b, t, c, h, w = xt.shape
-      
+
       assert n_conditions <= t, "n_conditions > t, number of conditioned frames is greater than number of frames"
-      
+
       predictions = torch.zeros((n_predictions, *xt[:,0,:,:,:].shape))
       true_x = torch.zeros((n_conditions, *xt[:,0,:,:,:].shape))
-      hprev, cprev, zprev, zprevx, aprev, caprev, _, _, _ = self.get_inits()     
+      hprev, cprev, zprev, zprevx, aprev, caprev, _, _, _ = self.get_inits()
 
       store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
       true_x[0,:,:,:,:] = xt[:, 0, :, :, :].detach()
-      
+
       #Find ht
       for i in range(1, n_conditions):
         ut = self.phi_x_t(xt[:, i-1, :, :, :])
@@ -320,31 +320,31 @@ class SRNN(nn.Module):
       #Find encoder samples, should we add res_q here? #add warmup with resq
       for i in range(1, n_conditions):
         ht = store_ht[i-1,:,:,:,:]
-        prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1)) 
-        prior_mean_t = self.prior_mean(prior_t) 
+        prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
+        prior_mean_t = self.prior_mean(prior_t)
         prior_std_t = self.prior_std(prior_t)
         prior_dist = td.Normal(prior_mean_t, prior_std_t)
         z_t = prior_dist.rsample()
         zprev = z_t
         true_x[i,:,:,:,:] = xt[:, i, :, :, :].detach()
-      
+
       prediction = xt[:,n_conditions-1,:,:,:]
-      
-      for i in range(0, n_predictions):  
-        ut = self.phi_x_t(prediction)                 
+
+      for i in range(0, n_predictions):
+        ut = self.phi_x_t(prediction)
 
         _, ht, ct = self.lstm_h(ut.unsqueeze(1), hprev, cprev)
-        
-        prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1)) 
-        prior_mean_t = self.prior_mean(prior_t) 
+
+        prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
+        prior_mean_t = self.prior_mean(prior_t)
         prior_std_t = self.prior_std(prior_t)
         prior_dist = td.Normal(prior_mean_t, prior_std_t)
-        
+
         z_t = prior_dist.rsample()
-        
+
         dec_t = self.dec(torch.cat([ht, self.phi_z(z_t)], 1))
         dec_mean_t = self.dec_mean(dec_t)
-        
+
         prediction = dec_mean_t
         zprev = z_t
         hprev = ht
@@ -354,13 +354,13 @@ class SRNN(nn.Module):
 
     def reconstruct(self, xt):
       b, t, c, h, w = xt.shape
-      
+
       recons = torch.zeros((t, *xt[:,0,:,:,:].shape))
-      hprev, cprev, zprev, zprevx, aprev, caprev, _, _, _ = self.get_inits()     
+      hprev, cprev, zprev, zprevx, aprev, caprev, _, _, _ = self.get_inits()
 
       store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
       store_at = torch.zeros((t-1, *hprev.shape)).cuda()
-      
+
       #Find ht
       for i in range(1, t):
         ut = self.phi_x_t(xt[:, i-1, :, :, :])
@@ -368,7 +368,7 @@ class SRNN(nn.Module):
         store_ht[i-1,:,:,:,:] = ht
         hprev = ht
         cprev = ct
-    
+
       #Find at
       if self.enable_smoothing:
           for i in range(1, t):
@@ -378,7 +378,7 @@ class SRNN(nn.Module):
             aprev = at
             caprev = c_at
             store_at[t-i-1,:,:,:,:] = at
-        
+
       for i in range(1, t):
         if self.enable_smoothing:
             at = store_at[i-1,:,:,:,:]
@@ -386,11 +386,11 @@ class SRNN(nn.Module):
         else:
             xt_features = self.phi_x_t(xt[:, i, :, :, :])
             enc_t = self.enc(torch.cat([ht, self.phi_z(zprevx), xt_features], 1))
-        
+
         if self.res_q:
             ht = store_ht[i-1,:,:,:,:]
-            prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1)) 
-            prior_mean_t = self.prior_mean(prior_t) 
+            prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
+            prior_mean_t = self.prior_mean(prior_t)
             prior_std_t = self.prior_std(prior_t)
             prior_dist = td.Normal(prior_mean_t, prior_std_t)
             z_t = prior_dist.rsample()
@@ -398,7 +398,7 @@ class SRNN(nn.Module):
             enc_mean_t = prior_mean_t + self.enc_mean(enc_t)
         else:
             enc_mean_t = self.enc_mean(enc_t)
-            
+
         enc_std_t = self.enc_std(enc_t)
         enc_dist = td.Normal(enc_mean_t, enc_std_t)
         z_tx = enc_dist.rsample()
@@ -408,26 +408,26 @@ class SRNN(nn.Module):
         dec_mean_t = self.dec_mean(dec_t)
         zprevx = z_tx
         recons[i,:,:,:,:] = dec_mean_t.detach()
-        
+
       return recons
-    
+
     def sample(self, xt, n_samples):
       b, t, c, h, w = xt.shape
-      
+
       samples = torch.zeros((n_samples, b,c,h,w))
-      hprev, cprev, zprev, zprevx, _, _, _, _, _ = self.get_inits()     
+      hprev, cprev, zprev, zprevx, _, _, _, _, _ = self.get_inits()
       condition = xt[:, 0, :, :, :]
-    
-      for i in range(0, n_samples):                   
+
+      for i in range(0, n_samples):
         ut = self.phi_x_t(condition)
         _, ht, ct = self.lstm_h(ut.unsqueeze(1), hprev, cprev)
-        prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1)) 
-        prior_mean_t = self.prior_mean(prior_t) 
+        prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
+        prior_mean_t = self.prior_mean(prior_t)
         prior_std_t = self.prior_std(prior_t)
         prior_dist = td.Normal(prior_mean_t, prior_std_t)
-        
+
         z_t = prior_dist.rsample()
-        
+
         dec_t = self.dec(torch.cat([ht, self.phi_z(z_t)], 1))
         dec_mean_t = self.dec_mean(dec_t)
         condition = dec_mean_t
@@ -435,7 +435,5 @@ class SRNN(nn.Module):
         hprev = ht
         cprev=ct
         samples[i,:,:,:,:] = dec_mean_t.data
-      
-      return samples
-    
 
+      return samples

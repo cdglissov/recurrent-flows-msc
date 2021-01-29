@@ -11,7 +11,7 @@ import torch
 import sys
 import numpy as np
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows_26_01/')
+sys.path.insert(1, './deepflows/')
 from evaluation_metrics.error_metrics import Evaluator
 
 
@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
     # PATH SETTINGS:
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments",
-                        default='./SRNNtest/', type=str)
+                        default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
                         default=["overshot0_v6","overshot1_v6","overshot2_v6"], type=str)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",

@@ -51,11 +51,11 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=100, type=int)
+                        default=150, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
-                        choices=['mnist', 'bair'], default='mnist', type=str)
+                        choices=['mnist', 'bair', 'kth'], default='kth', type=str)
     parser.add_argument("--image_size", help="Specify the image size of mnist", 
                         default=64, type=int)
     parser.add_argument("--digit_size", help="Specify the size of mnist digit", 
@@ -63,9 +63,9 @@ if __name__ == "__main__":
     parser.add_argument("--step_length", help="Specify the step size of mnist digit", 
                         default=4, type=int)
     parser.add_argument("--num_digits", help="Specify the number of mnist digits", 
-                        default=1, type=int)
+                        default=2, type=int)
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
-                        default=4, type=int)
+                        default=5, type=int)
     
     
     # Trainer
@@ -107,11 +107,11 @@ if __name__ == "__main__":
     
     # VRNN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[100, 1, 64, 64], type=int)
+                        default=[150, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[100, 1, 64, 64], type=int)
+                        default=[150, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
-                        default=100, type=int)
+                        default=256, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
                         default=20, type=int) # Very bad if too high, very bad if too low
     parser.add_argument("--loss_type", help="Specify the type of loss used", 
