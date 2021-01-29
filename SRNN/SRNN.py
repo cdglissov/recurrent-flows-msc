@@ -209,13 +209,10 @@ class SRNN(nn.Module):
       
       store_ztx_mean = torch.zeros((t-1, *zprevx.shape)).cuda()
       store_ztx_std = torch.zeros((t-1, *zprevx.shape)).cuda()
-      store_zt = torch.zeros((t-1, *zprev.shape)).cuda()
+      store_ztx = torch.zeros((t-1, *zprev.shape)).cuda()
       for i in range(1, t):
         ht = store_ht[i-1,:,:,:,:]
-        prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
-        prior_mean_t = self.prior_mean(prior_t) 
-        prior_std_t = self.prior_std(prior_t)
-        prior_dist = td.Normal(prior_mean_t, prior_std_t)
+
         
         if self.enable_smoothing:
             at = store_at[i-1,:,:,:,:]
@@ -226,9 +223,19 @@ class SRNN(nn.Module):
         enc_std_t = self.enc_std(enc_t)
         
         if self.res_q:
+            prior_t = self.prior(torch.cat([ht, self.phi_z(zprevx)],1)) ## Notice zprevx here, this is intentional
+            prior_mean_t = self.prior_mean(prior_t) 
+            
             enc_mean_t = prior_mean_t + self.enc_mean(enc_t)
         else:
+            prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
+            prior_mean_t = self.prior_mean(prior_t) 
+            
             enc_mean_t = self.enc_mean(enc_t)
+            
+        
+        prior_std_t = self.prior_std(prior_t)
+        prior_dist = td.Normal(prior_mean_t, prior_std_t)
         
         enc_dist = td.Normal(enc_mean_t, enc_std_t)
 
@@ -238,47 +245,52 @@ class SRNN(nn.Module):
         store_ztx_mean[i-1,:,:] = enc_mean_t
         store_ztx_std[i-1,:,:] = enc_std_t
         
-        store_zt[i-1,:,:] = z_t
+        store_ztx[i-1,:,:] = z_tx
 
         dec_t = self.dec(torch.cat([ht, self.phi_z(z_tx)], 1))
         dec_mean_t = self.dec_mean(dec_t)
         
         zprevx = z_tx
         zprev = z_t
-        
-        #kl_loss = kl_loss + self.beta * td.kl_divergence(enc_dist, prior_dist)
+        if self.D == 1:
+            kl_loss = kl_loss + self.beta * td.kl_divergence(enc_dist, prior_dist)
 
  
         if self.loss_type == "bernoulli":
             nll_loss = nll_loss - td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :])
-        elif self.loss_type == "gaussian":
+        if self.loss_type == "gaussian":
             dec_std_t = self.dec_std(dec_t)
             nll_loss = nll_loss - td.Normal(dec_mean_t, dec_std_t).log_prob(xt[:, i, :, :, :])
         elif self.loss_type == "mse":
             nll_loss = nll_loss + self.mse_criterion(dec_mean_t, xt[:, i, :, :, :])
         else:
             print("undefined loss")
-      
-      #if self.D > 1: ## If true able overshoots
-      overshot_loss = 0
-      overshot_w = self.overshot_w # Weight of overshot.
-      Dinit = self.D # is the number of over samples, if D=1 no over shooting will happen.
-      # Given we have calculated for D = 1 as the above, we continue from there
-      for i in range(1, t):
-          idt = i-1 # index t, Does this to make index less confusing
-          zprev = store_zt[idt, : , :]
-          D = min(t-i, Dinit) #Do this so that for ts at t-D still do overshoting but with less overshooting # Dont know if this is the correct way to do it but makes sense
-          for d in range(0, D): # D is the number of overshootes
-              ht = store_ht[idt + d, :, :, :, :] # So find the ht for t + d
-              prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
-              prior_mean_t = self.prior_mean(prior_t)
-              prior_std_t = self.prior_std(prior_t)
-              zprev = prior_dist.rsample()
-              prior_dist = td.Normal(prior_mean_t, prior_std_t)
-
-              enc_dist = td.Normal(store_ztx_mean[idt + d, :, :], store_ztx_std[idt + d, :, :] ) #Encoded values is matching ht so t + d
-              overshot_loss = overshot_loss + overshot_w * td.kl_divergence(enc_dist, prior_dist)
-          kl_loss = kl_loss + 1/D*(overshot_loss) * self.beta # The first loss is for D=1, 
+      ## Disclaimer is not entirely sure how this connect with res_q inference
+      if self.D > 1: # is the number of over samples, if D=1 no over shooting will happen.
+          overshot_loss = 0
+          overshot_w = self.overshot_w # Weight of overshot.
+          Dinit = self.D 
+          kl_loss = 0
+    
+          for i in range(1, t):
+              idt = i-1 # index t, Does this to make index less confusing
+              zprev = store_ztx[idt, : , :]
+              D = min(t-i, Dinit) #Do this so that for ts at t-D still do overshoting but with less overshooting # Dont know if this is the correct way to do it but makes sense
+              for d in range(0, D): # D is the number of overshootes in paper 1=< d <= D. We do 0<=d<D so now a index offset, but is still the same..
+                  ht = store_ht[idt + d, :, :, :, :] # So find the ht for t + d
+                  prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
+                  prior_mean_t = self.prior_mean(prior_t)
+                  prior_std_t = self.prior_std(prior_t)
+                  zprev = prior_dist.rsample()
+                  prior_dist = td.Normal(prior_mean_t, prior_std_t)
+                  if d > 0:
+                      # .detach() to stop gradients from encoder, such that the encoder does not conform to the prior, but still to recon loss
+                      # They do this in the paper for d>0.
+                      enc_dist = td.Normal(store_ztx_mean[idt + d, :, :].detach().clone(), store_ztx_std[idt + d, :, :].detach().clone())
+                  else:
+                      enc_dist = td.Normal(store_ztx_mean[idt + d, :, :], store_ztx_std[idt + d, :, :])
+                  overshot_loss = overshot_loss + overshot_w * td.kl_divergence(enc_dist, prior_dist)
+              kl_loss = kl_loss + 1/D * overshot_loss * self.beta 
       
 
       return batch_reduce(kl_loss).mean(), batch_reduce(nll_loss).mean()
