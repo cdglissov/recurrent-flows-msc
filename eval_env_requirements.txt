@@ -58,3 +58,4 @@ Werkzeug==1.0.1
 wrapt==1.12.1
 zipp==3.4.0
 torchfile==0.1.0
+imageio==2.9.0
