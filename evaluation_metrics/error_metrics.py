@@ -183,37 +183,55 @@ class Evaluator(object):
         recons_flow  = self.solver.preprocess(recons_flow, reverse=True)
         image  = self.solver.preprocess(image, reverse=True)
         time_steps = image.shape[1]
-        fig, ax = plt.subplots(7, time_steps , figsize = (2*time_steps, 2*6))
+        fig, ax = plt.subplots(5, time_steps , figsize = (2*time_steps, 1.62*6))
         for i in range(0, time_steps):
             ax[0,i].imshow(self.convert_to_numpy(image[0, i, :, :, :]))
-            ax[0,i].set_title(r"True Image")
-            ax[0,i].axis('off')
+            ax[0,i].set_xticks([])
+            ax[0,i].set_yticks([])
             for z, zname in zip(range(0,2),list(['Prior','Encoder'])):
-                ax[1+z,i].imshow(self.convert_to_numpy(recons[z, i, 0, :, :, :]))
-                ax[1+z,i].set_title(str(zname))
-                ax[1+z,i].axis('off')
-                ax[3+z,i].imshow(self.convert_to_numpy(recons_flow[z,i, 0, :, :, :]))
-                ax[3+z,i].set_title(str(zname)+' flow')
-                ax[3+z,i].axis('off')
-        plt.subplot(8, 1, 7)
+                if i == 0:
+                    ax[1+z,i].axis('off')
+                else:
+                    ax[1+z,i].imshow(self.convert_to_numpy(recons[z, i, 0, :, :, :]))
+                #ax[1+z,i].set_title(str(zname))
+                ax[1+z,i].set_xticks([])
+                ax[1+z,i].set_yticks([])
+        
+        fontsize = 30
+        rotation = 0
+        labelpad = 60
+        ax[0,0].set_ylabel(r'True seq:',fontsize = fontsize, rotation = rotation, labelpad = labelpad)
+        ax[1,1].set_ylabel(r'Prior:',fontsize = fontsize, rotation = rotation, labelpad = labelpad)
+        ax[2,1].set_ylabel(r'Posterior:',fontsize = fontsize, rotation = rotation, labelpad = labelpad)
+        fig.tight_layout()
+        plt.subplots_adjust(wspace=0, hspace=0)
+        ax1 = plt.subplot(8, 1, 6)
         plt.bar(np.arange(time_steps), averageKLDseq[:,0], align='center', width=0.3)
         plt.xlim((0-0.5, time_steps-0.5))
         plt.xticks(range(0, time_steps), range(0, time_steps))
-        plt.xlabel(r"Frame number")
-        plt.ylabel(r"Sum of KLD")
-        plt.subplot(8, 1, 8)
+        #plt.xlabel(r"$t$")
+        plt.ylabel(r"Avg. KLD",fontsize = 20)
+        plt.yticks(fontsize=20)
+        ax2 = plt.subplot(8, 1, 7)
         plt.bar(np.arange(time_steps)-0.15, averageNLLseq[0, :, 0], align='center', width=0.3,label = 'Prior')
         plt.bar(np.arange(time_steps)+0.15, averageNLLseq[1, :, 0], align='center', width=0.3,label = 'Posterior')
         plt.xlim((0-0.5, time_steps-0.5))
         low = min(min(averageNLLseq[0, 1:, 0]),min(averageNLLseq[1, 1:, 0]))
         high = max(max(averageNLLseq[0, 1:, 0]),max(averageNLLseq[1, 1:, 0]))
+        
         plt.ylim([low-0.5*(high-low), high+0.5*(high-low)])
-        plt.xticks(range(0, time_steps), range(0, time_steps))
-        plt.xlabel(r"Frame number")
-        plt.ylabel(r"bits dim nll")
-        plt.legend()
-        fig.savefig(self.path + 'eval_folder/KLDdiagnostic' + '.png', bbox_inches='tight')
+        plt.xticks(range(0, time_steps), range(0, time_steps),fontsize=20)
+        plt.yticks(fontsize=20)
+        plt.xlabel(r"$t$",fontsize=fontsize)
+        plt.ylabel(r"BPP",fontsize=20)
+        ax1.get_shared_x_axes().join(ax1, ax2)
+        ax1.set_xticklabels([])
+        plt.legend(fontsize=20)
+        plt.tight_layout()
+        plt.subplots_adjust(wspace=0.05, hspace=0.1)
+        fig.savefig(self.path + 'eval_folder/KLDdiagnostic' + '.pdf', bbox_inches='tight')
         plt.close(fig)
+
 
     def plot_prob_of_t(self, probT):
         plt.figure()
