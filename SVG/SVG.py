@@ -241,8 +241,8 @@ class SVG(nn.Module):
       for i in range(1, t):
           h, skip = self.encoder(x[:,i-1,:,:,:])
           h_target = self.encoder(x[:,i,:,:,:])[0]
-          z_t, mu_q, std_q = self.posterior(h_target)
-          _, mu_p, std_p = self.prior(h)
+          z_t, mu_q, logvar_q = self.posterior(h_target)
+          _, mu_p, logvar_p = self.prior(h)
           h_pred = self.frame_predictor(torch.cat([h, z_t], 1))
           
           x_pred = self.decoder([h_pred, skip])
@@ -250,23 +250,23 @@ class SVG(nn.Module):
     
           if self.loss_type == "bernoulli":
               nll = nll - td.Bernoulli(probs=x_pred).log_prob(x[:, i, :, :, :])
-          #elif self.loss_type == "gaussian": #not implemented yet
-          #    dec_std_t = self.dec_std(dec_t)
-          #    nll = nll - td.Normal(dec_mean_t, dec_std_t).log_prob(xt[:, i, :, :, :]).sum([1,2,3]).mean()
           elif self.loss_type == "mse":
               nll = nll + self.mse_criterion(x_pred, x[:, i, :, :, :])
           else:
               print("undefined loss")
           
-            
-          dist_enc = td.Normal(mu_q, std_q)
-          dist_prior = td.Normal(mu_p, std_p)
 
-          kl = kl + td.kl_divergence(dist_enc, dist_prior)
+          kl = kl + self.kl_criterion(mu_q, logvar_q, mu_p, logvar_p)
           
       
-      return batch_reduce(kl).mean(), batch_reduce(nll).mean()
+      return kl, batch_reduce(nll).mean()
     
+    def kl_criterion(self, mu1, logvar1, mu2, logvar2):
+    
+        sigma1 = logvar1.mul(0.5).exp() 
+        sigma2 = logvar2.mul(0.5).exp() 
+        kld = torch.log(sigma2/sigma1) + (torch.exp(logvar1) + (mu1 - mu2)**2)/(2*torch.exp(logvar2)) - 1/2
+        return kld.sum() / self.batch_size
     
     def reconstruct(self, x):
         b,t,c,h,w=x.shape
@@ -284,7 +284,7 @@ class SVG(nn.Module):
             condition = condition.detach()
             z_t, _, _= self.posterior(target)
             h_pred = self.frame_predictor(torch.cat([condition, z_t], 1))
-            x_pred = self.decoder([h_pred, skip]).detach()
+            x_pred = self.decoder([h_pred, skip])
             recons[i,:,:,:,:] = x_pred.detach()
         return recons
     
@@ -304,8 +304,8 @@ class SVG(nn.Module):
             
             z_t, _, _ = self.prior(condition)
             h_pred = self.frame_predictor(torch.cat([condition, z_t], 1))
-            x_pred = self.decoder([h_pred, skip]).detach()
-            samples[i,:,:,:,:] = x_pred
+            x_pred = self.decoder([h_pred, skip])
+            samples[i,:,:,:,:] = x_pred.detach()
             condition_x = x_pred
         return samples
 
@@ -335,9 +335,9 @@ class SVG(nn.Module):
                 x_in=x[:,i,:,:,:]
             else:
                 z_t, _, _ = self.prior(condition)
-                h_pred = self.frame_predictor(torch.cat([condition, z_t], 1)).detach()
-                x_in = self.decoder([h_pred, skip]).detach()
-                predictions[i-n_conditions,:,:,:,:] = x_in
+                h_pred = self.frame_predictor(torch.cat([condition, z_t], 1))
+                x_in = self.decoder([h_pred, skip])
+                predictions[i-n_conditions,:,:,:,:] = x_in.detach()
         return true_x, predictions
 
 

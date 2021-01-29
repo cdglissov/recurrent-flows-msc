@@ -44,7 +44,7 @@ def convert_to_upscaler(x):
     block = [convert_mixed_list(i) for i in x.split("-")]
     return block
 
-        
+          
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     parser.add_argument("--step_length", help="Specify the step size of mnist digit", 
                         default=4, type=int)
     parser.add_argument("--num_digits", help="Specify the number of mnist digits", 
-                        default=1, type=int)
+                        default=2, type=int)
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
                         default=4, type=int)
     
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
                         default=50, type=int)
     parser.add_argument("--patience_lr", help="Specify patience for lr_scheduler", 
-                        default=10, type=int)
+                        default=20, type=int)
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
                         default=0.5, type=restricted_float)
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
@@ -85,15 +85,15 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", help="Specify learning_rate", 
                         default=0.001, type=float)
     parser.add_argument("--preprocess_range", help="Specify the range of the data for preprocessing", 
-                        choices=['0.5','1.0', 'minmax'], default='minmax', type=str)
+                        choices=['0.5','1.0', 'minmax', 'none'], default='none', type=str)
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
                         default=255, type=int)
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
-                        default=0.01, type=float)
+                        default=0.0001, type=float)
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
-                        default=0.000001, type=float)
+                        default=0.0001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
-                        default=4000, type=int)
+                        default=1, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
                         default=5, type=int)
     parser.add_argument("--n_conditions", help="Specify number of conditions", 
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument("--prior_rnn_layers", help="Specify layers of variational prior", 
                         default=1, type=int)
     parser.add_argument("--c_features", help="Specify channels of extracted features", 
-                        default=128, type=int)
+                        default=256, type=int)
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
                         default=[100, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=256, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
-                        default=10, type=int) # Very bad if too high, very bad if too low
+                        default=12, type=int) # Very bad if too high, very bad if too low
     parser.add_argument("--loss_type", help="Specify the type of loss used", 
                         default="mse", choices = ["bernoulli", "mse", "gaussian"], type=str)
     parser.add_argument("--norm_type", help="Specify the type of loss used", 

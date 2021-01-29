@@ -52,11 +52,11 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=35, type=int)
+                        default=32, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
-                        choices=['mnist', 'bair'], default='mnist', type=str)
+                        choices=['mnist', 'bair'], default='bair', type=str)
     parser.add_argument("--image_size", help="Specify the image size of mnist", 
                         default=64, type=int)
     parser.add_argument("--digit_size", help="Specify the size of mnist digit", 
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
                         default=0.5, type=restricted_float)
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
-                        default=0.0001, type=float)
+                        default=0.00005, type=float)
     parser.add_argument("--n_bits", help="Specify number of bits", 
                         default=8, type=int)
     parser.add_argument("--n_epochs", help="Specify number of epochs", 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     parser.add_argument("--path", help="Specify path to experiment", 
                         default='/content/', type=str)
     parser.add_argument("--learning_rate", help="Specify learning_rate", 
-                        default=0.0001, type=float)
+                        default=0.0005, type=float)
     parser.add_argument("--preprocess_range", help="Specify the range of the data for preprocessing", 
                         choices=['0.5','1.0'], default='0.5', type=str)
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
                         default=0.00001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
-                        default=10000, type=int)
+                        default=12000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
                         default=5, type=int)
     parser.add_argument("--n_conditions", help="Specify number of predictions", 
@@ -112,9 +112,9 @@ if __name__ == "__main__":
     
     # RFN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[35, 1, 64, 64], type=int)
+                        default=[32, 3, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[35, 1, 64, 64], type=int)
+                        default=[32, 3, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=200, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
@@ -140,9 +140,9 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", help="Specify temperature", 
                         default=0.7, type=restricted_float)
     parser.add_argument("--prior_structure", help="Specify the structure of the prior", 
-                        nargs="+" ,default=[256, 256],type=convert_mixed_list)
+                        nargs="+" ,default=[256, 128],type=convert_mixed_list)
     parser.add_argument("--encoder_structure", help="Specify the structure of the encoder", 
-                        nargs="+" ,default=[256, 256],type=convert_mixed_list)
+                        nargs="+" ,default=[256, 128],type=convert_mixed_list)
     parser.add_argument('--skip_connection_flow', help="Specify skip_connections mode", 
                         default='without_skip', choices=["without_skip", "with_skip", "only_skip"], type=str)
     add_bool_arg(parser, "downscaler_tanh", default=False, help="Specify if skip connection from downscaler is tanh'ed (boolean)")

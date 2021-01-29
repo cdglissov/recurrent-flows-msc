@@ -243,288 +243,6 @@ class SimpleParamNet(nn.Module):
     scale = self.softplus(log_scale)
     return loc, scale
 
-
-class ConvLSTMLayer(nn.Module):
-    def __init__(self, in_channels, hidden_channels, kernel_size, bias, 
-                 dropout = 0, peephole=True, norm = False, make_init = True):
-        super(ConvLSTMLayer, self).__init__()
-        self.in_channels = in_channels
-        self.hidden_channels = hidden_channels
-        self.kernel_size = kernel_size 
-        self.peephole = peephole
-        self.make_init = make_init
-        self.padding = ((kernel_size[0] - 1) // 2, (kernel_size[1] - 1) // 2)
-        self.bias = bias
-        layers = []
-        
-        layers.append(nn.Conv2d(in_channels = self.in_channels + self.hidden_channels,
-                              out_channels = 4 * self.hidden_channels,
-                              kernel_size = self.kernel_size,
-                              stride = 1,
-                              padding = self.padding,
-                              bias = self.bias))
-
-        if norm == True:
-          # TODO: Groupnorm might not work, specify groups.
-          layers.append(nn.GroupNorm(4 * self.hidden_channels // 32, 4 * self.hidden_channels))
-        if dropout != 0:
-          layers.append(nn.Dropout2d(p = dropout))
-
-        self.conv = nn.Sequential(*layers)
-
-        self.init_done = False
-        if self.make_init:
-            self.apply(self.initialize_weights)
-
-    def forward(self, input_tensor, cur_state):
-        b, c, h, w = input_tensor.shape
-        if cur_state[0] == None:
-          h_cur = nn.Parameter(torch.zeros(b, self.hidden_channels, h, w)).to(device)
-          c_cur = nn.Parameter(torch.zeros(b, self.hidden_channels, h, w)).to(device)
-        else:
-          h_cur, c_cur = cur_state
-
-        if self.init_done == False:
-          self.initialize_peephole(h, w)
-          self.init_done = True
-
-        combined = torch.cat([input_tensor, h_cur], dim=1)
-        combined_conv = self.conv(combined)
-
-        cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_channels, dim=1)
-        i = torch.sigmoid(cc_i + self.Wci * c_cur)
-        f = torch.sigmoid(cc_f + self.Wcf * c_cur)
-        g = torch.tanh(cc_g)
-        c_next = f * c_cur + i * g
-        o = torch.sigmoid(cc_o + self.Wco*c_next)
-        h_next = o * torch.tanh(c_next)
-        return h_next, c_next
-    
-
-    def initialize_weights(self, layer):
-      if type(layer) == nn.Conv2d:
-        nn.init.xavier_normal_(layer.weight)
-        if self.bias:
-            nn.init.uniform_(layer.bias)
-    
-    def initialize_peephole(self, height, width):
-      if self.peephole:
-        self.Wci = nn.Parameter(torch.zeros(1, self.hidden_channels, height, width)).to(device)
-        self.Wcf = nn.Parameter(torch.zeros(1, self.hidden_channels, height, width)).to(device)
-        self.Wco = nn.Parameter(torch.zeros(1, self.hidden_channels, height, width)).to(device)
-      else:
-        self.Wci = 0
-        self.Wcf = 0
-        self.Wco = 0
-    
-        
-class ConvLSTM(nn.Module):
-    def __init__(self, in_channels, hidden_channels, kernel_size, bias=True, 
-                 dropout = 0, peephole=True, norm = False, make_init = True, num_layers = 1):
-        super(ConvLSTM, self).__init__()
-        self.num_layers = num_layers
-        
-        kernel_size = self._extend_for_multilayer(kernel_size, num_layers)
-        hidden_channels  = self._extend_for_multilayer(hidden_channels, num_layers)
-        if not len(kernel_size) == len(hidden_channels) == num_layers:
-            raise ValueError('Inconsistent list length')
-        
-        cell_list = []
-        for i in range(0, self.num_layers):
-            cur_in_channels = in_channels if i == 0 else hidden_channels[i-1]
-            cell_list.append(ConvLSTMLayer(in_channels=cur_in_channels,
-                                          hidden_channels=hidden_channels[i],
-                                          kernel_size=kernel_size[i],
-                                          bias=bias, dropout=dropout, peephole = peephole,
-                                          norm = norm, make_init = make_init))
-        
-        self.LSTMlayers = nn.ModuleList(cell_list)
-
-
-    def forward(self, x, hidden_states):
-        b, seq_len, channel, h, w = x.size()
-        x = x.view(b*seq_len, channel, h, w)
-        cur_layer_input = x
-        for layer in range(self.num_layers):
-            ht, ct = hidden_states[layer]
-            ht, ct = self.LSTMlayers[layer](input_tensor=cur_layer_input,
-                                          cur_state=[ht, ct])
-            hidden_states[layer] = ht, ct
-            cur_layer_input = ht
-            
-        return ht, hidden_states
-    
-    @staticmethod
-    def _extend_for_multilayer(param, num_layers):
-        if not isinstance(param, list):
-            param = [param] * num_layers
-        return param
-
-class vgg_layer(nn.Module):
-    def __init__(self, nin, nout):
-        super(vgg_layer, self).__init__()
-        self.main = nn.Sequential(
-                nn.Conv2d(nin, nout, 3, 1, 1),
-                nn.BatchNorm2d(nout),
-                nn.LeakyReLU(0.2, inplace=True)
-                )
-
-    def forward(self, input):
-        return self.main(input)
-
-
-class Encoder(nn.Module):
-    def __init__(self, dim, nc=1):
-        super(Encoder, self).__init__()
-        self.dim = dim
-        
-        self.c0 = nn.Sequential(
-                vgg_layer(nc, 16),
-                vgg_layer(16, 16),
-                )
-        
-        self.c1 = nn.Sequential(
-                vgg_layer(16, 32),
-                vgg_layer(32, 32),
-                )
-     
-        self.c2 = nn.Sequential(
-                vgg_layer(32, 64),
-                vgg_layer(64, 64),
-                )
-     
-        self.c3 = nn.Sequential(
-                vgg_layer(64, 128),
-                vgg_layer(128, 128),
-                vgg_layer(128, 128),
-                )
-        
-        self.c4 = nn.Sequential(
-                vgg_layer(128, 256),
-                vgg_layer(256, 256),
-                vgg_layer(256, 256),
-                )
-        self.c5 = nn.Sequential(
-                vgg_layer(256, 512),
-                vgg_layer(512, 512),
-                vgg_layer(512, 512),
-                )
- 
-        self.c6 = nn.Sequential(
-                nn.Conv2d(512, dim, 1, 1, 0),
-                nn.BatchNorm2d(dim),
-                nn.Tanh()
-                )
-        self.mp = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-
-    def forward(self, input):
-        h0 = self.c0(input) # 64x64
-        h1 = self.c1(self.mp(h0)) # 32x32
-        h2 = self.c2(self.mp(h1)) # 16x16
-        h3 = self.c3(self.mp(h2)) # 8x8
-        h4 = self.c4(self.mp(h3)) # 4x4
-        h5 = self.c5(self.mp(h4)) # 2x2
-        h6 = self.c6(self.mp(h5)) # 1x1
-        return h6.view(-1, self.dim), [h0, h1, h2, h3, h4, h5]
-
-
-class ActFun_SVG(nn.Module):
-  def __init__(self, non_lin, in_place = True):
-    super(ActFun_SVG, self).__init__()
-    self.non_lin = non_lin
-    if non_lin=='tanh':
-      self.net=nn.Tanh()
-    elif non_lin=='sigmoid':
-      self.net=nn.Sigmoid()
-    else:
-      self.net=nn.LeakyReLU(negative_slope=0.20, inplace = in_place)
- 
-  def forward(self,x):
-    if self.non_lin == 'tanh':
-        x=self.net(x)*0.5
-    elif self.non_lin == 'sigmoid':
-        x=self.net(x)-0.5
-    else:
-        x=self.net(x)
-    return self.net(x)
-
-class vgg_layer2(nn.Module):
-    def __init__(self, nin, nout, act):
-        super(vgg_layer2, self).__init__()
-        self.main = nn.Sequential(
-                nn.Conv2d(nin, nout, 3, 1, 1),
-                nn.BatchNorm2d(nout),
-                ActFun_SVG(act, in_place=True)
-                )
-
-    def forward(self, input):
-        return self.main(input)
-
-
-
-class Decoder(nn.Module):
-    def __init__(self, dim, nc=1, act="none"):
-        super(Decoder, self).__init__()
-        self.dim = dim
-        #1x1->2x2
-        self.upc1 = nn.Sequential(
-                nn.ConvTranspose2d(dim, 512, 1, 1, 0),
-                nn.BatchNorm2d(512),
-                nn.LeakyReLU(0.2, inplace=True),
-                vgg_layer2(512, 512, act),
-                )
-        
-        # 4 x 4
-        self.upc2 = nn.Sequential(
-                vgg_layer(512*2, 512),
-                vgg_layer(512, 512),
-                vgg_layer2(512, 256, act)
-                )
-        # 8 x 8
-        self.upc3 = nn.Sequential(
-                vgg_layer(256*2, 256),
-                vgg_layer(256, 256),
-                vgg_layer2(256, 128, act)
-                )
-        # 16 x 16
-        self.upc4 = nn.Sequential(
-                vgg_layer(128*2, 128),
-                vgg_layer(128, 128),
-                vgg_layer2(128, 64, act)
-                )
-        
-        # 32 x 32
-        self.upc5 = nn.Sequential(
-                vgg_layer(64*2, 64),
-                vgg_layer2(64, 32, act)
-                )
-        
-        # 64 x 64
-        self.upc6 = nn.Sequential(
-                vgg_layer(32*2, 32),
-                vgg_layer2(32, 16, act)
-                )
-        
-        self.up = nn.UpsamplingNearest2d(scale_factor=2)
-        
-    def forward(self, input):
-        vec, skip = input 
-        d1 = self.upc1(vec.view(-1, self.dim, 1, 1)) 
-        up1 = self.up(d1)
-        d2 = self.upc2(torch.cat([up1, skip[5]], 1)) 
-        up2 = self.up(d2) 
-        d3 = self.upc3(torch.cat([up2, skip[4]], 1)) 
-        up3 = self.up(d3) 
-        d4 = self.upc4(torch.cat([up3, skip[3]], 1)) 
-        up4 = self.up(d4) 
-        d5 = self.upc5(torch.cat([up4, skip[2]], 1)) 
-        up5 = self.up(d5) 
-        d6 = self.upc6(torch.cat([up5, skip[1]], 1)) 
-        return [d1, d2, d3, d4,d5,d6]
-
-
-
-
 class lstm_svg(nn.Module):
     def __init__(self, input_size, output_size, hidden_size, n_layers, batch_size):
         super(lstm_svg, self).__init__()
@@ -568,8 +286,8 @@ class gaussian_lstm(nn.Module):
         self.batch_size = batch_size
         self.embed = nn.Linear(input_size, hidden_size)
         self.lstm = nn.ModuleList([nn.LSTMCell(hidden_size, hidden_size) for i in range(self.n_layers)])
-        self.mu_net = nn.Sequential(nn.Linear(hidden_size, output_size), nn.Tanh())
-        self.logvar_net = nn.Sequential(nn.Linear(hidden_size, output_size), nn.Tanh())
+        self.mu_net = nn.Sequential(nn.Linear(hidden_size, output_size))
+        self.logvar_net = nn.Sequential(nn.Linear(hidden_size, output_size))
         self.hidden = self.init_hidden()
 
     def init_hidden(self):
@@ -605,9 +323,9 @@ def init_weights(m):
         m.bias.data.fill_(0)
 
 ####
-class ConvLSTMLayerOld(nn.Module):
+class ConvLSTMLayer(nn.Module):
     def __init__(self, in_channels, hidden_channels, kernel_size, bias, dropout = 0, peephole=True, norm = False):
-        super(ConvLSTMLayerOld, self).__init__()
+        super(ConvLSTMLayer, self).__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
         self.kernel_size = kernel_size 
@@ -675,11 +393,11 @@ class ConvLSTMLayerOld(nn.Module):
         self.Wco = 0
 
         
-class ConvLSTMOld(nn.Module):
+class ConvLSTM(nn.Module):
     def __init__(self, in_channels, hidden_channels, kernel_size, bias=True, dropout = 0, peephole=True, norm = False):
-        super(ConvLSTMOld, self).__init__()
+        super(ConvLSTM, self).__init__()
         self.hidden_channels = hidden_channels
-        self.LSTMlayer = ConvLSTMLayerOld(in_channels=in_channels,
+        self.LSTMlayer = ConvLSTMLayer(in_channels=in_channels,
                                           hidden_channels=hidden_channels,
                                           kernel_size=kernel_size,
                                           bias=bias, dropout=dropout, peephole = peephole,
