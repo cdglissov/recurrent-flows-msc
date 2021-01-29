@@ -49,6 +49,8 @@ class MovingMNIST(object):
         #self.set_seed(index)
         if not self.seed == None:
             self.set_seed(self.seed)
+        else:
+            self.set_seed(index)
         image_size = self.image_size
        
         x = np.zeros((self.seq_len,
