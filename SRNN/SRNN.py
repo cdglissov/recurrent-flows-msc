@@ -244,8 +244,7 @@ class SRNN(nn.Module):
         
         store_ztx_mean[i-1,:,:] = enc_mean_t
         store_ztx_std[i-1,:,:] = enc_std_t
-        
-        store_ztx[i-1,:,:] = z_tx
+        store_ztx[i-1,:,:] = zprevx
 
         dec_t = self.dec(torch.cat([ht, self.phi_z(z_tx)], 1))
         dec_mean_t = self.dec_mean(dec_t)
