@@ -31,6 +31,8 @@ def main(settings):
             from RFN.trainer import Solver
         elif model_name == "srnn.pt":
             from SRNN.trainer import Solver
+        elif model_name == "srnn2.pt":
+            from SRNN2.trainer import Solver
         else:
             print("Unknown Model")
         
@@ -153,11 +155,11 @@ if __name__ == "__main__":
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments",
                         default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
-                        default=["rfn_test"], type=str)
+                        default=["srnn_test_resq_pred", "srnn_test_os_s"], type=str)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
-                        default=["rfn"], type=str)
+                        default=["SRNN_zxt", "SRNN_normal"], type=str)
     parser.add_argument("--model_path", nargs='+', help="Name of model.pt file",
-                        default=['rfn.pt'], type=str)
+                        default=['srnn.pt', "srnn2.pt"], type=str)
 
     #CALCULATE VALUES SETTINGS:
     add_bool_arg(parser, "use_validation_set", default=False,
@@ -165,11 +167,11 @@ if __name__ == "__main__":
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences",
                         default=5, type=int)
     parser.add_argument("--n_frames", help="Specify the sequence length of the test data",
-                        default=10, type=int)
+                        default=20, type=int)
     parser.add_argument("--start_predictions", help="Specify when model starts predicting",
                         default=5, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model",
-                        default=[0.7], type=float)
+                        default=[0.7, 0.7], type=float)
     parser.add_argument("--resample", help="Loops over the test set more than once to get better measures. WARNING: can be slow",
                         default=2, type=int)
     add_bool_arg(parser, "extra_plots", default=True,
@@ -186,11 +188,11 @@ if __name__ == "__main__":
                  help="Plots num_samples_to_plot samples to make sure the loader and eval works")
 
     #EVAL VALUES PLOTTER SETTINGS:
-    add_bool_arg(parser, "calc_eval", default=False,
+    add_bool_arg(parser, "calc_eval", default=True,
                  help="Set to false if we do not want to calculate eval values")
     parser.add_argument("--n_conditions", help="Number of conditions used for plotting eval_values",
                         default=5, type=int)
-    add_bool_arg(parser, "eval_parameters", default=True,
+    add_bool_arg(parser, "eval_parameters", default=False,
                  help="If true then parameter analysis plot will be created")
 
     # FVD settings
@@ -198,6 +200,7 @@ if __name__ == "__main__":
                  help="Enabling this allows us to compute FVD")
     parser.add_argument("--fvd_predicts", help="How far into the future to predict",
                         default=10, type=int)
+    
 
     args = parser.parse_args()
 

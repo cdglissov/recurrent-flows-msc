@@ -1,6 +1,6 @@
 import sys
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows_18_01/')
+sys.path.insert(1, './deepflows/')
 import torch
 import torch.utils.data
 from torch.utils.data import DataLoader
@@ -8,7 +8,6 @@ import os
 import lpips
 from Utils import set_gpu
 import matplotlib.pyplot as plt
-plt.rcParams.update({'text.usetex': True}) # To run latex
 from data_generators import MovingMNIST
 from data_generators import MovingMNIST_synchronized
 from data_generators import PushDataset
@@ -91,7 +90,7 @@ class Evaluator(object):
                                  normalize=False)
 
             if self.debug_mnist:
-                te_split_len = 200
+                te_split_len = 1000
                 testset = torch.utils.data.random_split(testset,
                                 [te_split_len, len(testset)-te_split_len])[0]
 
@@ -391,15 +390,15 @@ class Evaluator(object):
               PSNR_mean = []
               LPIPS_mean = []
               for time in range(0, self.resample):
-                  print(time)
                   if self.choose_data=='bair':
                       image = true_image[0].to(device)
                   else:
                       image = true_image.to(device)
+                  
                   image = self.solver.preprocess(image)
                   image_notchanged = image
 
-                  x_true, predictions = self.model.predict(image, start_predictions, self.n_frames-start_predictions)
+                  x_true, predictions = self.model.predict(image, self.n_frames-start_predictions, start_predictions)
                   # Computes eval loss
                   if model_name == "rfn.pt":
                       logdet = 0
@@ -510,7 +509,6 @@ class Evaluator(object):
 
           # Shape: [seq_id, n_frames]
           PSNR_values = torch.cat(PSNR_values)
-          print(PSNR_values.shape)
           MSE_values = torch.cat(MSE_values)
           SSIM_values = torch.cat(SSIM_values)
           LPIPS_values = torch.cat(LPIPS_values)
@@ -519,9 +517,6 @@ class Evaluator(object):
           SSIM_std_values = torch.cat(SSIM_std_values, 0)
           PSNR_std_values = torch.cat(PSNR_std_values, 0)
           LPIPS_std_values = torch.cat(LPIPS_std_values, 0)
-          print(LPIPS_std_values.shape)
-
-
 
           # Sort gt and preds based on highest to lowest SSIM values
           ordered = torch.argsort(SSIM_values.mean(-1), descending=True)
