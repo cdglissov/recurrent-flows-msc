@@ -22,7 +22,7 @@ def main(settings):
         model_name = settings.model_path[i]
         load_model = torch.load(settings.folder_path+experiments[i]+"/model_folder/"+model_name)
         args = load_model['args']
-
+        
         if model_name == "svg.pt":
             from SVG.trainer import Solver
         elif model_name == "vrnn.pt":
@@ -33,12 +33,12 @@ def main(settings):
             from SRNN.trainer import Solver
         else:
             print("Unknown Model")
-
+        
         solver = Solver(args)
         solver.build()
         if settings.calc_eval:
             solver.load(load_model)
-
+        
         evaluator = Evaluator(solver, args, settings)
         evaluator.build()
 
@@ -153,19 +153,19 @@ if __name__ == "__main__":
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments",
                         default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
-                        default=["overshot0_v6","overshot1_v6","overshot2_v6"], type=str)
+                        default=["rfn_test"], type=str)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
-                        default=["D: 1","D: 2","D: 2"], type=str)
+                        default=["rfn"], type=str)
     parser.add_argument("--model_path", nargs='+', help="Name of model.pt file",
-                        default=['srnn.pt','srnn.pt','srnn.pt'], type=str)
+                        default=['rfn.pt'], type=str)
 
     #CALCULATE VALUES SETTINGS:
-    add_bool_arg(parser, "use_validation_set", default=True,
+    add_bool_arg(parser, "use_validation_set", default=False,
                  help="If true then a validation set is used to tune parameters")
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences",
                         default=5, type=int)
     parser.add_argument("--n_frames", help="Specify the sequence length of the test data",
-                        default=30, type=int)
+                        default=10, type=int)
     parser.add_argument("--start_predictions", help="Specify when model starts predicting",
                         default=5, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model",
@@ -180,9 +180,9 @@ if __name__ == "__main__":
                  help="Allows one to test temperature. If enabled different temperatures (from --temperatures) are tested for each specified model")
 
     #DEBUG SETTINGS:
-    add_bool_arg(parser, "debug_mnist", default=False,
+    add_bool_arg(parser, "debug_mnist", default=True,
                  help="Uses a small test set to speed up iterations for debugging. Only works for SM-MNIST")
-    add_bool_arg(parser, "debug_plot", default=True,
+    add_bool_arg(parser, "debug_plot", default=False,
                  help="Plots num_samples_to_plot samples to make sure the loader and eval works")
 
     #EVAL VALUES PLOTTER SETTINGS:
@@ -190,7 +190,7 @@ if __name__ == "__main__":
                  help="Set to false if we do not want to calculate eval values")
     parser.add_argument("--n_conditions", help="Number of conditions used for plotting eval_values",
                         default=5, type=int)
-    add_bool_arg(parser, "eval_parameters", default=False,
+    add_bool_arg(parser, "eval_parameters", default=True,
                  help="If true then parameter analysis plot will be created")
 
     # FVD settings

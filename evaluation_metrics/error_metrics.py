@@ -91,7 +91,7 @@ class Evaluator(object):
                                  normalize=False)
 
             if self.debug_mnist:
-                te_split_len = 800
+                te_split_len = 200
                 testset = torch.utils.data.random_split(testset,
                                 [te_split_len, len(testset)-te_split_len])[0]
 
@@ -784,6 +784,8 @@ class Evaluator(object):
         std_q_params=[]
         mu_flow_params=[]
         std_flow_params=[]
+        # DO NOT DELETE TEMP, OTHERWISE PARAM_TEST_SET WONT UPDATE
+        temp = next(iter(param_test_set))
         digit_one = list(np.where(param_test_set.dataset.hit_boundary==1)[0])
         digit_two = list(np.where(param_test_set.dataset.hit_boundary==2)[0])
 
@@ -795,7 +797,7 @@ class Evaluator(object):
               else:
                 image = true_image.to(device)
               image = self.solver.preprocess(image)
-
+              
               mu_p, std_p, mu_q, std_q, mu_flow, std_flow = self.model.param_analysis(x=image,
                                                                                       n_conditions=n_conditions,
                                                                                       n_predictions=seq_len-n_conditions)
@@ -822,29 +824,29 @@ class Evaluator(object):
          r"$\mu_{flow}$", r"$\sigma_{flow}$" ]
 
         #alpha = 0.05
-        xaxis = np.arange(0, seq_len, 1)
+        xaxis = np.arange(1, seq_len, 1)
         ax[0,0].plot(xaxis, mu_p_params, label=names[0])
-        ax[0,0].set_xlim([0, seq_len-2])
+        ax[0,0].set_xlim([1, seq_len-1])
 
-        xaxis = np.arange(0, n_conditions-1, 1)
+        xaxis = np.arange(1, seq_len, 1)
         ax[1,0].plot(xaxis, mu_q_params, label=names[2])
-        ax[1,0].set_xlim([0, n_conditions-2])
+        ax[1,0].set_xlim([1, seq_len-1])
 
-        xaxis = np.arange(n_conditions, seq_len, 1)
+        xaxis = np.arange(1, seq_len, 1)
         ax[2,0].plot(xaxis, mu_flow_params, label=names[4])
-        ax[2,0].set_xlim([n_conditions, seq_len-1])
+        ax[2,0].set_xlim([1, seq_len-1])
 
-        xaxis = np.arange(0, seq_len, 1)
+        xaxis = np.arange(1, seq_len, 1)
         ax[0,1].plot(xaxis, std_p_params, label=names[1])
-        ax[0,1].set_xlim([0, seq_len-2])
+        ax[0,1].set_xlim([1, seq_len-1])
 
-        xaxis = np.arange(0, n_conditions-1, 1)
+        xaxis = np.arange(1, seq_len, 1)
         ax[1,1].plot(xaxis, std_q_params, label=names[3])
-        ax[1,1].set_xlim([0, n_conditions-2])
+        ax[1,1].set_xlim([1, seq_len-1])
 
-        xaxis = np.arange(n_conditions, seq_len, 1)
+        xaxis = np.arange(1, seq_len, 1)
         ax[2,1].plot(xaxis, std_flow_params, label=names[5])
-        ax[2,1].set_xlim([n_conditions,seq_len-1])
+        ax[2,1].set_xlim([1, seq_len-1])
 
         ax[0,0].set_ylabel(r'Average')
         ax[1,0].set_ylabel(r'Average')

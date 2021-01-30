@@ -507,15 +507,15 @@ class RFN(nn.Module):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
         hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()
         hw = x.shape[-1]//(2**self.L)
-        std_p = torch.zeros((n_predictions+n_conditions, x.shape[0], self.z_dim, hw, hw))
-        mu_p = torch.zeros((n_predictions+n_conditions, x.shape[0], self.z_dim, hw, hw))
-        std_q = torch.zeros((n_conditions-1, x.shape[0], self.z_dim, hw, hw))
-        mu_q = torch.zeros((n_conditions-1, x.shape[0], self.z_dim, hw, hw))
+        std_p = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
+        mu_p = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
+        std_q = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
+        mu_q = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
         std_flow = []
         mu_flow = []
 
         # Warm-up
-        for i in range(1, n_conditions):
+        for i in range(1, n_conditions + n_predictions):
             condition_list = self.extractor(x[:, i-1, :, :, :])
             x_feature_list = self.extractor(x[:, i, :, :, :])
             #Fix this so it is smarter
@@ -528,7 +528,6 @@ class RFN(nn.Module):
 
             _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
 
-
             prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
             dist_prior = td.Normal(prior_mean, prior_std)
             zt = dist_prior.sample()
@@ -537,28 +536,10 @@ class RFN(nn.Module):
             dist_enc = td.Normal(enc_mean, enc_std)
             zxt = dist_enc.rsample()
 
-            zxprev = zxt
-            zprev = zt
-            hprev = ht
-            cprev = ct
             std_p[i-1,:,:,:,:] = prior_std.detach()
             mu_p[i-1,:,:,:,:] = prior_mean.detach()
             std_q[i-1,:,:,:,:] = enc_std.detach()
             mu_q[i-1,:,:,:,:] = enc_mean.detach()
-
-        prediction = x[:,n_conditions-1,:,:,:]
-        for i in range(0, n_predictions):
-            if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-                condition = self.extractor(prediction)
-            else:
-                condition_list = self.extractor(prediction)
-                condition = condition_list[-1]
-            _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
-
-            prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
-            dist_prior = td.Normal(prior_mean, prior_std)
-            zt = dist_prior.sample()
-
 
             if self.skip_connection_features:
                 flow_conditions = self.upscaler(torch.cat((ht, zt), dim = 1), skip_list = condition_list)
@@ -572,11 +553,11 @@ class RFN(nn.Module):
 
             base_conditions = torch.cat((ht, zt), dim = 1)
             prediction, params = self.flow.sample(None, flow_conditions, base_conditions, self.temperature, eval_params = True)
-            hprev, cprev = ht, ct
-            zprev = zt
-            std_p[i+n_conditions-1,:,:,:,:] = prior_std.detach()
-            mu_p[i+n_conditions-1,:,:,:,:] = prior_mean.detach()
             std_flow.append(params[1].detach())
             mu_flow.append(params[0].detach())
-
+            
+            zxprev = zxt
+            zprev = zt
+            hprev = ht
+            cprev = ct
         return mu_p, std_p, mu_q, std_q, torch.stack(mu_flow), torch.stack(std_flow)
