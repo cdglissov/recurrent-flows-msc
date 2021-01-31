@@ -1,11 +1,3 @@
-# TODO: check metric STD's
-# TODO: Ask tobs about if n_conditions isn't equal to start_predictions? (it is)
-# TODO: Proper normalized loss in plot_elbo_gap
-# TODO: Make FVD wrapper in error_metrics.py https://github.com/edouardelasalles/srvp/tree/master/metrics
-# TODO: Get parameters of RFN model (Tomorrow)
-# TODO: Interpolation between two images (Tobias)
-# TODO: get_eval_values we need to find best BPD, for that we need
-
 import argparse
 import torch
 import sys
@@ -159,11 +151,11 @@ if __name__ == "__main__":
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
                         default=["SRNN_zxt", "SRNN_normal"], type=str)
     parser.add_argument("--model_path", nargs='+', help="Name of model.pt file",
-                        default=['srnn.pt', "srnn2.pt"], type=str)
+                        default=['srnn.pt', "srnn.pt"], type=str)
 
     #CALCULATE VALUES SETTINGS:
     add_bool_arg(parser, "use_validation_set", default=False,
-                 help="If true then a validation set is used to tune parameters")
+                 help="If true then a validation set is used to tune parameters, WARNING: Change value if not using MNIST")
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences",
                         default=5, type=int)
     parser.add_argument("--n_frames", help="Specify the sequence length of the test data",

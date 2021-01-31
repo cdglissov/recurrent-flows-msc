@@ -66,6 +66,7 @@ if __name__ == "__main__":
                         default=2, type=int)
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
                         default=4, type=int)
+    add_bool_arg(parser, "use_validation_set", default=False, help="Specify if we want to use a validation set")
     
     # Trainer
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 

@@ -70,12 +70,12 @@ class Evaluator(object):
         self.lpipsNet = lpips.LPIPS(net='alex').to(device)
 
     def create_loaders(self):
-        if self.use_validation_set:
-            train_boolean=True
-            train_bair='train'
-        else:
-            train_boolean=False
-            train_bair='test'
+        #if self.use_validation_set:
+        #    train_boolean=True
+        #    train_bair='train'
+        #else:
+        train_boolean=False
+        train_bair='test'
 
         if self.choose_data=='mnist':
             plt.rcParams['image.cmap']='gray'
@@ -84,7 +84,7 @@ class Evaluator(object):
                                  image_size=self.image_size,
                                  digit_size=self.digit_size,
                                  num_digits=self.num_digits,
-												 deterministic=False,
+												deterministic=False,
                                  three_channels=False,
                                  step_length=self.step_length,
                                  normalize=False)
@@ -109,9 +109,9 @@ class Evaluator(object):
                         data_root=string+"/kth_data",
                         seq_len=self.n_frames, 
                         image_size=self.image_size)
-            
+
         if self.use_validation_set:
-            testset_sub = torch.utils.data.Subset(testset, list(range(0, 256, 1)))
+            testset_sub = torch.utils.data.Subset(testset, list(range(0, 1000, 1)))
             test_loader = DataLoader(testset_sub, batch_size=self.batch_size,
                                      num_workers=self.num_workers, shuffle=False, drop_last=True)
         else:
@@ -147,7 +147,7 @@ class Evaluator(object):
       fig.savefig(self.path +'eval_folder/' + name +  '.png', bbox_inches='tight') #dpi=fig.get_dpi()*2)
       plt.close(fig)
 
-    # Eval From SVG
+
     def eval_seq(self, gt, pred):
         # Takes a ground truth (gt) of size [bs, time, c, h, w]
         T = gt.shape[1]
@@ -767,7 +767,7 @@ class Evaluator(object):
                                                   step_length=self.step_length, normalize = False,
                                                   make_target = False, seed = None)
 
-        te_split_len = 200
+        te_split_len = 400
         param_test_set = torch.utils.data.random_split(param_test_set,
                                 [te_split_len, len(param_test_set)-te_split_len])[0]
 
@@ -779,8 +779,9 @@ class Evaluator(object):
         std_q_params=[]
         mu_flow_params=[]
         std_flow_params=[]
-        # DO NOT DELETE TEMP, OTHERWISE PARAM_TEST_SET WONT UPDATE
-        temp = next(iter(param_test_set))
+        # DO NOT DELETE TEMP, OTHERWISE PARAM_TEST_SET WONT UPDATE BOUNDARIES
+        temp = next(iter(param_test_set)) #hack
+        ##########################################################
         digit_one = list(np.where(param_test_set.dataset.hit_boundary==1)[0])
         digit_two = list(np.where(param_test_set.dataset.hit_boundary==2)[0])
 

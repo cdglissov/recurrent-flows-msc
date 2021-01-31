@@ -67,8 +67,8 @@ if __name__ == "__main__":
                         default=2, type=int)
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
                         default=2, type=int)
-    
-    
+    add_bool_arg(parser, "use_validation_set", default=False, help="Specify if we want to use a validation set")
+
     # Trainer
     # The plateau function reduces the learning rate after plateau. Linear decrease the learning rate after threshold.
     parser.add_argument('--scheduler_type', help="Specify type of scheduler.", 

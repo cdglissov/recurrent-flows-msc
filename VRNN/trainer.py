@@ -75,7 +75,7 @@ class Solver(object):
         self.multigpu = args.multigpu
         self.n_predictions = args.n_predictions
         self.n_conditions = args.n_conditions
-        
+        self.use_validation_set = args.use_validation_set
         
     def build(self):
         self.train_loader, self.test_loader = self.create_loaders()
@@ -104,6 +104,7 @@ class Solver(object):
         self.counter = 0
 
     def create_loaders(self):
+        
         if self.choose_data=='mnist':
             plt.rcParams['image.cmap']='gray'
             testset = MovingMNIST(False, 'Mnist',
@@ -149,7 +150,12 @@ class Solver(object):
                         seq_len=self.n_frames, 
                         image_size=self.image_size)
         
-        train_loader = DataLoader(trainset,batch_size=self.batch_size, shuffle=True, drop_last=True)
+        if self.use_validation_set:
+            trainset_sub = torch.utils.data.Subset(trainset, list(range(0, 500, 1)))
+            train_loader = DataLoader(trainset_sub, batch_size=self.batch_size,num_workers=self.num_workers, shuffle=True, drop_last=True)
+        else:
+            train_loader = DataLoader(trainset,batch_size=self.batch_size,num_workers=self.num_workers, shuffle=True, drop_last=True)
+        
         test_loader = DataLoader(testset, batch_size=self.batch_size, shuffle=True, drop_last=True)
         return train_loader, test_loader
 
