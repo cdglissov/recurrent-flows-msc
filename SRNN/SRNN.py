@@ -186,7 +186,7 @@ class SRNN(nn.Module):
 
       store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
       store_at = torch.zeros((t-1, *aprev.shape)).cuda()
-      store_x_features = torch.zeros((self.batch_size, t, self.phi_x_t_channels, 8, 8)).cuda()
+      store_x_features = torch.zeros((self.batch_size, t, self.phi_x_t_channels, self.h, self.w)).cuda()
       #Find ht
       for i in range(0, t):
           store_x_features[:, i, :, :, :] = self.phi_x_t(xt[:, i, :, :, :])
@@ -384,6 +384,7 @@ class SRNN(nn.Module):
             store_at[t-i-1,:,:,:,:] = at
 
       for i in range(1, t):
+        ht = store_ht[i-1,:,:,:,:]
         if self.enable_smoothing:
             at = store_at[i-1,:,:,:,:]
             enc_t = self.enc(torch.cat([at, self.phi_z(zprevx)], 1))
@@ -392,7 +393,6 @@ class SRNN(nn.Module):
             enc_t = self.enc(torch.cat([ht, self.phi_z(zprevx), xt_features], 1))
 
         if self.res_q:
-            ht = store_ht[i-1,:,:,:,:]
             prior_t = self.prior(torch.cat([ht, self.phi_z(zprevx)],1))
             prior_mean_t = self.prior_mean(prior_t)
             enc_mean_t = prior_mean_t + self.enc_mean(enc_t)
@@ -403,7 +403,6 @@ class SRNN(nn.Module):
         enc_dist = td.Normal(enc_mean_t, enc_std_t)
         z_tx = enc_dist.rsample()
 
-        ht = store_ht[i-1,:,:,:,:]
         dec_t = self.dec(torch.cat([ht, self.phi_z(z_tx)], 1))
         dec_mean_t = self.dec_mean(dec_t)
         zprevx = z_tx
