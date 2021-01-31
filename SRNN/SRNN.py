@@ -393,12 +393,8 @@ class SRNN(nn.Module):
 
         if self.res_q:
             ht = store_ht[i-1,:,:,:,:]
-            prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
+            prior_t = self.prior(torch.cat([ht, self.phi_z(zprevx)],1))
             prior_mean_t = self.prior_mean(prior_t)
-            prior_std_t = self.prior_std(prior_t)
-            prior_dist = td.Normal(prior_mean_t, prior_std_t)
-            z_t = prior_dist.rsample()
-            zprev = z_t
             enc_mean_t = prior_mean_t + self.enc_mean(enc_t)
         else:
             enc_mean_t = self.enc_mean(enc_t)
