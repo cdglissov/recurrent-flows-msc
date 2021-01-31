@@ -80,7 +80,7 @@ class Solver(object):
         self.n_conditions = args.n_conditions
         self.scheduler_type = args.scheduler_type
         self.use_validation_set = args.use_validation_set
-        
+
     def build(self):
         self.train_loader, self.test_loader = self.create_loaders()
 
@@ -142,22 +142,22 @@ class Solver(object):
             plt.rcParams['image.cmap']='gray'
             string=str(os.path.abspath(os.getcwd()))
             trainset = KTH(
-                        train=True, 
+                        train=True,
                         data_root=string+"/kth_data",
-                        seq_len=self.n_frames, 
+                        seq_len=self.n_frames,
                         image_size=self.image_size)
             testset = KTH(
-                        train=False, 
+                        train=False,
                         data_root=string+"/kth_data",
-                        seq_len=self.n_frames, 
+                        seq_len=self.n_frames,
                         image_size=self.image_size)
-            
+
         if self.use_validation_set:
             trainset_sub = torch.utils.data.Subset(trainset, list(range(0, 500, 1)))
             train_loader = DataLoader(trainset_sub, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, drop_last=True)
         else:
             train_loader = DataLoader(trainset,batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True, drop_last=True)
-            
+
         test_loader = DataLoader(testset, batch_size=self.batch_size,num_workers=self.num_workers, shuffle=True, drop_last=True)
         return train_loader, test_loader
 
@@ -186,7 +186,7 @@ class Solver(object):
             x = x * n_bins
             x = torch.clamp(torch.floor(x) * (256. / n_bins), 0, 255).byte()
         return x
-    
+
     def adjust_learning_rate(self, batch):
         """Linearly decrease learning rate to zero after startbatch in num_steps.
         Does not work with other schedulers
@@ -251,9 +251,9 @@ class Solver(object):
                 self.adjust_learning_rate(self.counter)
 
             self.counter += 1
-            if (batch_i % 20)==0:
-                self.plotter()
-                self.model.train()
+            #if (batch_i % 20)==0:
+          self.plotter()
+          
           epoch_loss = np.mean(self.losses)
 
           if self.epoch_i % 1 == 0:
