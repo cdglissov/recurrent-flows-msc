@@ -284,14 +284,16 @@ class SRNN(nn.Module):
                   prior_t = self.prior(torch.cat([ht, self.phi_z(zprev)],1))
                   prior_mean_t = self.prior_mean(prior_t)
                   prior_std_t = self.prior_std(prior_t)
-                  zprev = prior_dist.rsample()
                   prior_dist = td.Normal(prior_mean_t, prior_std_t)
+                  zprev = prior_dist.rsample()
+                  enc_mean = store_ztx_mean[idt + d, :, :]
+                  enc_std = store_ztx_std[idt + d, :, :]
                   if d > 0:
                       # .detach() to stop gradients from encoder, such that the encoder does not conform to the prior, but still to recon loss
                       # They do this in the paper for d>0.
-                      enc_dist = td.Normal(store_ztx_mean[idt + d, :, :].detach().clone(), store_ztx_std[idt + d, :, :].detach().clone())
-                  else:
-                      enc_dist = td.Normal(store_ztx_mean[idt + d, :, :], store_ztx_std[idt + d, :, :])
+                      enc_mean = enc_mean.detach().clone()
+                      enc_std = enc_std.detach().clone()
+                  enc_dist = td.Normal(enc_mean, enc_std)
                   overshot_loss = overshot_loss + overshot_w * td.kl_divergence(enc_dist, prior_dist)
               kl_loss = kl_loss + 1/D * overshot_loss * self.beta
 
