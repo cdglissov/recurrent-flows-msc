@@ -226,8 +226,8 @@ class RFN(nn.Module):
               for d in range(0, D): # D is the number of overshootes in paper 1=< d <= D. We do 0<=d<D so now a index offset, but is still the same..
                   ht = store_ht[idt + d, :, :, :, :] # So find the ht for t + d
                   prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
+                  dist_prior = td.Normal(prior_mean, prior_std)
                   zprev = dist_prior.rsample()
-                  prior_dist = td.Normal(prior_mean, prior_std)
                   if d > 0:
                       # .detach() to stop gradients from encoder, such that the encoder does not conform to the prior, but still to recon loss
                       # They do this in the paper for d>0.
