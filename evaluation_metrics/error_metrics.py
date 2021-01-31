@@ -590,20 +590,22 @@ class Evaluator(object):
     def plot_eval_values(self, path, label_names, experiment_names):
         markersize = 5
         n_train = self.n_trained
-        fig, ax = plt.subplots(1, 3 ,figsize = (20,5))
-        fig2, ax2 = plt.subplots(1, 3 ,figsize = (20,5))
-        fig3, ax3 = plt.subplots(1, 3 ,figsize = (20,5))
+        fig, ax = plt.subplots(1, 3 ,figsize = (19,5))# figsize = (19,7)
+        fig2, ax2 = plt.subplots(1, 3,figsize = (19,5))
+        fig3, ax3 = plt.subplots(1, 3,figsize = (19,5))
+        fig.subplots_adjust(hspace=1, wspace=0.26)
         markers = ["o", "v", "x", "*", "^", "s", "H", "P", "X"]
 
         for i in range(0,len(experiment_names)):
             lname = label_names[i]
             mark = markers[i]
-            alpha = 0.05
+            alpha = 0.05 # For quantiles
+            alpha_CI = 0.2 # For the transparentcy of the plotted CI
             eval_dict = torch.load(path + experiment_names[i] + '/eval_folder/evaluations.pt')
             SSIM  = eval_dict['SSIM_values']  # This is max values
             PSNR  = eval_dict['PSNR_values']    # This is max values
             LPIPS  = eval_dict['LPIPS_values']  # This is max values
-            SSIM_std_mean = eval_dict['SSIM_std_mean'] # This is this is mean of resample. So the mean of [resample, batch, time].mean(0) to [batch,time]
+            SSIM_std_mean = eval_dict['SSIM_std_mean'] # This is this is mean of resample. So the mean of [resample, batch, time].mean(0) to [batch,time] 
             PSNR_std_mean = eval_dict['PSNR_std_mean']
             LPIPS_std_mean = eval_dict['LPIPS_std_mean']
             print("Temperature is set to " + str(eval_dict['temperature']) + " for experiment " +lname)
@@ -612,37 +614,37 @@ class Evaluator(object):
             xaxis = np.arange(0+self.n_conditions, len(y)+self.n_conditions)
             conf_std = 1.96 * np.std(SSIM.numpy(),0)/np.sqrt(np.shape(SSIM.numpy())[0])
             ax[0].plot(xaxis, y, label = lname, marker=mark, markersize=markersize)
-            ax[0].fill_between(xaxis, y-conf_std, y+conf_std, alpha=.1)
+            ax[0].fill_between(xaxis, y-conf_std, y+conf_std, alpha=alpha_CI)
 
             y = PSNR.mean(0).numpy()
             twostd = 1.96 * np.std(PSNR.numpy(),0)/np.sqrt(np.shape(PSNR.numpy())[0])
             ax[1].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
-            ax[1].fill_between(xaxis, y-twostd, y+twostd, alpha=.1)
+            ax[1].fill_between(xaxis, y-twostd, y+twostd, alpha=alpha_CI)
 
             y = LPIPS.mean(0).numpy()
             twostd = 1.96 * np.std(LPIPS.numpy(),0)/np.sqrt(np.shape(LPIPS.numpy())[0])
             ax[2].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
-            ax[2].fill_between(xaxis, y-twostd, y+twostd, alpha=.1)
+            ax[2].fill_between(xaxis, y-twostd, y+twostd, alpha=alpha_CI)
 
             y = np.median(SSIM.numpy(),0)
             ax2[0].plot(xaxis, y, label = lname, marker=mark,markersize=markersize)
             ax2[0].fill_between(xaxis,
               np.quantile(SSIM.numpy(), alpha/2, axis = 0),
-              np.quantile(SSIM.numpy(), 1-alpha/2, axis = 0), alpha=.1)
+              np.quantile(SSIM.numpy(), 1-alpha/2, axis = 0), alpha=alpha_CI)
 
             y = np.median(PSNR.numpy(),0)
             ax2[1].plot(xaxis, y, label = lname, marker=mark, markersize=markersize)
             ax2[1].fill_between(xaxis,
               np.quantile(PSNR.numpy(), alpha/2, axis = 0),
-              np.quantile(PSNR.numpy(), 1-alpha/2, axis = 0), alpha=.1)
+              np.quantile(PSNR.numpy(), 1-alpha/2, axis = 0), alpha=alpha_CI)
 
             y = np.median(LPIPS.numpy(),0)
             ax2[2].plot(np.arange(0, len(y)), y, label = lname, marker=mark,
                markersize=markersize)
             ax2[2].fill_between(np.arange(0, len(y)),
               np.quantile(LPIPS.numpy(), alpha/2, axis = 0),
-              np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=.1)
-
+              np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=alpha_CI)
+            
             y = SSIM_std_mean.mean(0).numpy()
             conf_std = 1.96 * np.std(SSIM_std_mean.numpy(),0)/np.sqrt(np.shape(SSIM_std_mean.numpy())[0])
             ax3[0].errorbar(xaxis, y, yerr=conf_std,label = lname)
@@ -655,73 +657,151 @@ class Evaluator(object):
             y = LPIPS_std_mean.mean(0).numpy()
             conf_std = 1.96 * np.std(LPIPS_std_mean.numpy(),0)/np.sqrt(np.shape(LPIPS_std_mean.numpy())[0])
             ax3[2].errorbar(xaxis, y, yerr=conf_std, label = lname)
-
-        ax[0].set_ylabel(r'score')
-        ax[0].set_xlabel(r'$t$')
-        ax[0].set_title(r'Max. SSIM with 95$\%$ confidence interval')
+        fontsizeaxislabel = 25 
+        fontsizelegend = 17
+        fontsizetitle = 25
+        fontsizeticks = 23 
+        labelpad = 5
+        
+        ax[0].set_ylabel(r'score', fontsize = fontsizeaxislabel, labelpad = labelpad)
+        ax[0].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
+        ax[0].set_title(r'Max. SSIM with 95$\%$ CI',fontsize = fontsizetitle)
         ax[0].axvline(x=n_train, color='k', linestyle='--')
-        ax[0].legend()
+        ax[0].legend(fontsize = fontsizelegend)
+
+        
+        axnow = ax[0]
         ax[0].grid()
+        for tick in axnow.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        for tick in axnow.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+            
+        
 
-        ax[1].set_ylabel(r'score')
-        ax[1].set_xlabel(r'$t$')
-        ax[1].set_title(r'Max. PSNR with 95$\%$ confidence interval')
+        ax[1].set_ylabel(r'score', fontsize = fontsizeaxislabel,labelpad = labelpad)
+        ax[1].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
+        ax[1].set_title(r'Max. PSNR with 95$\%$ CI', fontsize = fontsizetitle)
         ax[1].axvline(x=n_train, color='k', linestyle='--')
-        ax[1].legend()
+        ax[1].legend(fontsize = fontsizelegend)
+
+
+        axnow = ax[1]
         ax[1].grid()
+        for tick in axnow.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        for tick in axnow.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        #ax[1].subplots_adjust(vspace = 30)
+        
 
-        ax[2].set_ylabel(r'score')
-        ax[2].set_xlabel(r'$t$')
-        ax[2].set_title(r'Min. LPIPS with 95$\%$ confidence interval')
+        ax[2].set_ylabel(r'score', fontsize = fontsizeaxislabel, labelpad = labelpad)
+        ax[2].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
+        ax[2].set_title(r'Min. LPIPS with 95$\%$ CI', fontsize = fontsizetitle)
         ax[2].axvline(x=n_train, color='k', linestyle='--')
-        ax[2].legend()
+        ax[2].legend(fontsize = fontsizelegend)
+
+        axnow = ax[2]
         ax[2].grid()
+        for tick in axnow.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        for tick in axnow.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        
 
-        ax2[0].set_ylabel(r'score')
-        ax2[0].set_xlabel(r'$t$')
-        ax2[0].set_title('Max. SSIM with 95$\%$ quantiles')
+        ax2[0].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
+        ax2[0].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
+        ax2[0].set_title('Max. SSIM with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[0].axvline(x=n_train, color='k', linestyle='--')
-        ax2[0].legend()
+        ax2[0].legend(fontsize = fontsizelegend)
+
+        ax = ax2[0]
         ax2[0].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        
 
-        ax2[1].set_ylabel(r'score')
-        ax2[1].set_xlabel(r'$t$')
-        ax2[1].set_title('Max. PSNR with 95$\%$ quantiles')
+        ax2[1].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
+        ax2[1].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax2[1].set_title('Max. PSNR with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[1].axvline(x=n_train, color='k', linestyle='--')
-        ax2[1].legend()
+        ax2[1].legend(fontsize = fontsizelegend)
+
+        ax = ax2[1]
         ax2[1].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        
 
-        ax2[2].set_ylabel(r'score')
-        ax2[2].set_xlabel(r'$t$')
-        ax2[2].set_title('Max. LPIPS with 95$\%$ quantiles')
+        ax2[2].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
+        ax2[2].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax2[2].set_title('Min. LPIPS with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[2].axvline(x=n_train, color='k', linestyle='--')
-        ax2[2].legend()
+        ax2[2].legend(fontsize = fontsizelegend)
+
+        ax = ax2[2]
         ax2[2].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        
 
-        ax3[0].set_ylabel(r'score')
-        ax3[0].set_xlabel(r'$t$')
-        ax3[0].set_title(r'Avg. SSIM')
+        ax3[0].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
+        ax3[0].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax3[0].set_title(r'Avg. SSIM',fontsize = fontsizetitle)
         ax3[0].axvline(x=n_train, color='k', linestyle='--')
-        ax3[0].legend()
+        ax3[0].legend(fontsize = fontsizelegend)
+
+        ax = ax3[0]
         ax3[0].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        
 
-        ax3[1].set_ylabel(r'score')
-        ax3[1].set_xlabel(r'$t$')
-        ax3[1].set_title(r'Avg. PSNR')
+        ax3[1].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
+        ax3[1].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax3[1].set_title(r'Avg. PSNR',fontsize = fontsizetitle)
         ax3[1].axvline(x=n_train, color='k', linestyle='--')
-        ax3[1].legend()
+        ax3[1].legend(fontsize = fontsizelegend)
+
+        ax = ax3[1]
         ax3[1].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        
 
-        ax3[2].set_ylabel(r'score')
-        ax3[2].set_xlabel(r'$t$')
-        ax3[2].set_title(r'Avg. LPIPS')
+        ax3[2].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
+        ax3[2].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax3[2].set_title(r'Avg. LPIPS',fontsize = fontsizetitle)
         ax3[2].axvline(x=n_train, color='k', linestyle='--')
-        ax3[2].legend()
-        ax3[2].grid()
+        ax3[2].legend(fontsize = fontsizelegend)
 
-        fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_max.png', bbox_inches='tight')
-        fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_max_median.png', bbox_inches='tight')
-        fig3.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_mean_mean.png', bbox_inches='tight')
+        ax = ax3[2]
+        ax3[2].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks) 
+        
+        
+        #fig.tight_layout(pad=3.0)
+        #fig2.tight_layout(pad=3.0)
+        #fig3.tight_layout(pad=3.0)
+
+        
+        fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_max.pdf', bbox_inches='tight')
+        fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_max_median.pdf', bbox_inches='tight')
+        fig3.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_mean_mean.pdf', bbox_inches='tight')
+
 
     def get_fvd_values(self, model_name, n_predicts):
       start_predictions = self.start_predictions
