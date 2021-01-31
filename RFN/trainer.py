@@ -8,7 +8,8 @@ from data_generators import MovingMNIST
 from data_generators import PushDataset
 from data_generators import KTH
 import matplotlib.pyplot as plt
-from .RFN import RFN
+#remember change if old rfn should be used
+from .RFN_new import RFN
 from Utils import set_gpu
 from tqdm import tqdm
 import math
@@ -250,9 +251,9 @@ class Solver(object):
                 self.adjust_learning_rate(self.counter)
 
             self.counter += 1
-            #if (batch_i % 5)==0:
-
-          self.plotter()
+            if (batch_i % 20)==0:
+                self.plotter()
+                self.model.train()
           epoch_loss = np.mean(self.losses)
 
           if self.epoch_i % 1 == 0:

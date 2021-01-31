@@ -66,7 +66,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_digits", help="Specify the number of mnist digits", 
                         default=2, type=int)
     parser.add_argument("--num_workers", help="Specify the number of workers in dataloaders", 
-                        default=2, type=int)
+                        default=5, type=int)
     add_bool_arg(parser, "use_validation_set", default=False, help="Specify if we want to use a validation set")
 
     # Trainer
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     parser.add_argument("--path", help="Specify path to experiment", 
                         default='/content/', type=str)
     parser.add_argument("--learning_rate", help="Specify learning_rate", 
-                        default=0.0005, type=float)
+                        default=0.0001, type=float)
     parser.add_argument("--preprocess_range", help="Specify the range of the data for preprocessing", 
                         choices=['0.5','1.0'], default='0.5', type=str)
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=200, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
-                        default=45, type=int)
+                        default=10, type=int)
     parser.add_argument("--L", help="Specify flow depth", 
                         default=5, type=int)
     parser.add_argument("--K", help="Specify flow recursion", 
@@ -128,6 +128,8 @@ if __name__ == "__main__":
     # pool,conv,squeeze, as downsampling methods. Does not need to end with integer
     parser.add_argument('--extractor_structure', nargs='+', help="Specify structure of extractor example writing, 32-32-conv 32-32-pool, creates 2 blocks", 
                         default= [[16, 16, 'pool', 32],[32, 32, 'pool', 64], [64, 64, 'pool', 128], [128, 'pool', 256],[256, 'pool', 512]], type=convert_to_upscaler)
+    
+    #test batchnorm here
     parser.add_argument('--norm_type', help="Specify normalization type of layers", 
                         default='none', choices=["instancenorm", "batchnorm", "none"], type=str)
     # Upscaler structure can be a bit tricky to define. First the input does not need to be fully upscaled,
@@ -174,7 +176,20 @@ if __name__ == "__main__":
                         default='realnvp', choices=["glow", "realnvp", "softclamp", "none"], type=str)
     parser.add_argument('--split2d_act', help="Specify clamp type of split2d", 
                         default='softplus', choices=["softplus", "exp"], type=str)
+    
+    # overshooting, smoothing and resq
+    parser.add_argument("--a_dim", help="Channels of smoothing", 
+                        default=200, type=int)
+    add_bool_arg(parser, "enable_smoothing", default=True, 
+                 help="Enables smoothing")
+    add_bool_arg(parser, "res_q", default=True, 
+                 help="Enables res_q")
+    parser.add_argument("--D", help="Number of overshoots", 
+                        default=1, type=int)
+    parser.add_argument("--overshot_w", help="Weighting of overshooting", 
+                        default=1.0, type=float)
     args = parser.parse_args()
+
     
     main(args)
     

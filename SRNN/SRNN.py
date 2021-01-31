@@ -185,11 +185,12 @@ class SRNN(nn.Module):
       hprev, cprev, zprev, zprevx, aprev, caprev, loss, kl_loss, nll_loss = self.get_inits()
 
       store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
-      store_at = torch.zeros((t-1, *hprev.shape)).cuda()
+      store_at = torch.zeros((t-1, *aprev.shape)).cuda()
       store_x_features = torch.zeros((self.batch_size, t, self.phi_x_t_channels, 8, 8)).cuda()
       #Find ht
       for i in range(0, t):
           store_x_features[:, i, :, :, :] = self.phi_x_t(xt[:, i, :, :, :])
+      
       for i in range(1, t):
         ut = store_x_features[:, i-1, :, :, :]
         _, ht, ct = self.lstm_h(ut.unsqueeze(1), hprev, cprev)

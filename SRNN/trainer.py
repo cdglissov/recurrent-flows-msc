@@ -76,6 +76,7 @@ class Solver(object):
         self.n_predictions = args.n_predictions
         self.n_conditions = args.n_conditions
         self.use_validation_set = args.use_validation_set
+        self.num_workers=args.num_workers
         
     def build(self):
         self.train_loader, self.test_loader = self.create_loaders()

@@ -115,9 +115,9 @@ if __name__ == "__main__":
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
                         default=[100, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
-                        default=100, type=int)
+                        default=150, type=int)
     parser.add_argument("--a_dim", help="Specify smoothing state (a) channels", 
-                        default=100, type=int)
+                        default=150, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
                         default=20, type=int) # Very bad if too high, very bad if too low
     parser.add_argument("--loss_type", help="Specify the type of loss used", 
