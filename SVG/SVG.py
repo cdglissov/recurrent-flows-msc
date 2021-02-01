@@ -319,13 +319,12 @@ class SVG(nn.Module):
       
         predictions = torch.zeros((n_predictions, *x[:,0,:,:,:].shape))
         true_x = torch.zeros((n_conditions, *x[:,0,:,:,:].shape))
-        
         true_x[0,:,:,:,:]=x[:,0,:,:,:]
         x_in = x[:,0,:,:,:]
-        for i in range(1, self.n_predictions+self.n_conditions):
+        for i in range(1, n_predictions+n_conditions):
             condition, skip  = self.encoder(x_in)
             condition=condition.detach()
-            if i < self.n_conditions:
+            if i < n_conditions:
                 target = self.encoder(x[:,i,:,:,:])[0]
                 target=target.detach()
                 z_t, _, _ = self.posterior(target)
@@ -337,7 +336,7 @@ class SVG(nn.Module):
                 z_t, _, _ = self.prior(condition)
                 h_pred = self.frame_predictor(torch.cat([condition, z_t], 1))
                 x_in = self.decoder([h_pred, skip])
-                predictions[i-n_conditions,:,:,:,:] = x_in.detach()
+                predictions[i-n_conditions,:,:,:,:] = x_in.data
         return true_x, predictions
 
 

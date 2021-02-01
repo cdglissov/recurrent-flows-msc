@@ -18,6 +18,7 @@ from skimage.metrics import peak_signal_noise_ratio
 from skimage.metrics import structural_similarity
 from tqdm import tqdm
 from evaluation_metrics.FVD_score import fvd
+plt.rcParams.update({'text.usetex': True})
 
 class Evaluator(object):
     def __init__(self, solver, args, settings):
@@ -411,7 +412,7 @@ class Evaluator(object):
                                                                                t=imageloss.shape[1]-1)
 
 
-                      if time == 0:# Doesnt makes sense to get these for more then one time. Or i gueess you could if you wanted to.
+                      if time == 0 and self.extra_plots:# Doesnt makes sense to get these for more then one time. Or i gueess you could if you wanted to.
                           #zts, hts, cts = self.model.get_zt_ht_from_seq(imageloss,3)
                           dims = imageloss.shape[2:]
                           nll_prob = self.model.probability_future(image,start_predictions)/(np.log(2.)*torch.prod(torch.tensor(dims)))
@@ -590,10 +591,13 @@ class Evaluator(object):
     def plot_eval_values(self, path, label_names, experiment_names):
         markersize = 5
         n_train = self.n_trained
+        
         fig, ax = plt.subplots(1, 3 ,figsize = (19,5))# figsize = (19,7)
         fig2, ax2 = plt.subplots(1, 3,figsize = (19,5))
         fig3, ax3 = plt.subplots(1, 3,figsize = (19,5))
-        fig.subplots_adjust(hspace=1, wspace=0.26)
+        fig.subplots_adjust(hspace=1, wspace=0.17)
+        fig2.subplots_adjust(hspace=1, wspace=0.17)
+        fig3.subplots_adjust(hspace=1, wspace=0.17)
         markers = ["o", "v", "x", "*", "^", "s", "H", "P", "X"]
 
         for i in range(0,len(experiment_names)):
@@ -667,7 +671,7 @@ class Evaluator(object):
         ax[0].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
         ax[0].set_title(r'Max. SSIM with 95$\%$ CI',fontsize = fontsizetitle)
         ax[0].axvline(x=n_train, color='k', linestyle='--')
-        ax[0].legend(fontsize = fontsizelegend)
+        #ax[0].legend(fontsize = fontsizelegend)
 
         
         axnow = ax[0]
@@ -679,11 +683,10 @@ class Evaluator(object):
             
         
 
-        ax[1].set_ylabel(r'score', fontsize = fontsizeaxislabel,labelpad = labelpad)
         ax[1].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
         ax[1].set_title(r'Max. PSNR with 95$\%$ CI', fontsize = fontsizetitle)
         ax[1].axvline(x=n_train, color='k', linestyle='--')
-        ax[1].legend(fontsize = fontsizelegend)
+        #ax[1].legend(fontsize = fontsizelegend)
 
 
         axnow = ax[1]
@@ -692,15 +695,15 @@ class Evaluator(object):
             tick.label.set_fontsize(fontsizeticks) 
         for tick in axnow.yaxis.get_major_ticks():
             tick.label.set_fontsize(fontsizeticks) 
-        #ax[1].subplots_adjust(vspace = 30)
         
 
-        ax[2].set_ylabel(r'score', fontsize = fontsizeaxislabel, labelpad = labelpad)
         ax[2].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
         ax[2].set_title(r'Min. LPIPS with 95$\%$ CI', fontsize = fontsizetitle)
         ax[2].axvline(x=n_train, color='k', linestyle='--')
-        ax[2].legend(fontsize = fontsizelegend)
-
+        #ax[2].legend(fontsize = fontsizelegend)
+        ax[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left", 
+                bbox_transform=fig.transFigure, ncol=6, fontsize = fontsizelegend)
+        
         axnow = ax[2]
         ax[2].grid()
         for tick in axnow.xaxis.get_major_ticks():
@@ -713,7 +716,7 @@ class Evaluator(object):
         ax2[0].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
         ax2[0].set_title('Max. SSIM with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[0].axvline(x=n_train, color='k', linestyle='--')
-        ax2[0].legend(fontsize = fontsizelegend)
+        #ax2[0].legend(fontsize = fontsizelegend)
 
         ax = ax2[0]
         ax2[0].grid()
@@ -723,11 +726,10 @@ class Evaluator(object):
             tick.label.set_fontsize(fontsizeticks) 
         
 
-        ax2[1].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
         ax2[1].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
         ax2[1].set_title('Max. PSNR with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[1].axvline(x=n_train, color='k', linestyle='--')
-        ax2[1].legend(fontsize = fontsizelegend)
+        #ax2[1].legend(fontsize = fontsizelegend)
 
         ax = ax2[1]
         ax2[1].grid()
@@ -737,11 +739,12 @@ class Evaluator(object):
             tick.label.set_fontsize(fontsizeticks) 
         
 
-        ax2[2].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
         ax2[2].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
         ax2[2].set_title('Min. LPIPS with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[2].axvline(x=n_train, color='k', linestyle='--')
-        ax2[2].legend(fontsize = fontsizelegend)
+        ax2[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left", 
+                bbox_transform=fig2.transFigure, ncol=6, fontsize = fontsizelegend)
+        #ax2[2].legend(fontsize = fontsizelegend)
 
         ax = ax2[2]
         ax2[2].grid()
@@ -755,7 +758,7 @@ class Evaluator(object):
         ax3[0].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
         ax3[0].set_title(r'Avg. SSIM',fontsize = fontsizetitle)
         ax3[0].axvline(x=n_train, color='k', linestyle='--')
-        ax3[0].legend(fontsize = fontsizelegend)
+        #ax3[0].legend(fontsize = fontsizelegend)
 
         ax = ax3[0]
         ax3[0].grid()
@@ -765,11 +768,10 @@ class Evaluator(object):
             tick.label.set_fontsize(fontsizeticks) 
         
 
-        ax3[1].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
         ax3[1].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
         ax3[1].set_title(r'Avg. PSNR',fontsize = fontsizetitle)
         ax3[1].axvline(x=n_train, color='k', linestyle='--')
-        ax3[1].legend(fontsize = fontsizelegend)
+        #ax3[1].legend(fontsize = fontsizelegend)
 
         ax = ax3[1]
         ax3[1].grid()
@@ -779,12 +781,11 @@ class Evaluator(object):
             tick.label.set_fontsize(fontsizeticks) 
         
 
-        ax3[2].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
         ax3[2].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
         ax3[2].set_title(r'Avg. LPIPS',fontsize = fontsizetitle)
         ax3[2].axvline(x=n_train, color='k', linestyle='--')
-        ax3[2].legend(fontsize = fontsizelegend)
-
+        ax3[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left", 
+                bbox_transform=fig3.transFigure, ncol=6, fontsize = fontsizelegend)
         ax = ax3[2]
         ax3[2].grid()
         for tick in ax.xaxis.get_major_ticks():
@@ -792,11 +793,6 @@ class Evaluator(object):
         for tick in ax.yaxis.get_major_ticks():
             tick.label.set_fontsize(fontsizeticks) 
         
-        
-        #fig.tight_layout(pad=3.0)
-        #fig2.tight_layout(pad=3.0)
-        #fig3.tight_layout(pad=3.0)
-
         
         fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_max.pdf', bbox_inches='tight')
         fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_max_median.pdf', bbox_inches='tight')

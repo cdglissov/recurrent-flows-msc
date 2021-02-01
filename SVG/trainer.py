@@ -190,6 +190,11 @@ class Solver(object):
             else:
                 x = x * (x.max()-x.min())+x.min()
                 x = torch.clamp(x * (255), 0, 255).byte()
+        elif preprocess_range == "none":
+            if reverse == False:
+                x=x
+            else:
+                x = torch.clamp(x * (255), 0, 255).byte()
         else:
             print("Invalid preprocess choice")
         return x
