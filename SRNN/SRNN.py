@@ -28,6 +28,7 @@ class SRNN(nn.Module):
       bx, cx, hx, wx = self.x_dim
       self.mse_criterion = nn.MSELoss(reduction='none')
       self.res_q = args.res_q
+      self.variance = args.variance
 
       # Remember to downscale more when using 64x64. Overall the net should probably increase in size when using
       # 64x64 images
@@ -148,7 +149,7 @@ class SRNN(nn.Module):
       self.dec_std = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1),
                                nn.Softplus()
                                )
-
+      
       self.z_0 = nn.Parameter(torch.zeros(self.batch_size, z_dim))
       self.z_0x = nn.Parameter(torch.zeros(self.batch_size, z_dim))
 
@@ -261,8 +262,8 @@ class SRNN(nn.Module):
         if self.loss_type == "bernoulli":
             nll_loss = nll_loss - td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :])
         if self.loss_type == "gaussian":
-            dec_std_t = self.dec_std(dec_t)
-            nll_loss = nll_loss - td.Normal(dec_mean_t, dec_std_t).log_prob(xt[:, i, :, :, :])
+            #dec_std_t = self.dec_std(dec_t)
+            nll_loss = nll_loss - td.Normal(dec_mean_t, self.variance*torch.ones_like(dec_mean_t)).log_prob(xt[:, i, :, :, :])
         elif self.loss_type == "mse":
             nll_loss = nll_loss + self.mse_criterion(dec_mean_t, xt[:, i, :, :, :])
         else:
