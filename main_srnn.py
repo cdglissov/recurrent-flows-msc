@@ -5,7 +5,7 @@ from torch import load as tloader
 def main(args):
         
     if args.load_model:
-        load_model = tloader('.'+args.path + 'model_folder/vrnn.pt')
+        load_model = tloader('.'+args.path + 'model_folder/srnn.pt')
         args = load_model['args']
         solver = Solver(args)
         solver.build()
@@ -122,6 +122,8 @@ if __name__ == "__main__":
                         default=20, type=int) # Very bad if too high, very bad if too low
     parser.add_argument("--loss_type", help="Specify the type of loss used", 
                         default="mse", choices = ["bernoulli", "mse", "gaussian"], type=str)
+    parser.add_argument("--variance", help="Specify the variance of out put probability ", 
+                        default=1, type=float)
     parser.add_argument("--norm_type", help="Specify the type of loss used", 
                         default="batchnorm", choices = ["batchnorm", "instancenorm", "none"], type=str)
     add_bool_arg(parser, "res_q", default=False, 
