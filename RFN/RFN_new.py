@@ -116,7 +116,6 @@ class RFN(nn.Module):
       assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
       hprev, cprev, aprev, caprev, zprev, zxprev, loss, kl_loss, nll_loss = self.get_inits()
       t = x.shape[1]
-      condition_list = self.extractor(x[:, 0, :, :, :])
       store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
       store_at = torch.zeros((t-1, *aprev.shape)).cuda()
       #need to debug if this breaks backprop?! Don't think it does: https://github.com/pytorch/pytorch/issues/23653
@@ -191,16 +190,16 @@ class RFN(nn.Module):
         store_ztx[i-1,...] = zxprev
 
         if self.skip_connection_features:
-            flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = condition_list)
+            flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = condition)
         else:
             flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1))
 
         base_conditions = torch.cat((ht, zxt), dim = 1)
 
         if self.skip_connection_flow == "with_skip":
-            flow_conditions = self.combineconditions(flow_conditions, condition_list)
+            flow_conditions = self.combineconditions(flow_conditions, condition)
         elif self.skip_connection_flow == "only_skip":
-            flow_conditions = condition_list
+            flow_conditions = condition
 
         b, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, logdet)
 
@@ -210,7 +209,7 @@ class RFN(nn.Module):
 
         nll_loss = nll_loss + nll
 
-        zprev, zxprev = zt, zxt
+        zprev, zxprev = zt, zxt, 
         
       if self.D > 1: # is the number of over samples, if D=1 no over shooting will happen.
 
@@ -253,38 +252,85 @@ class RFN(nn.Module):
 
       for k in range(0, len(flow_conditions)):
         flow_conditions_combined.append(torch.cat((flow_conditions[k], skip_conditions[k]),dim=1))
-
       return flow_conditions_combined
 
     def predict(self, x, n_predictions, n_conditions):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
-        hprev, cprev,_,_, zprev, _, _, _, _ = self.get_inits()
-
+        hprev, cprev, aprev, caprev, zprev, zxprev, _, _, _ = self.get_inits()
+        t = x.shape[1]
+        
+        store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
+        store_at = torch.zeros((t-1, *aprev.shape)).cuda()
+        store_x_features = []
+        
         predictions = torch.zeros((n_predictions, *x[:,0,:,:,:].shape))
         true_x = torch.zeros((n_conditions, *x[:,0,:,:,:].shape))
 
         # Warm-up
         true_x[0,:,:,:,:] = x[:, 0, :, :, :].detach()
+        #x
+        for i in range(0,n_conditions):
+            x_feature_list = self.extractor(x[:, i, :, :, :])
+            store_x_features.append(x_feature_list)
+            
+        #h
         for i in range(1, n_conditions):
-            condition_list = self.extractor(x[:, i-1, :, :, :])
+          if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
+              condition = store_x_features[i-1]
+          else:
+              condition = store_x_features[i-1][-1]
+          _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
+          store_ht[i-1,:,:,:,:] = ht
+          hprev=ht
+          cprev=ct
+          
+       
+        if self.enable_smoothing:
+            #Find at
+            for i in range(1, n_conditions):
+              if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
+                  x_feature = store_x_features[n_conditions-i]
+              else:
+                  x_feature = store_x_features[n_conditions-i][-1]
+              lstm_a_input = torch.cat([store_ht[n_conditions-i-1,:,:,:,:], x_feature], 1)
+              _, at, c_at = self.a_lstm(lstm_a_input.unsqueeze(1), aprev, caprev)
+              aprev = at
+              caprev = c_at
+              store_at[n_conditions-i-1,:,:,:,:] = at
+        
+        for i in range(1, n_conditions):
+          if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
+              condition = store_x_features[i-1]
+              x_feature = store_x_features[i]
+          else:
+              condition = store_x_features[i-1][-1]
+              x_feature = store_x_features[i][-1]
+              
+          ht = store_ht[i-1,:,:,:,:]
+          
+          if self.enable_smoothing:
+              at = store_at[i-1,:,:,:,:]
+              enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
+          else:
+              x_feature = store_x_features[i]
+              enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
+          
+          if self.res_q:
+              prior_mean, prior_std = self.prior(torch.cat((ht, zxprev), dim=1))
+              enc_mean = prior_mean + enc_mean
+          else:
+              prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
+  
+          dist_prior = td.Normal(prior_mean, prior_std)
+          zt = dist_prior.rsample()
+          
+          dist_enc = td.Normal(enc_mean, enc_std)
+          zxt = dist_enc.rsample()
 
-            #Fix this so it is smarter
-            if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-                condition = condition_list
-            else:
-                condition = condition_list[-1]
-
-            _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
-
-            # We do not need to update the encoder due to LSTM not being conditioned on it
-            prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
-            dist_prior = td.Normal(prior_mean, prior_std)
-            zt = dist_prior.sample()
-
-            true_x[i,:,:,:,:] = x[:, i, :, :, :].detach()
-            zprev = zt
-            hprev = ht
-            cprev = ct
+          true_x[i,:,:,:,:] = x[:, i, :, :, :].detach()
+          zprev = zt
+          zxprev = zxt
+            
 
         prediction = x[:,n_conditions-1,:,:,:]
         for i in range(0, n_predictions):
@@ -316,70 +362,6 @@ class RFN(nn.Module):
             zprev = zt
 
         return true_x, predictions
-    
-    def get_zt_ht_from_seq(self, x, n_conditions):
-        assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
-        # Get zt ht from one batch
-        hprev, cprev,_,_, zprev, _, _, _, _ = self.get_inits()
-
-        zts = torch.zeros((n_conditions, *zprev.shape))
-        hts = torch.zeros((n_conditions, *hprev.shape))
-
-        zts[0, :, :, :, :] = zprev
-        hts[0, :, :, :, :] = hprev
-        for i in range(1, n_conditions):
-            condition_list = self.extractor(x[:, i-1, :, :, :])
-
-            #Fix this so it is smarter
-            if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-                condition = condition_list
-            else:
-                condition = condition_list[-1]
-
-            _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
-
-            # We do not need to update the encoder due to LSTM not being conditioned on it
-            prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
-            dist_prior = td.Normal(prior_mean, prior_std)
-            zt = dist_prior.sample()
-            zts[i, :, :, :, :] = zt
-            hts[i, :, :, :, :] = ht
-            zprev = zt
-            hprev = ht
-            cprev = ct
-        return zts, hts
-
-    def predicts_from_zt_ht(self, x, zts, hts):
-        n_predictions = zts.shape[0]
-        predictions = torch.zeros((n_predictions, *x[:,0,:,:,:].shape))
-
-        condition_list = self.extractor(x[:, 0, :, :, :])
-
-        prediction = x[:, 0, :, :, :]
-        for i in range(1, n_predictions):
-            if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-                pass
-            else:
-                condition_list = self.extractor(prediction)
-            ht = hts[i, :, :, :, :]
-            zt = zts[i, :, :, :, :]
-
-            if self.skip_connection_features:
-                flow_conditions = self.upscaler(torch.cat((ht, zt), dim = 1), skip_list = condition_list)
-            else:
-                flow_conditions = self.upscaler(torch.cat((ht, zt), dim = 1))
-
-            if self.skip_connection_flow == "with_skip":
-                flow_conditions = self.combineconditions(flow_conditions, condition_list)
-            elif self.skip_connection_flow == "only_skip":
-                flow_conditions = condition_list
-
-            base_conditions = torch.cat((ht, zt), dim = 1)
-            prediction = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
-            predictions[i,:,:,:,:] = prediction.detach()
-
-
-        return predictions
 
     def reconstruct(self, x):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
@@ -388,7 +370,6 @@ class RFN(nn.Module):
         t = x.shape[1]
         recons = torch.zeros((t, *x[:,0,:,:,:].shape))
         recons_flow = torch.zeros((t, *x[:,0,:,:,:].shape))
-        condition_list = self.extractor(x[:, 0, :, :, :])
         store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
         store_at = torch.zeros((t-1, *aprev.shape)).cuda()
         store_x_features = []
@@ -439,18 +420,24 @@ class RFN(nn.Module):
             else:
                 x_feature = store_x_features[i]
                 enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
+            
+            if self.res_q:
+                prior_mean, _ = self.prior(torch.cat((ht, zxprev), dim=1))
+    
+                enc_mean = prior_mean + enc_mean
+    
             dist_enc = td.Normal(enc_mean, enc_std)
-            zxt = dist_enc.sample()
+            zxt = dist_enc.rsample()
 
             if self.skip_connection_features:
-                flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = condition_list)
+                flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = condition)
             else:
                 flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1))
 
             if self.skip_connection_flow == "with_skip":
-                flow_conditions = self.combineconditions(flow_conditions, condition_list)
+                flow_conditions = self.combineconditions(flow_conditions, condition)
             elif self.skip_connection_flow == "only_skip":
-                flow_conditions = condition_list
+                flow_conditions = condition
 
             base_conditions = torch.cat((ht, zxt), dim = 1)
 
@@ -469,127 +456,6 @@ class RFN(nn.Module):
             zxprev = zxt
         return recons, recons_flow
 
-    def probability_future(self, x, n_conditions):
-        """
-        This function gets the temporal probablity of the future frames,
-        when conditioned on n_condition frames.
-        Both over the posterior and the prior.
-        """
-        assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
-        hprev, cprev,_,_, zprev, zxprev, _, _, _ = self.get_inits()
-
-        t = x.shape[1]
-        # Do this to make the code more efficient.
-        prob_NLL_future = torch.zeros((x[:,0,:,:,:].shape[0], 2, t-n_conditions-1))
-
-        for i in range(1, n_conditions):
-            condition_list = self.extractor(x[:, i-1, :, :, :])
-            x_feature_list = self.extractor(x[:, i, :, :, :])
-            #Fix this so it is smarter
-            if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-                condition = condition_list
-                x_feature = x_feature_list
-            else:
-                condition = condition_list[-1]
-                x_feature = x_feature_list[-1]
-
-            _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
-
-            prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
-            dist_prior = td.Normal(prior_mean, prior_std)
-            zt = dist_prior.sample()
-
-            enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
-            dist_enc = td.Normal(enc_mean, enc_std)
-            zxt = dist_enc.sample()
-            zprev = zt
-            hprev = ht
-            cprev = ct
-            zxprev = zxt
-        # The probability of the future frames.
-        for i in range(n_conditions, t):
-            for zk, count in zip(list([zt,zxt]),range(0,2)):
-                if self.skip_connection_features:
-                    flow_conditions = self.upscaler(torch.cat((ht, zk), dim = 1), skip_list = condition_list)
-                else:
-                    flow_conditions = self.upscaler(torch.cat((ht, zk), dim = 1))
-
-                if self.skip_connection_flow == "with_skip":
-                    flow_conditions = self.combineconditions(flow_conditions, condition_list)
-                elif self.skip_connection_flow == "only_skip":
-                    flow_conditions = condition_list
-
-                base_conditions = torch.cat((ht, zk), dim = 1)
-
-                z, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, 0.0)
-                prob_NLL_future[:, count, i-n_conditions-1] = nll
-        return prob_NLL_future
-
-    def reconstruct_elbo_gap(self, x, sample = True):
-        assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
-        hprev, cprev,_,_, zprev, zxprev, _, _, _ = self.get_inits()
-
-        t = x.shape[1]
-        # Do this to make the code more efficient.
-        averageKLDseq = torch.zeros((t, x[:,0,:,:,:].shape[0]))
-        averageNLLseq = torch.zeros((2, t, x[:,0,:,:,:].shape[0]))
-        if sample:
-            recons = torch.zeros((2, t, *x[:,0,:,:,:].shape))
-            recons_flow = torch.zeros((2, t, *x[:,0,:,:,:].shape))
-        else:
-            recons = 0
-            recons_flow = 0
-
-        for i in range(1, t):
-            condition_list = self.extractor(x[:, i-1, :, :, :])
-            x_feature_list = self.extractor(x[:, i, :, :, :])
-            #Fix this so it is smarter
-            if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-                condition = condition_list
-                x_feature = x_feature_list
-            else:
-                condition = condition_list[-1]
-                x_feature = x_feature_list[-1]
-
-            _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
-
-            prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
-            dist_prior = td.Normal(prior_mean, prior_std)
-            zt = dist_prior.sample()
-
-            enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
-            dist_enc = td.Normal(enc_mean, enc_std)
-            zxt = dist_enc.sample()
-            for zk, count in zip(list([zt,zxt]),range(0,2)):
-                if self.skip_connection_features:
-                    flow_conditions = self.upscaler(torch.cat((ht, zk), dim = 1), skip_list = condition_list)
-                else:
-                    flow_conditions = self.upscaler(torch.cat((ht, zk), dim = 1))
-
-                if self.skip_connection_flow == "with_skip":
-                    flow_conditions = self.combineconditions(flow_conditions, condition_list)
-                elif self.skip_connection_flow == "only_skip":
-                    flow_conditions = condition_list
-
-                base_conditions = torch.cat((ht, zk), dim = 1)
-
-                # To check bijection of the flow we use z to reconstruct the image
-                z, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, 0.0)
-                averageNLLseq[count, i, :] = nll
-                if sample:
-                    recon_flow_sample = self.flow.sample(z, flow_conditions, base_conditions, self.temperature)
-                    # To look at a normal reconstruction we just use the posterior distribution
-                    recon_sample = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
-                    recons[count, i,:,:,:,:] = recon_sample.detach()
-                    recons_flow[count, i, :,:,:,:] = recon_flow_sample.detach()
-            KLavg = td.kl_divergence(dist_enc, dist_prior).sum([1,2,3]) # sum over everything expect batches
-            averageKLDseq[i,:] = KLavg
-             # KL batch
-            zprev = zt
-            hprev = ht
-            cprev = ct
-            zxprev = zxt
-        return recons, recons_flow, averageKLDseq, averageNLLseq
 
     def sample(self, x, n_samples):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
@@ -626,7 +492,6 @@ class RFN(nn.Module):
             base_conditions = torch.cat((ht, zt), dim = 1)
             sample = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
 
-
             samples[i,:,:,:,:] = sample.detach()
             zprev = zt
             hprev = ht
@@ -637,59 +502,97 @@ class RFN(nn.Module):
 
     def param_analysis(self, x, n_predictions, n_conditions):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
-        hprev, cprev,_,_, zprev, zxprev, _, _, _ = self.get_inits()
+        hprev, cprev,aprev,caprev, zprev, zxprev, _, _, _ = self.get_inits()  
         hw = x.shape[-1]//(2**self.L)
         std_p = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
         mu_p = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
         std_q = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
         mu_q = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
+        t = n_conditions + n_predictions
+        store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
+        store_at = torch.zeros((t-1, *aprev.shape)).cuda()
+        store_x_features = []
         std_flow = []
         mu_flow = []
-
-        # Warm-up
-        for i in range(1, n_conditions + n_predictions):
-            condition_list = self.extractor(x[:, i-1, :, :, :])
+        
+        for i in range(0,t):
             x_feature_list = self.extractor(x[:, i, :, :, :])
-            #Fix this so it is smarter
+            store_x_features.append(x_feature_list)
+        
+        for i in range(1, t):
             if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-                condition = condition_list
-                x_feature = x_feature_list
+                condition = store_x_features[i-1]
             else:
-                condition = condition_list[-1]
-                x_feature = x_feature_list[-1]
-
+                condition = store_x_features[i-1][-1]
             _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
-
-            prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
+            store_ht[i-1,:,:,:,:] = ht
+            hprev=ht
+            cprev=ct
+        
+        if self.enable_smoothing:
+            #Find at
+            for i in range(1, t):
+              if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
+                  x_feature = store_x_features[t-i]
+              else:
+                  x_feature = store_x_features[t-i][-1]
+              lstm_a_input = torch.cat([store_ht[t-i-1,:,:,:,:], x_feature], 1)
+              _, at, c_at = self.a_lstm(lstm_a_input.unsqueeze(1), aprev, caprev)
+              aprev = at
+              caprev = c_at
+              store_at[t-i-1,:,:,:,:] = at
+        
+        for i in range(1, n_conditions + n_predictions):
+            if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
+                condition = store_x_features[i-1]
+                x_feature = store_x_features[i]
+            else:
+                condition = store_x_features[i-1][-1]
+                x_feature = store_x_features[i][-1]
+            
+            ht = store_ht[i-1,:,:,:,:]
+            
+            if self.enable_smoothing:
+                at = store_at[i-1,:,:,:,:]
+                enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
+            else:
+                x_feature = store_x_features[i]
+                enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
+            
+            if self.res_q:
+                prior_mean, prior_std = self.prior(torch.cat((ht, zxprev), dim=1))
+    
+                enc_mean = prior_mean + enc_mean
+            else:
+                prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
+            
             dist_prior = td.Normal(prior_mean, prior_std)
-            zt = dist_prior.sample()
-
-            enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
+            zt = dist_prior.rsample()
+            
             dist_enc = td.Normal(enc_mean, enc_std)
             zxt = dist_enc.rsample()
-
+            
             std_p[i-1,:,:,:,:] = prior_std.detach()
             mu_p[i-1,:,:,:,:] = prior_mean.detach()
             std_q[i-1,:,:,:,:] = enc_std.detach()
             mu_q[i-1,:,:,:,:] = enc_mean.detach()
-
+            
             if self.skip_connection_features:
-                flow_conditions = self.upscaler(torch.cat((ht, zt), dim = 1), skip_list = condition_list)
+                flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = condition)
             else:
-                flow_conditions = self.upscaler(torch.cat((ht, zt), dim = 1))
-
+                flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1))
+            
             if self.skip_connection_flow == "with_skip":
-                flow_conditions = self.combineconditions(flow_conditions, condition_list)
+                flow_conditions = self.combineconditions(flow_conditions, condition)
             elif self.skip_connection_flow == "only_skip":
-                flow_conditions = condition_list
-
+                flow_conditions = condition
+            
             base_conditions = torch.cat((ht, zt), dim = 1)
-            prediction, params = self.flow.sample(None, flow_conditions, base_conditions, self.temperature, eval_params = True)
+            prediction, params = self.flow.sample(None, flow_conditions, base_conditions, 1.0, eval_params = True)
             std_flow.append(params[1].detach())
             mu_flow.append(params[0].detach())
             
             zxprev = zxt
             zprev = zt
-            hprev = ht
-            cprev = ct
+            
         return mu_p, std_p, mu_q, std_q, torch.stack(mu_flow), torch.stack(std_flow)

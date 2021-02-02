@@ -145,11 +145,11 @@ if __name__ == "__main__":
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments",
                         default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
-                        default=["rfn_L3", "rfn_L4", "rfn_L5"], type=str)
+                        default=["srnn_test_os", "srnn_test_os_s", "srnn_test_os_s_resq"], type=str)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
                         default=["L3", "L4","L5"], type=str)
     parser.add_argument("--model_path", nargs='+', help="Name of model.pt file",
-                        default=['rfn.pt', "rfn.pt", "rfn.pt"], type=str)
+                        default=['srnn.pt', "srnn.pt", "srnn.pt"], type=str)
 
     #CALCULATE VALUES SETTINGS:
     add_bool_arg(parser, "use_validation_set", default=False,
@@ -157,13 +157,13 @@ if __name__ == "__main__":
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences",
                         default=2, type=int)
     parser.add_argument("--n_frames", help="Specify the sequence length of the test data",
-                        default=5, type=int)
+                        default=30, type=int)
     parser.add_argument("--start_predictions", help="Specify when model starts predicting",
-                        default=2, type=int)
+                        default=5, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model",
                         default=[0.7, 0.7, 0.7], type=float)
     parser.add_argument("--resample", help="Loops over the test set more than once to get better measures. WARNING: can be slow",
-                        default=2, type=int)
+                        default=35, type=int)
     add_bool_arg(parser, "extra_plots", default=False,
                  help="Plots the elbo gap of the RFN model and other plots. WARNING: Only works for RFN")
 
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     add_bool_arg(parser, "calc_eval", default=True,
                  help="Set to false if we do not want to calculate eval values")
     parser.add_argument("--n_conditions", help="Number of conditions used for plotting eval_values",
-                        default=2, type=int)
+                        default=5, type=int)
     add_bool_arg(parser, "eval_parameters", default=False,
                  help="If true then parameter analysis plot will be created")
 

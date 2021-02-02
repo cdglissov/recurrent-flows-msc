@@ -286,6 +286,7 @@ class Solver(object):
           'losses': self.losses,
           'plot_counter': self.plot_counter,
           'annealing_counter': self.counter,
+          'bits_per_dim': self.bits,
           'args': self.args,
           }, self.path + 'model_folder/' + model_name)
       torch.save({
@@ -309,6 +310,7 @@ class Solver(object):
       self.losses = load_model['losses']
       self.plot_counter = load_model['plot_counter']
       self.counter = load_model['annealing_counter']
+      self.bits = load_model['bits_per_dim']
       self.best_loss = loss
       self.model.to(device)
       return (self.epoch_i, loss)
