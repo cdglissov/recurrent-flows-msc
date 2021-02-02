@@ -266,7 +266,7 @@ class Evaluator(object):
         plt.close()
 
     def get_interpolations(self):
-        ## Only works for RFN when trained on one digit.
+	## Only works for RFN when trained on one digit.
         ## Two dataset with two different seeds
         interpolation_set = MovingMNIST(False, 'Mnist',
                                  seq_len=self.n_frames,
@@ -276,9 +276,11 @@ class Evaluator(object):
 												 deterministic=False,
                                  three_channels=False,
                                  step_length=self.step_length,
-                                 normalize=False, set_starting_position = True, seed = 3)
+                                 normalize=False, set_starting_position = True, seed = 7)
         interpolation_loader = DataLoader(interpolation_set, batch_size=self.batch_size,
                                  num_workers=self.num_workers, shuffle=False, drop_last=True)
+        
+        ## The picture under is the first in the picture
         interpolation_set_2 = MovingMNIST(False, 'Mnist',
                                  seq_len=self.n_frames,
                                  image_size=self.image_size,
@@ -287,7 +289,7 @@ class Evaluator(object):
 												 deterministic=False,
                                  three_channels=False,
                                  step_length=self.step_length,
-                                 normalize=False, set_starting_position = True, seed = 10)
+                                 normalize=False, set_starting_position = True, seed = 1)
         interpolation_loader_2 = DataLoader(interpolation_set_2, batch_size=self.batch_size,
                                  num_workers=self.num_workers, shuffle=False, drop_last=True)
         # So two dataset with the same loader
@@ -296,7 +298,7 @@ class Evaluator(object):
 
         num_timestep = 7
         num_interpolations = 5
-        num_batch = 10 # Chooses the batch so different numbers
+        num_batch = 26 # Chooses the element in batch so different numbers
 
         set1 = self.solver.preprocess(set1)
         set2 = self.solver.preprocess(set2)
@@ -314,6 +316,7 @@ class Evaluator(object):
         # When t = 1 ,hts = hts_1
         # When t = 0, hts = hts_2
         interpolations = []
+        fontsizetitle = 20
         for i in range(0,len(num)):
             t = num[i]
             zts = t * (zts_1 - zts_2) + zts_2
@@ -329,27 +332,30 @@ class Evaluator(object):
         truevals = (weight*set2[num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
         ax[0].imshow(self.convert_to_numpy(truevals))
         ax[0].axis('off')
-        ax[0].set_title(r"True seq")
+        ax[0].set_title(r"True seq",fontsize = fontsizetitle)
         interpolation = (weight*interpolations[0][num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
         ax[1].imshow(self.convert_to_numpy(interpolation))
         ax[1].axis('off')
-        ax[1].set_title(r"Reconstruction")
+        ax[1].set_title(r"Reconstruction",fontsize = fontsizetitle)
         for i in range(1,num_interpolations+1):
             interpolation = (weight*interpolations[i][num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
             ax[1+i].imshow(self.convert_to_numpy(interpolation))
+            #ax[1+i].
             ax[1+i].axis('off')
-            ax[1+i].set_title(r"Interpolation")
+            ax[1+i].set_title(r"Interpolation",fontsize = fontsizetitle)
 
 
         interpolation = (weight*interpolations[num_interpolations+1][num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
         ax[num_interpolations+2].imshow(self.convert_to_numpy(interpolation))
         ax[num_interpolations+2].axis('off')
-        ax[num_interpolations+2].set_title(r"Reconstruction")
+        ax[num_interpolations+2].set_title(r"Reconstruction",fontsize = fontsizetitle)
         truevals = (weight*set1[num_batch, 0:num_timestep, :, :, :]).sum(0)/num_timestep
         ax[num_interpolations+3].imshow(self.convert_to_numpy(truevals))
         ax[num_interpolations+3].axis('off')
-        ax[num_interpolations+3].set_title(r"True seq")
+        ax[num_interpolations+3].set_title(r"True seq",fontsize = fontsizetitle)
+        fig.subplots_adjust(wspace = .1)
         fig.savefig(self.path +'eval_folder/' + 'interpolations' +  '.pdf', bbox_inches='tight')
+        print('Done interpolation')
 
     def compute_loss(self, nll, kl, dims, t=10):
 
