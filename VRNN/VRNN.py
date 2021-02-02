@@ -24,6 +24,7 @@ class VRNN(nn.Module):
       bu, cu, hu, wu = self.u_dim
       bx, cx, hx, wx = self.x_dim
       self.mse_criterion = nn.MSELoss(reduction='none')
+      self.variance = args.variance
       
       
       # Remember to downscale more when using 64x64. Overall the net should probably increase in size when using 
@@ -196,8 +197,8 @@ class VRNN(nn.Module):
         if self.loss_type == "bernoulli":
             nll_loss = nll_loss - td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :])
         elif self.loss_type == "gaussian":
-            dec_std_t = self.dec_std(dec_t)
-            nll_loss = nll_loss - td.Normal(dec_mean_t, dec_std_t).log_prob(xt[:, i, :, :, :])
+            #dec_std_t = self.dec_std(dec_t)
+            nll_loss = nll_loss - td.Normal(dec_mean_t, self.variance*torch.ones_like(dec_mean_t)).log_prob(xt[:, i, :, :, :])
         elif self.loss_type == "mse":
             nll_loss = nll_loss + self.mse_criterion(dec_mean_t, xt[:, i, :, :, :])
         else:
