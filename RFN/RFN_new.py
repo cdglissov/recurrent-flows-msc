@@ -156,10 +156,9 @@ class RFN(nn.Module):
       store_ztx = torch.zeros((t-1, *zprev.shape)).cuda()
       for i in range(1, t):
         if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-            condition = store_x_features[i-1]
             x_feature = store_x_features[i]
+            
         else:
-            condition = store_x_features[i-1][-1]
             x_feature = store_x_features[i][-1]
             
         ht = store_ht[i-1,:,:,:,:]
@@ -190,16 +189,16 @@ class RFN(nn.Module):
         store_ztx[i-1,...] = zxprev
 
         if self.skip_connection_features:
-            flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = condition)
+            flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = store_x_features[i-1])
         else:
             flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1))
 
         base_conditions = torch.cat((ht, zxt), dim = 1)
 
         if self.skip_connection_flow == "with_skip":
-            flow_conditions = self.combineconditions(flow_conditions, condition)
+            flow_conditions = self.combineconditions(flow_conditions, store_x_features[i-1])
         elif self.skip_connection_flow == "only_skip":
-            flow_conditions = condition
+            flow_conditions = store_x_features[i-1]
 
         b, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, logdet)
 
@@ -300,10 +299,8 @@ class RFN(nn.Module):
         
         for i in range(1, n_conditions):
           if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-              condition = store_x_features[i-1]
               x_feature = store_x_features[i]
           else:
-              condition = store_x_features[i-1][-1]
               x_feature = store_x_features[i][-1]
               
           ht = store_ht[i-1,:,:,:,:]
@@ -312,7 +309,6 @@ class RFN(nn.Module):
               at = store_at[i-1,:,:,:,:]
               enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
           else:
-              x_feature = store_x_features[i]
               enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
           
           if self.res_q:
@@ -406,10 +402,8 @@ class RFN(nn.Module):
         
         for i in range(1, t):
             if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-                condition = store_x_features[i-1]
                 x_feature = store_x_features[i]
             else:
-                condition = store_x_features[i-1][-1]
                 x_feature = store_x_features[i][-1]
             
             ht = store_ht[i-1,:,:,:,:]
@@ -430,14 +424,14 @@ class RFN(nn.Module):
             zxt = dist_enc.rsample()
 
             if self.skip_connection_features:
-                flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = condition)
+                flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = store_x_features[i-1])
             else:
                 flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1))
 
             if self.skip_connection_flow == "with_skip":
-                flow_conditions = self.combineconditions(flow_conditions, condition)
+                flow_conditions = self.combineconditions(flow_conditions, store_x_features[i-1])
             elif self.skip_connection_flow == "only_skip":
-                flow_conditions = condition
+                flow_conditions = store_x_features[i-1]
 
             base_conditions = torch.cat((ht, zxt), dim = 1)
 
@@ -544,10 +538,8 @@ class RFN(nn.Module):
         
         for i in range(1, n_conditions + n_predictions):
             if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
-                condition = store_x_features[i-1]
                 x_feature = store_x_features[i]
             else:
-                condition = store_x_features[i-1][-1]
                 x_feature = store_x_features[i][-1]
             
             ht = store_ht[i-1,:,:,:,:]
@@ -578,14 +570,14 @@ class RFN(nn.Module):
             mu_q[i-1,:,:,:,:] = enc_mean.detach()
             
             if self.skip_connection_features:
-                flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = condition)
+                flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = store_x_features[i-1])
             else:
                 flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1))
             
             if self.skip_connection_flow == "with_skip":
-                flow_conditions = self.combineconditions(flow_conditions, condition)
+                flow_conditions = self.combineconditions(flow_conditions, store_x_features[i-1])
             elif self.skip_connection_flow == "only_skip":
-                flow_conditions = condition
+                flow_conditions = store_x_features[i-1]
             
             base_conditions = torch.cat((ht, zt), dim = 1)
             prediction, params = self.flow.sample(None, flow_conditions, base_conditions, 1.0, eval_params = True)
