@@ -167,7 +167,6 @@ class RFN(nn.Module):
             at = store_at[i-1,:,:,:,:]
             enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
         else:
-            x_feature = store_x_features[i]
             enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
         
         if self.res_q:
@@ -412,7 +411,6 @@ class RFN(nn.Module):
                 at = store_at[i-1,:,:,:,:]
                 enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
             else:
-                x_feature = store_x_features[i]
                 enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
             
             if self.res_q:
@@ -548,7 +546,6 @@ class RFN(nn.Module):
                 at = store_at[i-1,:,:,:,:]
                 enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
             else:
-                x_feature = store_x_features[i]
                 enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
             
             if self.res_q:
