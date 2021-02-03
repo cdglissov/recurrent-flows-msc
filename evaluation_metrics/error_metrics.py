@@ -215,7 +215,7 @@ class Evaluator(object):
         fontsize = 30
         rotation = 0
         labelpad = 60
-        ax[0,0].set_ylabel(r'True seq:',fontsize = fontsize, rotation = rotation, labelpad = labelpad)
+        ax[0,0].set_ylabel(r'GT:',fontsize = fontsize, rotation = rotation, labelpad = labelpad)
         ax[1,1].set_ylabel(r'Prior:',fontsize = fontsize, rotation = rotation, labelpad = labelpad)
         ax[2,1].set_ylabel(r'Posterior:',fontsize = fontsize, rotation = rotation, labelpad = labelpad)
         fig.tight_layout()
@@ -252,19 +252,21 @@ class Evaluator(object):
         plt.figure()
         xaxis = np.arange(self.n_conditions, probT.shape[2] + self.n_conditions)
         y = probT[:,0,:].mean(0)
-        plt.plot(xaxis, probT[:,0,:].mean(0), label = 'Prior')
+        plt.plot(xaxis, y, label = 'Prior')
         # Almost no difference between prior and posterior, so only plot prior
         #plt.plot(xaxis, probT[:,1,:].mean(0), label = 'Posterior')
         #plt.legend()
         conf_std = 1.96 * np.std(probT[:,0,:].numpy(),0)/np.sqrt(np.shape(probT[:,0,:].numpy())[0])
         plt.fill_between(xaxis, y-conf_std, y+conf_std, alpha=.1)
 
-        plt.ylabel(r"Bits per pixel")
-        plt.xlabel(r"Frame number:$X_{t}$")
-        plt.title(r'$P(X_{'+str(self.n_conditions)+'}= X_t \mid X_{<'+str(self.n_conditions)+'})$')
+        plt.ylabel(r"Bits per pixel", fontsize = 20)
+        plt.xlabel(r"Frame number:$X_{t}$", fontsize = 20)
+        plt.title(r'$P(X_{'+str(self.n_conditions)+'}= X_t \mid X_{<'+str(self.n_conditions)+'})$', fontsize = 20)
+        plt.xticks(fontsize = 20)
+        plt.yticks(fontsize = 20)
         plt.grid()
 
-        plt.savefig(self.path + 'eval_folder/bpp_sequence' + '.png', bbox_inches='tight')
+        plt.savefig(self.path + 'eval_folder/bpp_sequence' + '.pdf', bbox_inches='tight')
 
         plt.close()
 
