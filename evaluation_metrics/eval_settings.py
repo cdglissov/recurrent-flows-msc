@@ -29,7 +29,8 @@ def main(settings):
         solver = Solver(args)
         solver.build()
         solver.load(load_model)
-        
+        # If path is wrong for the copied model it might be necessary to adjust this below:
+        #args.path = "/work1/s146996/MNIST/"
         evaluator = Evaluator(solver, args, settings)
         evaluator.build()
 
@@ -39,9 +40,14 @@ def main(settings):
         if not settings.test_temperature:
             if settings.eval_parameters:
                 evaluator.param_plots(path_save_measures, n_conditions=settings.n_conditions)
-            evaluator.model.temperature = settings.temperatures[i]
             
+            # Plots for RFN
+            evaluator.plot_temp(model_name)
             evaluator.plot_long_t(model_name)
+            evaluator.plot_diversity(model_name)
+            evaluator.plot_random_samples(model_name)
+            
+            evaluator.model.temperature = settings.temperatures[i]
             
             if settings.calc_fvd:
                 print("Computing FVD")
@@ -158,13 +164,13 @@ if __name__ == "__main__":
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences",
                         default=2, type=int)
     parser.add_argument("--n_frames", help="Specify the sequence length of the test data",
-                        default=30, type=int)
+                        default=10, type=int)
     parser.add_argument("--start_predictions", help="Specify when model starts predicting",
                         default=5, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model",
                         default=[1], type=float)
     parser.add_argument("--resample", help="Loops over the test set more than once to get better measures. WARNING: can be slow",
-                        default=35, type=int)
+                        default=2, type=int)
     add_bool_arg(parser, "extra_plots", default=False,
                  help="Plots the elbo gap of the RFN model and other plots. WARNING: Only works for RFN")
 
@@ -177,14 +183,14 @@ if __name__ == "__main__":
                  help="Uses a small test set to speed up iterations for debugging. Only works for SM-MNIST")
 
     #EVAL VALUES PLOTTER SETTINGS:
-    add_bool_arg(parser, "calc_eval", default=False,
+    add_bool_arg(parser, "calc_eval", default=True,
                  help="Set to false if we do not want to calculate eval values")
-    add_bool_arg(parser, "debug_plot", default=False,
+    add_bool_arg(parser, "debug_plot", default=True,
                  help="Plots num_samples_to_plot samples to make sure the loader and eval works")
     parser.add_argument("--n_conditions", help="Number of conditions used for plotting eval_values",
                         default=5, type=int)
     add_bool_arg(parser, "eval_parameters", default=False,
-                 help="If true then parameter analysis plot will be created")
+                 help="If true then parameter analysis plot will be created, WARNING: Only MNIST")
 
     # FVD settings
     add_bool_arg(parser, "calc_fvd", default=False,

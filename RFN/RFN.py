@@ -216,7 +216,7 @@ class RFN(nn.Module):
                 flow_conditions = condition_list
 
             base_conditions = torch.cat((ht, zt), dim = 1)
-            prediction = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
+            prediction = self.flow.sample(None, flow_conditions, base_conditions, temperature=self.temperature)
             predictions[i,:,:,:,:] = prediction.detach()
             hprev, cprev = ht, ct
             zprev = zt
@@ -280,7 +280,7 @@ class RFN(nn.Module):
                 flow_conditions = condition_list
 
             base_conditions = torch.cat((ht, zt), dim = 1)
-            prediction = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
+            prediction = self.flow.sample(None, flow_conditions, base_conditions, temperature=self.temperature)
             predictions[i,:,:,:,:] = prediction.detach()
 
 
@@ -324,10 +324,10 @@ class RFN(nn.Module):
 
             # To check bijection of the flow we use z to reconstruct the image
             z, _ = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, 0.0)
-            recon_flow_sample = self.flow.sample(z, flow_conditions, base_conditions, self.temperature)
+            recon_flow_sample = self.flow.sample(z, flow_conditions, base_conditions, temperature=self.temperature)
 
             # To look at a normal reconstruction we just use the posterior distribution
-            recon_sample = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
+            recon_sample = self.flow.sample(None, flow_conditions, base_conditions, temperature=self.temperature)
 
             recons[i,:,:,:,:] = recon_sample.detach()
             recons_flow[i,:,:,:,:] = recon_flow_sample.detach()
@@ -445,9 +445,9 @@ class RFN(nn.Module):
                 z, nll = self.flow.log_prob(x[:, i, :, :, :], flow_conditions, base_conditions, 0.0)
                 averageNLLseq[count, i, :] = nll
                 if sample:
-                    recon_flow_sample = self.flow.sample(z, flow_conditions, base_conditions, self.temperature)
+                    recon_flow_sample = self.flow.sample(z, flow_conditions, base_conditions, temperature=self.temperature)
                     # To look at a normal reconstruction we just use the posterior distribution
-                    recon_sample = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
+                    recon_sample = self.flow.sample(None, flow_conditions, base_conditions, temperature=self.temperature)
                     recons[count, i,:,:,:,:] = recon_sample.detach()
                     recons_flow[count, i, :,:,:,:] = recon_flow_sample.detach()
             KLavg = td.kl_divergence(dist_enc, dist_prior).sum([1,2,3]) # sum over everything expect batches
@@ -492,7 +492,7 @@ class RFN(nn.Module):
                 flow_conditions = condition_list
 
             base_conditions = torch.cat((ht, zt), dim = 1)
-            sample = self.flow.sample(None, flow_conditions, base_conditions, self.temperature)
+            sample = self.flow.sample(None, flow_conditions, base_conditions, temperature=self.temperature)
 
 
             samples[i,:,:,:,:] = sample.detach()
@@ -552,7 +552,7 @@ class RFN(nn.Module):
                 flow_conditions = condition_list
 
             base_conditions = torch.cat((ht, zt), dim = 1)
-            prediction, params = self.flow.sample(None, flow_conditions, base_conditions, self.temperature, eval_params = True)
+            prediction, params = self.flow.sample(None, flow_conditions, base_conditions, temperature=self.temperature, eval_params = True)
             std_flow.append(params[1].detach())
             mu_flow.append(params[0].detach())
             
