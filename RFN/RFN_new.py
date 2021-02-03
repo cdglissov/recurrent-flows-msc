@@ -34,7 +34,7 @@ class RFN(nn.Module):
       self.res_q = args.res_q
       self.D = args.D + 1
       self.overshot_w = args.overshot_w
-      
+
       down_structure = args.extractor_structure
       up_structure = args.upscaler_structure
 
@@ -83,8 +83,8 @@ class RFN(nn.Module):
       # ConvLSTM
       self.lstm = ConvLSTM(in_channels = c_features, hidden_channels=self.h_dim,
                            kernel_size=[3, 3], bias=True, peephole=True)
-      
-      self.a_lstm = ConvLSTM(in_channels = c_features + self.h_dim, hidden_channels=self.a_dim,
+      if self.enable_smoothing:
+          self.a_lstm = ConvLSTM(in_channels = c_features + self.h_dim, hidden_channels=self.a_dim,
                            kernel_size=[3, 3], bias=True, peephole=True)
       # Prior
       prior_struct = self.prior_structure
@@ -120,12 +120,12 @@ class RFN(nn.Module):
       store_at = torch.zeros((t-1, *aprev.shape)).cuda()
       #need to debug if this breaks backprop?! Don't think it does: https://github.com/pytorch/pytorch/issues/23653
       store_x_features = []
-      
+
       #x
       for i in range(0,t):
           x_feature_list = self.extractor(x[:, i, :, :, :])
           store_x_features.append(x_feature_list)
-          
+
       #h
       for i in range(1, t):
         if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
@@ -136,8 +136,8 @@ class RFN(nn.Module):
         store_ht[i-1,:,:,:,:] = ht
         hprev=ht
         cprev=ct
-        
-     
+
+
       if self.enable_smoothing:
           #Find at
           for i in range(1, t):
@@ -150,25 +150,25 @@ class RFN(nn.Module):
             aprev = at
             caprev = c_at
             store_at[t-i-1,:,:,:,:] = at
-      
+
       store_ztx_mean = torch.zeros((t-1, *zxprev.shape)).cuda()
       store_ztx_std = torch.zeros((t-1, *zxprev.shape)).cuda()
       store_ztx = torch.zeros((t-1, *zprev.shape)).cuda()
       for i in range(1, t):
         if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
             x_feature = store_x_features[i]
-            
+
         else:
             x_feature = store_x_features[i][-1]
-            
+
         ht = store_ht[i-1,:,:,:,:]
-        
+
         if self.enable_smoothing:
             at = store_at[i-1,:,:,:,:]
             enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
         else:
             enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
-        
+
         if self.res_q:
             prior_mean, prior_std = self.prior(torch.cat((ht, zxprev), dim=1))
 
@@ -178,10 +178,10 @@ class RFN(nn.Module):
 
         dist_prior = td.Normal(prior_mean, prior_std)
         zt = dist_prior.rsample()
-        
+
         dist_enc = td.Normal(enc_mean, enc_std)
         zxt = dist_enc.rsample()
-        
+
         store_ztx_mean[i-1,...] = enc_mean
         store_ztx_std[i-1,...] = enc_std
         store_ztx[i-1,...] = zxt
@@ -207,8 +207,8 @@ class RFN(nn.Module):
 
         nll_loss = nll_loss + nll
 
-        zprev, zxprev = zt, zxt, 
-        
+        zprev, zxprev = zt, zxt,
+
       if self.D > 1: # is the number of over samples, if D=1 no over shooting will happen.
 
           overshot_w = self.overshot_w # Weight of overshot.
@@ -232,12 +232,12 @@ class RFN(nn.Module):
                       # They do this in the paper for d>0.
                       enc_mean = enc_mean.detach().clone()
                       enc_std = enc_std.detach().clone()
-                  
+
                   enc_dist = td.Normal(enc_mean, enc_std)
-                    
+
                   overshot_loss = overshot_loss + overshot_w * td.kl_divergence(enc_dist, dist_prior)
               kl_loss = kl_loss + 1/D * overshot_loss
-      
+
       if self.free_bits>0:
           kl_free_bit = free_bits_kl(kl_loss, free_bits = self.free_bits)
       else:
@@ -256,11 +256,11 @@ class RFN(nn.Module):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
         hprev, cprev, aprev, caprev, zprev, zxprev, _, _, _ = self.get_inits()
         t = x.shape[1]
-        
+
         store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
         store_at = torch.zeros((t-1, *aprev.shape)).cuda()
         store_x_features = []
-        
+
         predictions = torch.zeros((n_predictions, *x[:,0,:,:,:].shape))
         true_x = torch.zeros((n_conditions, *x[:,0,:,:,:].shape))
 
@@ -270,7 +270,7 @@ class RFN(nn.Module):
         for i in range(0,n_conditions):
             x_feature_list = self.extractor(x[:, i, :, :, :])
             store_x_features.append(x_feature_list)
-            
+
         #h
         for i in range(1, n_conditions):
           if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
@@ -281,8 +281,8 @@ class RFN(nn.Module):
           store_ht[i-1,:,:,:,:] = ht
           hprev=ht
           cprev=ct
-          
-       
+
+
         if self.enable_smoothing:
             #Find at
             for i in range(1, n_conditions):
@@ -295,37 +295,37 @@ class RFN(nn.Module):
               aprev = at
               caprev = c_at
               store_at[n_conditions-i-1,:,:,:,:] = at
-        
+
         for i in range(1, n_conditions):
           if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
               x_feature = store_x_features[i]
           else:
               x_feature = store_x_features[i][-1]
-              
+
           ht = store_ht[i-1,:,:,:,:]
-          
+
           if self.enable_smoothing:
               at = store_at[i-1,:,:,:,:]
               enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
           else:
               enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
-          
+
           if self.res_q:
               prior_mean, prior_std = self.prior(torch.cat((ht, zxprev), dim=1))
               enc_mean = prior_mean + enc_mean
           else:
               prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
-  
+
           dist_prior = td.Normal(prior_mean, prior_std)
           zt = dist_prior.rsample()
-          
+
           dist_enc = td.Normal(enc_mean, enc_std)
           zxt = dist_enc.rsample()
 
           true_x[i,:,:,:,:] = x[:, i, :, :, :].detach()
           zprev = zt
           zxprev = zxt
-            
+
 
         prediction = x[:,n_conditions-1,:,:,:]
         for i in range(0, n_predictions):
@@ -368,12 +368,12 @@ class RFN(nn.Module):
         store_ht = torch.zeros((t-1, *hprev.shape)).cuda()
         store_at = torch.zeros((t-1, *aprev.shape)).cuda()
         store_x_features = []
-        
+
         #x
         for i in range(0,t):
             x_feature_list = self.extractor(x[:, i, :, :, :])
             store_x_features.append(x_feature_list)
-              
+
           #h
         for i in range(1, t):
           if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
@@ -384,8 +384,8 @@ class RFN(nn.Module):
           store_ht[i-1,:,:,:,:] = ht
           hprev=ht
           cprev=ct
-            
-         
+
+
         if self.enable_smoothing:
             #Find at
             for i in range(1, t):
@@ -398,13 +398,13 @@ class RFN(nn.Module):
               aprev = at
               caprev = c_at
               store_at[t-i-1,:,:,:,:] = at
-        
+
         for i in range(1, t):
             if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
                 x_feature = store_x_features[i]
             else:
                 x_feature = store_x_features[i][-1]
-            
+
             ht = store_ht[i-1,:,:,:,:]
 
             if self.enable_smoothing:
@@ -412,12 +412,12 @@ class RFN(nn.Module):
                 enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
             else:
                 enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
-            
+
             if self.res_q:
                 prior_mean, _ = self.prior(torch.cat((ht, zxprev), dim=1))
-    
+
                 enc_mean = prior_mean + enc_mean
-    
+
             dist_enc = td.Normal(enc_mean, enc_std)
             zxt = dist_enc.rsample()
 
@@ -494,7 +494,7 @@ class RFN(nn.Module):
 
     def param_analysis(self, x, n_predictions, n_conditions):
         assert len(x.shape) == 5, "x must be [bs, t, c, h, w]"
-        hprev, cprev,aprev,caprev, zprev, zxprev, _, _, _ = self.get_inits()  
+        hprev, cprev,aprev,caprev, zprev, zxprev, _, _, _ = self.get_inits()
         hw = x.shape[-1]//(2**self.L)
         std_p = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
         mu_p = torch.zeros((n_predictions+n_conditions-1, x.shape[0], self.z_dim, hw, hw))
@@ -506,11 +506,11 @@ class RFN(nn.Module):
         store_x_features = []
         std_flow = []
         mu_flow = []
-        
+
         for i in range(0,t):
             x_feature_list = self.extractor(x[:, i, :, :, :])
             store_x_features.append(x_feature_list)
-        
+
         for i in range(1, t):
             if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
                 condition = store_x_features[i-1]
@@ -520,7 +520,7 @@ class RFN(nn.Module):
             store_ht[i-1,:,:,:,:] = ht
             hprev=ht
             cprev=ct
-        
+
         if self.enable_smoothing:
             #Find at
             for i in range(1, t):
@@ -533,55 +533,55 @@ class RFN(nn.Module):
               aprev = at
               caprev = c_at
               store_at[t-i-1,:,:,:,:] = at
-        
+
         for i in range(1, n_conditions + n_predictions):
             if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:
                 x_feature = store_x_features[i]
             else:
                 x_feature = store_x_features[i][-1]
-            
+
             ht = store_ht[i-1,:,:,:,:]
-            
+
             if self.enable_smoothing:
                 at = store_at[i-1,:,:,:,:]
                 enc_mean, enc_std = self.encoder(torch.cat((at, zxprev), dim = 1))
             else:
                 enc_mean, enc_std = self.encoder(torch.cat((ht, zxprev, x_feature), dim = 1))
-            
+
             if self.res_q:
                 prior_mean, prior_std = self.prior(torch.cat((ht, zxprev), dim=1))
-    
+
                 enc_mean = prior_mean + enc_mean
             else:
                 prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
-            
+
             dist_prior = td.Normal(prior_mean, prior_std)
             zt = dist_prior.rsample()
-            
+
             dist_enc = td.Normal(enc_mean, enc_std)
             zxt = dist_enc.rsample()
-            
+
             std_p[i-1,:,:,:,:] = prior_std.detach()
             mu_p[i-1,:,:,:,:] = prior_mean.detach()
             std_q[i-1,:,:,:,:] = enc_std.detach()
             mu_q[i-1,:,:,:,:] = enc_mean.detach()
-            
+
             if self.skip_connection_features:
                 flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1), skip_list = store_x_features[i-1])
             else:
                 flow_conditions = self.upscaler(torch.cat((ht, zxt), dim = 1))
-            
+
             if self.skip_connection_flow == "with_skip":
                 flow_conditions = self.combineconditions(flow_conditions, store_x_features[i-1])
             elif self.skip_connection_flow == "only_skip":
                 flow_conditions = store_x_features[i-1]
-            
+
             base_conditions = torch.cat((ht, zt), dim = 1)
             prediction, params = self.flow.sample(None, flow_conditions, base_conditions, 1.0, eval_params = True)
             std_flow.append(params[1].detach())
             mu_flow.append(params[0].detach())
-            
+
             zxprev = zxt
             zprev = zt
-            
+
         return mu_p, std_p, mu_q, std_q, torch.stack(mu_flow), torch.stack(std_flow)
