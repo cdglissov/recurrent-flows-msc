@@ -28,8 +28,7 @@ def main(settings):
         
         solver = Solver(args)
         solver.build()
-        if settings.calc_eval:
-            solver.load(load_model)
+        solver.load(load_model)
         
         evaluator = Evaluator(solver, args, settings)
         evaluator.build()
@@ -41,7 +40,9 @@ def main(settings):
             if settings.eval_parameters:
                 evaluator.param_plots(path_save_measures, n_conditions=settings.n_conditions)
             evaluator.model.temperature = settings.temperatures[i]
-
+            
+            evaluator.plot_long_t(model_name)
+            
             if settings.calc_fvd:
                 print("Computing FVD")
                 FVD_values = evaluator.get_fvd_values(model_name, settings.fvd_predicts)
@@ -145,11 +146,11 @@ if __name__ == "__main__":
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments",
                         default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
-                        default=["srnn_test_os", "srnn_test_os_s", "srnn_test_os_s_resq"], type=str)
+                        default=["rfn_L4"], type=str)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
-                        default=["L3", "L4","L5"], type=str)
+                        default=["L4"], type=str)
     parser.add_argument("--model_path", nargs='+', help="Name of model.pt file",
-                        default=['srnn.pt', "srnn.pt", "srnn.pt"], type=str)
+                        default=['rfn.pt'], type=str)
 
     #CALCULATE VALUES SETTINGS:
     add_bool_arg(parser, "use_validation_set", default=False,
@@ -161,7 +162,7 @@ if __name__ == "__main__":
     parser.add_argument("--start_predictions", help="Specify when model starts predicting",
                         default=5, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model",
-                        default=[0.7, 0.7, 0.7], type=float)
+                        default=[1], type=float)
     parser.add_argument("--resample", help="Loops over the test set more than once to get better measures. WARNING: can be slow",
                         default=35, type=int)
     add_bool_arg(parser, "extra_plots", default=False,
@@ -174,12 +175,12 @@ if __name__ == "__main__":
     #DEBUG SETTINGS:
     add_bool_arg(parser, "debug_mnist", default=True,
                  help="Uses a small test set to speed up iterations for debugging. Only works for SM-MNIST")
-    add_bool_arg(parser, "debug_plot", default=False,
-                 help="Plots num_samples_to_plot samples to make sure the loader and eval works")
 
     #EVAL VALUES PLOTTER SETTINGS:
-    add_bool_arg(parser, "calc_eval", default=True,
+    add_bool_arg(parser, "calc_eval", default=False,
                  help="Set to false if we do not want to calculate eval values")
+    add_bool_arg(parser, "debug_plot", default=False,
+                 help="Plots num_samples_to_plot samples to make sure the loader and eval works")
     parser.add_argument("--n_conditions", help="Number of conditions used for plotting eval_values",
                         default=5, type=int)
     add_bool_arg(parser, "eval_parameters", default=False,
