@@ -430,6 +430,9 @@ class Evaluator(object):
           # Min so far on BAir is 2.66
           print('Mean Loss: '+str(BPD_means_mean.numpy()) + ' Std: '+str(BPD_means_std))
 	
+    def count_parameters(self):
+        return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+    
     def get_eval_values(self, model_name):
       start_predictions = self.start_predictions
 
