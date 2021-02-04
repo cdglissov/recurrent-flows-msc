@@ -368,6 +368,68 @@ class Evaluator(object):
 
         return bits_per_dim_loss, kl_loss, recon_loss
 
+    def get_loss(self, model_name, loss_resamples):
+        BPD = []
+        DKL=[]
+        RECON = []
+
+        with torch.no_grad():
+          self.model.eval()
+          BPD_means = []
+          DKL_means = []
+          RECON_means = []
+          for resample in range(0,loss_resamples):
+              BPD = []
+              DKL=[]
+              RECON = []
+              for batch_i, true_image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
+                  if self.choose_data=='bair':
+                      image = true_image[0].to(device)
+                  else:
+                      image = true_image.to(device)
+                  
+                  image = self.solver.preprocess(image)
+                  # It doesnt make sense to get loss for longer seqs than trained on, atleast not if need to be compared to the trained loss.
+                  imageloss = image[:,:self.n_trained,:,:,:]
+                  # Computes eval loss
+                  if model_name == "rfn.pt":
+                      logdet = 0
+                      _, kl, nll = self.model.loss(imageloss, logdet)
+                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll,
+                                                                               kl=kl,
+                                                                               dims=imageloss.shape[2:],
+                                                                               t=imageloss.shape[1]-1)
+                  else:
+                      kl, nll = self.model.loss(imageloss)
+                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll,
+                                                                               kl=kl,
+                                                                               dims=image.shape[2:],
+                                                                               t=image.shape[1]-1)
+                  
+                    
+                  BPD.append(bits_per_dim_loss)
+                  DKL.append(kl_loss)
+                  RECON.append(recon_loss)
+              
+              BPD = torch.FloatTensor(BPD)
+              DKL = torch.FloatTensor(DKL)
+              RECON = torch.FloatTensor(RECON)
+              # Find the mean of the bits per dim of one whole data set
+              BPD_means.append(BPD)
+              DKL_means.append(DKL) 
+              RECON_means.append(RECON)
+          # Shape  [loss_resamples*len(test_set)]
+          BPD_means = torch.stack(BPD_means)
+          DKL_means = torch.stack(DKL_means)
+          RECON_means = torch.stack(RECON_means)
+          print(BPD_means.shape)
+          
+          BPD_means_mean = BPD_means.mean()
+          BPD_means_std = BPD_means.std()
+          #CI = BPD_means_std/(loss_resamples**(1/2))
+          # Min so far on BAir is 2.66
+          print('Mean Loss: '+str(BPD_means_mean.numpy()) + ' Std: '+str(BPD_means_std))
+	
     def get_eval_values(self, model_name):
       start_predictions = self.start_predictions
 
