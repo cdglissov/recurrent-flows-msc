@@ -52,7 +52,7 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=32, type=int)
+                        default=35, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
@@ -70,15 +70,16 @@ if __name__ == "__main__":
     add_bool_arg(parser, "use_validation_set", default=False, help="Specify if we want to use a validation set")
 
     # Trainer
+    
     # The plateau function reduces the learning rate after plateau. Linear decrease the learning rate after threshold.
     parser.add_argument('--scheduler_type', help="Specify type of scheduler.", 
-                    default='plateau', choices=["plateau", "linear"], type=str)
+                    default='linear', choices=["plateau", "linear"], type=str)
     parser.add_argument("--patience_es", help="Specify patience for early stopping", 
-                        default=5000, type=int)
+                        default=50000000, type=int)
     parser.add_argument("--patience_lr", help="Specify patience for lr_scheduler", 
-                        default=10, type=int)
+                        default=10000000, type=int)
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
-                        default=0.5, type=restricted_float)
+                        default=.9999, type=restricted_float)
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
                         default=0.00005, type=float)
     parser.add_argument("--n_bits", help="Specify number of bits", 
@@ -97,13 +98,13 @@ if __name__ == "__main__":
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
                         default=1, type=float)
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
-                        default=0.00001, type=float)
+                        default=0.0000001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
                         default=12000, type=int)
     parser.add_argument("--n_predictions", help="Specify number of predictions", 
-                        default=5, type=int)
+                        default=7, type=int)
     parser.add_argument("--n_conditions", help="Specify number of predictions", 
-                        default=5, type=int)
+                        default=3, type=int)
     add_bool_arg(parser, "multigpu", default=False, help="Specify if we want to use multi GPUs")
     add_bool_arg(parser, "load_model", default=False, 
                  help="Specify if we want to load a pre-existing model (boolean)")
@@ -116,18 +117,19 @@ if __name__ == "__main__":
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
                         default=[32, 3, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
-                        default=200, type=int)
+                        default=256, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
-                        default=10, type=int)
+                        default=5, type=int)
     parser.add_argument("--L", help="Specify flow depth", 
                         default=5, type=int)
     parser.add_argument("--K", help="Specify flow recursion", 
-                        default=10, type=int)
+                        default=15, type=int)
     # Downscaler architechture. Consisting of L blocks, the end of each block
     # will be what is skip connected. It is possible to chose between 
     # pool,conv,squeeze, as downsampling methods. Does not need to end with integer
+    
     parser.add_argument('--extractor_structure', nargs='+', help="Specify structure of extractor example writing, 32-32-conv 32-32-pool, creates 2 blocks", 
-                        default= [[16, 16, 'pool', 32],[32, 32, 'pool', 64], [64, 64, 'pool', 128], [128, 'pool', 256],[256, 'pool', 512]], type=convert_to_upscaler)
+                        default= [[8, 8, 'pool', 16],[16, 16, 'pool', 32], [32, 32, 'pool', 64], [64, 'pool', 128],[128, 'pool', 256]], type=convert_to_upscaler)
     
     #test batchnorm here
     parser.add_argument('--norm_type', help="Specify normalization type of layers", 
@@ -135,18 +137,19 @@ if __name__ == "__main__":
     # Upscaler structure can be a bit tricky to define. First the input does not need to be fully upscaled,
     # so for L = 3 only 2 deconv's is required. Every block should end with an integer. I.e. 32-deconv-32 deconv-16
     # and not 32-deconv 32-deconv
+
     parser.add_argument('--upscaler_structure', help="Specify upscaler structure, example writing, 32-32-deconv 32-32-upsample, creates 2 blocks",
-                        nargs='+', default=[[256], ['upsample', 128, 128], ['upsample', 64, 64], ['upsample', 32, 32], ['upsample', 16, 16]], type=convert_to_upscaler)
+                        nargs='+', default=[[256, 128], ['upsample', 128, 128], ['upsample', 64, 64], ['upsample', 32, 32], ['upsample', 16, 16]], type=convert_to_upscaler)
     parser.add_argument("--structure_scaler", help="Specify down/up-sampling channel factor", 
                         default=2, type=int)
     parser.add_argument("--temperature", help="Specify temperature", 
                         default=0.7, type=restricted_float)
     parser.add_argument("--prior_structure", help="Specify the structure of the prior", 
-                        nargs="+" ,default=[256, 128],type=convert_mixed_list)
+                        nargs="+" ,default=[256, 64],type=convert_mixed_list)
     parser.add_argument("--encoder_structure", help="Specify the structure of the encoder", 
-                        nargs="+" ,default=[256, 128],type=convert_mixed_list)
+                        nargs="+" ,default=[256, 64],type=convert_mixed_list)
     parser.add_argument('--skip_connection_flow', help="Specify skip_connections mode", 
-                        default='without_skip', choices=["without_skip", "with_skip", "only_skip"], type=str)
+                        default='with_skip', choices=["without_skip", "with_skip", "only_skip"], type=str)
     add_bool_arg(parser, "downscaler_tanh", default=False, help="Specify if skip connection from downscaler is tanh'ed (boolean)")
     
     add_bool_arg(parser, "upscaler_tanh", default=False, help="Specify if the outputs from the upscaler is tanh'ed (boolean)")
@@ -154,7 +157,7 @@ if __name__ == "__main__":
     add_bool_arg(parser, "skip_connection_features", default=True, help="Specify if skip connection between up and downscaler (boolean)")
     parser.add_argument("--free_bits", help="Specify free bit, if -1.0 then we use no free_bit", 
                         default=-1.0, type=float)
-    
+
     #Glow
     add_bool_arg(parser, "learn_prior", default=True, help="Specify if we want a learned prior (boolean)")
     add_bool_arg(parser, "LU_decomposed", default=True, help="Specify if we want to use LU factorization (boolean)")
@@ -180,12 +183,12 @@ if __name__ == "__main__":
     # overshooting, smoothing and resq
     parser.add_argument("--a_dim", help="Channels of smoothing", 
                         default=200, type=int)
-    add_bool_arg(parser, "enable_smoothing", default=True, 
+    add_bool_arg(parser, "enable_smoothing", default=False, 
                  help="Enables smoothing")
-    add_bool_arg(parser, "res_q", default=True, 
+    add_bool_arg(parser, "res_q", default=False, 
                  help="Enables res_q")
     parser.add_argument("--D", help="Number of overshoots", 
-                        default=1, type=int)
+                        default=0, type=int)
     parser.add_argument("--overshot_w", help="Weighting of overshooting", 
                         default=1.0, type=float)
     args = parser.parse_args()
