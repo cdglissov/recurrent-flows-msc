@@ -124,7 +124,8 @@ if __name__ == "__main__":
                         default="mse", choices = ["bernoulli", "mse", "gaussian"], type=str)
     parser.add_argument("--norm_type", help="Specify the type of loss used", 
                         default="batchnorm", choices = ["batchnorm", "instancenorm", "none"], type=str)
-    
+    parser.add_argument("--variance", help="Specify the variance of out put probability ", 
+                        default=1, type=float)
     
     args = parser.parse_args()
     

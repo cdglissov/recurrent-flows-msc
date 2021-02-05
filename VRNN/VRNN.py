@@ -197,7 +197,6 @@ class VRNN(nn.Module):
         if self.loss_type == "bernoulli":
             nll_loss = nll_loss - td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :])
         elif self.loss_type == "gaussian":
-            #dec_std_t = self.dec_std(dec_t)
             nll_loss = nll_loss - td.Normal(dec_mean_t, self.variance*torch.ones_like(dec_mean_t)).log_prob(xt[:, i, :, :, :])
         elif self.loss_type == "mse":
             nll_loss = nll_loss + self.mse_criterion(dec_mean_t, xt[:, i, :, :, :])
@@ -323,4 +322,56 @@ class VRNN(nn.Module):
         samples[i,:,:,:,:] = dec_mean_t.detach()
       return samples
     
+    def elbo_importance_weighting(self, xt, K):
 
+      b, t, c, h, w = xt.shape
+      hprev, cprev, zprev, zxprev, _, _, _ = self.get_inits()   
+      loss=0
+      for i in range(1, t):
+        logpzs = torch.empty(size=(K, self.batch_size))
+        logqzxs = torch.empty(size=(K, self.batch_size))
+        lpx_Gz_obss = torch.empty(size=(K, self.batch_size))
+        
+        xt_features = self.phi_x_t(xt[:, i, :, :, :])
+        ut = self.phi_x_t(xt[:, i-1, :, :, :])
+        
+        for k in range(0, K):
+          lstm_input = torch.cat([ut, self.phi_z(zxprev)], 1)
+          _, ht, ct = self.lstm(lstm_input.unsqueeze(1), hprev, cprev)
+          
+          prior_t = self.prior(ht) 
+          prior_mean_t = self.prior_mean(prior_t) 
+          prior_std_t = self.prior_std(prior_t)
+          prior_dist = td.Normal(prior_mean_t, prior_std_t)
+          
+          enc_t = self.enc(torch.cat([ht, xt_features], 1))
+          enc_mean_t = self.enc_mean(enc_t)
+          enc_std_t = self.enc_std(enc_t)
+          enc_dist = td.Normal(enc_mean_t, enc_std_t)
+          
+          zx_t = enc_dist.rsample()
+          z_t = prior_dist.rsample()
+          
+          dec_t = self.dec(torch.cat([ht, self.phi_z(zx_t)], 1))
+          dec_mean_t = self.dec_mean(dec_t)
+          
+  
+          if self.loss_type == "bernoulli":
+              lpx_Gz_obs =  td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :])
+          elif self.loss_type == "gaussian":
+              lpx_Gz_obs =  td.Normal(dec_mean_t, self.variance*torch.ones_like(dec_mean_t)).log_prob(xt[:, i, :, :, :])
+          elif self.loss_type == "mse":
+              lpx_Gz_obs =  - self.mse_criterion(dec_mean_t, xt[:, i, :, :, :])
+          else:
+              print("undefined loss")
+              
+          logpzs[k] = prior_dist.log_prob(z_t).sum([-1])
+          logqzxs[k] = enc_dist.log_prob(zx_t).sum([-1])
+          lpx_Gz_obss[k] = lpx_Gz_obs.sum([-1,-2,-3])
+          zxprev = zx_t
+          hprev = ht
+          cprev = ct
+        
+        loss = loss - torch.mean(torch.logsumexp(lpx_Gz_obss + logpzs - logqzxs, 0)-torch.log(torch.tensor(K).float()))
+        
+      return loss

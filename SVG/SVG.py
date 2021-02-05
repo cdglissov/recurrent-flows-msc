@@ -219,7 +219,7 @@ class SVG(nn.Module):
         self.decoder = Decoder(c_features, channels)
         self.encoder.apply(init_weights)
         self.decoder.apply(init_weights)
-        
+        self.variance = args.variance
         self.frame_predictor = lstm_svg(c_features+z_dim, c_features, h_dim, predictor_rnn_layers, self.batch_size).to(device)
         self.posterior = gaussian_lstm(c_features, z_dim, h_dim, posterior_rnn_layers, self.batch_size).to(device)
         self.prior = gaussian_lstm(c_features, z_dim, h_dim, prior_rnn_layers, self.batch_size).to(device)
@@ -252,6 +252,8 @@ class SVG(nn.Module):
               nll = nll - td.Bernoulli(probs=x_pred).log_prob(x[:, i, :, :, :])
           elif self.loss_type == "mse":
               nll = nll + self.mse_criterion(x_pred, x[:, i, :, :, :])
+          elif self.loss_type == "gaussian":
+            nll = nll - td.Normal(x_pred, self.variance*torch.ones_like(x_pred)).log_prob(x[:, i, :, :, :])
           else:
               print("undefined loss")
           
@@ -339,7 +341,48 @@ class SVG(nn.Module):
                 predictions[i-n_conditions,:,:,:,:] = x_in.data
         return true_x, predictions
 
+    def elbo_importance_weighting(self, x, K):
+      self.frame_predictor.hidden = self.frame_predictor.init_hidden()
+      self.posterior.hidden = self.posterior.init_hidden()
+      self.prior.hidden = self.prior.init_hidden()
+      t=x.shape[1]
+      loss = 0
+    
+      for i in range(1, t):
+          h, skip = self.encoder(x[:,i-1,:,:,:])
+          h_target = self.encoder(x[:,i,:,:,:])[0]
+          
+          
+          logpzs = torch.empty(size=(K, self.batch_size))
+          logqzxs = torch.empty(size=(K, self.batch_size))
+          lpx_Gz_obss = torch.empty(size=(K, self.batch_size))
 
+          for k in range(0, K):
+            z_t, mu_q, logvar_q = self.posterior(h_target)
+            z_tx, mu_p, logvar_p = self.prior(h)
+            h_pred = self.frame_predictor(torch.cat([h, z_t], 1))
+            
+            logpzs[k] = td.Normal(mu_p, torch.exp(logvar_p*0.5)).log_prob(z_t).sum([-1])
+            logqzxs[k] = td.Normal(mu_q, torch.exp(logvar_q*0.5)).log_prob(z_tx).sum([-1])
+            
+            x_pred = self.decoder([h_pred, skip])
+ 
+    
+            if self.loss_type == "bernoulli":
+                lpx_Gz_obs =  + td.Bernoulli(probs=x_pred).log_prob(x[:, i, :, :, :])
+            elif self.loss_type == "mse":
+                lpx_Gz_obs =  - self.mse_criterion(x_pred, x[:, i, :, :, :])
+            elif self.loss_type == "gaussian":
+                lpx_Gz_obs = td.Normal(x_pred, self.variance*torch.ones_like(x_pred)).log_prob(x[:, i, :, :, :])
+            else:
+                print("undefined loss")
+                
+            lpx_Gz_obss[k] = lpx_Gz_obs.sum([-1,-2,-3])
+
+          loss = loss - torch.mean(torch.logsumexp(lpx_Gz_obss + logpzs - logqzxs, 0)-torch.log(torch.tensor(K).float()))
+
+      
+      return loss
 
     
 

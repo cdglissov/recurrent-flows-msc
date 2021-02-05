@@ -30,7 +30,7 @@ def main(settings):
         solver.build()
         solver.load(load_model)
         # If path is wrong for the copied model it might be necessary to adjust this below:
-        #args.path = "/work1/s146996/MNIST/"
+        #args.path = "/work1/s146996/KTH/"
         evaluator = Evaluator(solver, args, settings)
         evaluator.build()
 
@@ -162,13 +162,13 @@ if __name__ == "__main__":
     add_bool_arg(parser, "use_validation_set", default=False,
                  help="If true then a validation set is used to tune parameters, WARNING: Change value if not using MNIST")
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences",
-                        default=2, type=int)
+                        default=3, type=int)
     parser.add_argument("--n_frames", help="Specify the sequence length of the test data",
-                        default=10, type=int)
+                        default=15, type=int)
     parser.add_argument("--start_predictions", help="Specify when model starts predicting",
                         default=5, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model",
-                        default=[1], type=float)
+                        default=[0.6], type=float)
     parser.add_argument("--resample", help="Loops over the test set more than once to get better measures. WARNING: can be slow",
                         default=2, type=int)
     add_bool_arg(parser, "extra_plots", default=False,
@@ -183,7 +183,7 @@ if __name__ == "__main__":
                  help="Uses a small test set to speed up iterations for debugging. Only works for SM-MNIST")
 
     #EVAL VALUES PLOTTER SETTINGS:
-    add_bool_arg(parser, "calc_eval", default=True,
+    add_bool_arg(parser, "calc_eval", default=False,
                  help="Set to false if we do not want to calculate eval values")
     add_bool_arg(parser, "debug_plot", default=True,
                  help="Plots num_samples_to_plot samples to make sure the loader and eval works")

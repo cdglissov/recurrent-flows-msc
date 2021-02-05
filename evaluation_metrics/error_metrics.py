@@ -430,9 +430,6 @@ class Evaluator(object):
           # Min so far on BAir is 2.66
           print('Mean Loss: '+str(BPD_means_mean.numpy()) + ' Std: '+str(BPD_means_std))
 	
-    def count_parameters(self):
-        return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-    
     def get_eval_values(self, model_name):
       start_predictions = self.start_predictions
 
@@ -606,11 +603,12 @@ class Evaluator(object):
 
       if self.debug_plot:
           ns = self.num_samples_to_plot
-          self.plot_samples(predictions.byte(), ground_truth.byte(), name="random_samples_ssim")
-          self.plot_samples(preds[:ns,...].byte(), gt[:ns,...].byte(),
-                            name="best_samples", eval_score = SSIM_values[ordered,...][:ns,...], set_top=1.1)
-          self.plot_samples(preds[-ns:,...].byte(), gt[-ns:,...].byte(),
-                            name="worst_samples", eval_score = SSIM_values[ordered,...][-ns:,...], set_top=1.1)
+          nf = 10 #time rollouts
+          self.plot_samples(predictions[:,0:nf,...].byte(), ground_truth[:,0:nf,...].byte(), name="random_samples_ssim")
+          self.plot_samples(preds[:ns,0:nf,...].byte(), gt[:ns,0:nf,...].byte(),
+                            name="best_samples", eval_score = SSIM_values[ordered,...][:ns,0:nf,...], set_top=1.1)
+          self.plot_samples(preds[-ns:,0:nf,...].byte(), gt[-ns:,0:nf,...].byte(),
+                            name="worst_samples", eval_score = SSIM_values[ordered,...][-ns:,0:nf,...], set_top=1.1)
       return MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON, SSIM_std_values, PSNR_std_values, LPIPS_std_values
 
     def test_temp_values(self, path, label_names, experiment_names):
@@ -642,16 +640,16 @@ class Evaluator(object):
                 ax[2].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
 
 
-            ax[0].set_ylabel('score')
-            ax[0].set_xlabel('t')
-            ax[0].set_title('Avg. SSIM with 95% confidence interval')
+            ax[0].set_ylabel(r'score')
+            ax[0].set_xlabel(r'$t$')
+            ax[0].set_title(r'Avg. SSIM with 95$\%$ confidence interval')
             ax[0].axvline(x=n_train, color='k', linestyle='--')
             ax[0].legend()
             ax[0].grid()
 
-            ax[1].set_ylabel('score')
-            ax[1].set_xlabel('t')
-            ax[1].set_title('Avg. PSNR with 95% confidence interval')
+            ax[1].set_ylabel(r'score')
+            ax[1].set_xlabel(r'$t$')
+            ax[1].set_title(r'Avg. PSNR with 95$\%$ confidence interval')
             ax[1].axvline(x=n_train, color='k', linestyle='--')
             ax[1].legend()
             ax[1].grid()
@@ -783,7 +781,7 @@ class Evaluator(object):
 
         ax2[0].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
         ax2[0].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
-        ax2[0].set_title('Max. SSIM with 95$\%$ quantiles',fontsize = fontsizetitle)
+        ax2[0].set_title(r'Max. SSIM with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[0].axvline(x=n_train, color='k', linestyle='--')
         #ax2[0].legend(fontsize = fontsizelegend)
 
@@ -796,7 +794,7 @@ class Evaluator(object):
         
 
         ax2[1].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
-        ax2[1].set_title('Max. PSNR with 95$\%$ quantiles',fontsize = fontsizetitle)
+        ax2[1].set_title(r'Max. PSNR with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[1].axvline(x=n_train, color='k', linestyle='--')
         #ax2[1].legend(fontsize = fontsizelegend)
 
@@ -809,7 +807,7 @@ class Evaluator(object):
         
 
         ax2[2].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
-        ax2[2].set_title('Min. LPIPS with 95$\%$ quantiles',fontsize = fontsizetitle)
+        ax2[2].set_title(r'Min. LPIPS with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[2].axvline(x=n_train, color='k', linestyle='--')
         ax2[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left", 
                 bbox_transform=fig2.transFigure, ncol=6, fontsize = fontsizelegend)
@@ -1039,7 +1037,7 @@ class Evaluator(object):
             ax[k,i].set_xticks([])
             ax[k,i].patch.set_linewidth('3')
             if k == 0:
-              ax[k, i].set_title(f"t={int(t_list[i]+1)}", fontsize=f_size)
+              ax[k, i].set_title(r"$t={}$".format(int(t_list[i]+1)), fontsize=f_size)
         fig.savefig(self.path +'eval_folder/' + "plot_long_t" +  '.pdf', bbox_inches="tight")
         plt.close(fig)
       else:
@@ -1068,7 +1066,7 @@ class Evaluator(object):
           predictions  = self.solver.preprocess(predictions, reverse=True)
           pred_list.append(predictions[:,0,:,:,:])
         pred_list = torch.stack(pred_list, 1)
-        f_size = 23
+        f_size = 17
         
         fig, ax = plt.subplots(n_temps, n_preds, gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(n_preds, n_temps))
         for k in range(0, n_temps):
@@ -1078,7 +1076,7 @@ class Evaluator(object):
             ax[k,i].set_xticks([])
             plt.subplots_adjust(wspace=0, hspace=0)
             if i == 0:
-              ax[k, i].set_ylabel(f"T={float(temperatures[k])}", fontsize=f_size)
+              ax[k, i].set_ylabel(r"$T={}$".format(float(temperatures[k])), fontsize=f_size)
         fig.tight_layout()
         fig.savefig(self.path +'eval_folder/' + "plot_temp_samples" +  '.pdf', )
         plt.close(fig)
@@ -1111,7 +1109,7 @@ class Evaluator(object):
         pred_list = torch.stack(pred_list, 1).view(25,-1,c,h,w)
         
         get_pred_list = [3,7,12,20]
-        f_size=20
+        f_size=17
         fig, ax = plt.subplots(n_resamples, n_preds, gridspec_kw = {'wspace':0.0001, 'hspace':0}, figsize=(n_preds, n_resamples))
         plt.subplots_adjust(wspace=0.0001, hspace=0)
         fig2, ax2 = plt.subplots(n_resamples, n_preds, gridspec_kw = {'wspace':0.0001, 'hspace':0}, figsize=(n_preds, n_resamples))
@@ -1125,8 +1123,8 @@ class Evaluator(object):
               ax2[k,i].set_yticks([])
               ax2[k,i].set_xticks([])
               if k == 0:
-                ax[k, i].set_title(f"t={get_pred_list[i]+1+5}", fontsize=f_size)
-                ax2[k, i].set_title(f"t={get_pred_list[i]+1+5}", fontsize=f_size)
+                ax[k, i].set_title(r"$t={}$".format(get_pred_list[i]+1+5), fontsize=f_size)
+                ax2[k, i].set_title(r"$t={}$".format(get_pred_list[i]+1+5), fontsize=f_size)
         fig.savefig(self.path +'eval_folder/' + "plot_diversity_1" +  '.pdf', bbox_inches="tight")
         plt.close(fig)
 
@@ -1154,7 +1152,7 @@ class Evaluator(object):
         t_seq = torch.cat([conditions,predictions],0)
         fig, ax = plt.subplots(5, t_length, gridspec_kw = {'wspace':0.06, 'hspace':0}, figsize=(t_length, 5))
         plt.subplots_adjust(wspace=0.06, hspace=0)
-        f_size = 20
+        f_size = 17
         
         for k in range(0, 5):
           for i in range(0, t_length): 
@@ -1167,7 +1165,7 @@ class Evaluator(object):
             ax[k,i].set_xticks([])
             ax[k,i].patch.set_linewidth('3')
             if k == 0:
-              ax[k, i].set_title(f"t={int(t_list[i]+1)}", fontsize=f_size)
+              ax[k, i].set_title(r"$t={}$".format(int(t_list[i]+1)), fontsize=f_size)
         fig.savefig(self.path +'eval_folder/' + "plot_rollouts" +  '.pdf', bbox_inches="tight")
         plt.close(fig)
       else:
