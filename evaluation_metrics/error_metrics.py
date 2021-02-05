@@ -612,68 +612,25 @@ class Evaluator(object):
       return MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON, SSIM_std_values, PSNR_std_values, LPIPS_std_values
 
     def test_temp_values(self, path, label_names, experiment_names):
-        markersize = 5
         n_train = self.n_trained
-
-        for i in range(0,len(experiment_names)):
-            fig, ax = plt.subplots(1, 3 ,figsize = (20,5))
-            fig2, ax2 = plt.subplots(1, 3 ,figsize = (20,5))
-            for temp in self.temperatures:
-                lname = label_names[i] + " "+ str(temp)
-                mark = "o"
-                temp_id = "/t" + str(temp).replace('.','')
-                eval_dict = torch.load(path + experiment_names[i] + '/eval_folder/'+temp_id+'evaluations.pt')
-                SSIM  = eval_dict['SSIM_values']
-                PSNR  = eval_dict['PSNR_values']
-                LPIPS  = eval_dict['LPIPS_values']
-
-                print("Temperature is set to " + str(eval_dict['temperature']) + " for experiment " +lname)
-
-                y = SSIM.mean(0).numpy()
-                xaxis = np.arange(0+self.n_conditions, len(y)+self.n_conditions)
-                ax[0].plot(xaxis, y, label = lname, marker=mark, markersize=markersize)
-
-                y = PSNR.mean(0).numpy()
-                ax[1].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
-
-                y = LPIPS.mean(0).numpy()
-                ax[2].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
-
-
-            ax[0].set_ylabel(r'score')
-            ax[0].set_xlabel(r'$t$')
-            ax[0].set_title(r'Avg. SSIM with 95$\%$ confidence interval')
-            ax[0].axvline(x=n_train, color='k', linestyle='--')
-            ax[0].legend()
-            ax[0].grid()
-
-            ax[1].set_ylabel(r'score')
-            ax[1].set_xlabel(r'$t$')
-            ax[1].set_title(r'Avg. PSNR with 95$\%$ confidence interval')
-            ax[1].axvline(x=n_train, color='k', linestyle='--')
-            ax[1].legend()
-            ax[1].grid()
-
-            fig.savefig(path + experiment_names[i] + '/eval_folder/temps_eval_plots_mean.png', bbox_inches='tight')
-
-    def plot_eval_values(self, path, label_names, experiment_names):
         markersize = 5
-        n_train = self.n_trained
-        
         fig, ax = plt.subplots(1, 3 ,figsize = (19,5))# figsize = (19,7)
         fig2, ax2 = plt.subplots(1, 3,figsize = (19,5))
         fig3, ax3 = plt.subplots(1, 3,figsize = (19,5))
         fig.subplots_adjust(hspace=1, wspace=0.17)
         fig2.subplots_adjust(hspace=1, wspace=0.17)
         fig3.subplots_adjust(hspace=1, wspace=0.17)
-        markers = ["o", "v", "x", "*", "^", "s", "H", "P", "X"]
+        markers = ["o", "v", "x", "*", "^", "s", "H", "P", "X","1","2","3"]
 
-        for i in range(0,len(experiment_names)):
-            lname = label_names[i]
+        for temp,i in zip(self.temperatures,range(0,len(self.temperatures))):
+            lname = '$T=' + " "+ str(temp)+'$'
+            temp_id = "/t" + str(temp).replace('.','')
+            eval_dict = torch.load(path + experiment_names[0] + '/eval_folder/'+temp_id+'evaluations.pt')
+
             mark = markers[i]
             alpha = 0.05 # For quantiles
             alpha_CI = 0.2 # For the transparentcy of the plotted CI
-            eval_dict = torch.load(path + experiment_names[i] + '/eval_folder/evaluations.pt')
+
             SSIM  = eval_dict['SSIM_values']  # This is max values
             PSNR  = eval_dict['PSNR_values']    # This is max values
             LPIPS  = eval_dict['LPIPS_values']  # This is max values
@@ -861,9 +818,9 @@ class Evaluator(object):
             tick.label.set_fontsize(fontsizeticks) 
         
         
-        fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_max.pdf', bbox_inches='tight')
-        fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_max_median.pdf', bbox_inches='tight')
-        fig3.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_mean_mean.pdf', bbox_inches='tight')
+        fig.savefig(path + experiment_names[0] + '/eval_folder/eval_plots_max_temp.pdf', bbox_inches='tight')
+        fig2.savefig(path + experiment_names[0] +  '/eval_folder/eval_plots_max_median_temp.pdf', bbox_inches='tight')
+        fig3.savefig(path + experiment_names[0] +  '/eval_folder/eval_plots_mean_mean_temp.pdf', bbox_inches='tight')
 
 
     def get_fvd_values(self, model_name, n_predicts):
