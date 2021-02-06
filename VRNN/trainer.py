@@ -77,7 +77,7 @@ class Solver(object):
         self.n_conditions = args.n_conditions
         self.use_validation_set = args.use_validation_set
         self.num_workers=args.num_workers
-        
+
     def build(self):
         self.train_loader, self.test_loader = self.create_loaders()
 
@@ -105,7 +105,7 @@ class Solver(object):
         self.counter = 0
 
     def create_loaders(self):
-        
+
         if self.choose_data=='mnist':
             plt.rcParams['image.cmap']='gray'
             testset = MovingMNIST(False, 'Mnist',
@@ -126,8 +126,8 @@ class Solver(object):
                                                           three_channels=False,
                                                           step_length=self.step_length,
                                                           normalize=False)
-             
-        
+
+
         if self.choose_data=='bair':
             plt.rcParams['image.cmap']='viridis'
             string=str(os.path.abspath(os.getcwd()))
@@ -141,22 +141,22 @@ class Solver(object):
             plt.rcParams['image.cmap']='gray'
             string=str(os.path.abspath(os.getcwd()))
             trainset = KTH(
-                        train=True, 
+                        train=True,
                         data_root=string+"/kth_data",
-                        seq_len=self.n_frames, 
+                        seq_len=self.n_frames,
                         image_size=self.image_size)
             testset = KTH(
-                        train=False, 
+                        train=False,
                         data_root=string+"/kth_data",
-                        seq_len=self.n_frames, 
+                        seq_len=self.n_frames,
                         image_size=self.image_size)
-        
+
         if self.use_validation_set:
             trainset_sub = torch.utils.data.Subset(trainset, list(range(0, 500, 1)))
             train_loader = DataLoader(trainset_sub, batch_size=self.batch_size,num_workers=self.num_workers, shuffle=True, drop_last=True)
         else:
             train_loader = DataLoader(trainset,batch_size=self.batch_size,num_workers=self.num_workers, shuffle=True, drop_last=True)
-        
+
         test_loader = DataLoader(testset, batch_size=self.batch_size, shuffle=True, drop_last=True)
         return train_loader, test_loader
 
@@ -227,7 +227,7 @@ class Solver(object):
                 image = image[0].to(device)
             else:
                 image = image.to(device)
-                
+
             image = self.preprocess(image)
 
             self.beta = min(max_value, min_value + self.counter*(max_value - min_value) / num_steps)
@@ -307,7 +307,11 @@ class Solver(object):
       n_plot = str(self.plot_counter)
       with torch.no_grad():
         self.model.eval()
-        image = next(iter(self.test_loader)).to(device)
+        image = next(iter(self.test_loader))
+        if self.choose_data=='bair':
+            image = image[0].to(device)
+        else:
+            image = image.to(device)
         time_steps = self.n_frames
 
         image  = self.preprocess(image, reverse=False)
