@@ -32,6 +32,11 @@ from __future__ import print_function
 import tensorflow as tf
 import tensorflow_hub as hub
 
+
+import os
+## Maybe change path here
+os.environ['TFHUB_CACHE_DIR'] = '/work1/s144077/cache/tf_cache'
+
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 def preprocess(videos, target_resolution, cast=True):
