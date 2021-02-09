@@ -60,7 +60,7 @@ class Evaluator(object):
         if not os.path.exists(self.path + 'eval_folder'):
           os.makedirs(self.path + 'eval_folder')
         print(self.path + 'eval_folder')
-        
+
         if self.multigpu and torch.cuda.device_count() > 1:
             print("Using:", torch.cuda.device_count(), "GPUs")
             self.model = self.solver.model.to(device)
@@ -102,14 +102,14 @@ class Evaluator(object):
             testset = PushDataset(split=train_bair,
                                              dataset_dir=string+'/bair_robot_data/processed_data/',
                                              seq_len=self.n_frames)
-        
+
         if self.choose_data =='kth':
             plt.rcParams['image.cmap']='gray'
             string=str(os.path.abspath(os.getcwd()))
             testset = KTH(
-                        train=train_boolean, 
+                        train=train_boolean,
                         data_root=string+"/kth_data",
-                        seq_len=self.n_frames, 
+                        seq_len=self.n_frames,
                         image_size=self.image_size)
 
         if self.use_validation_set:
@@ -211,7 +211,7 @@ class Evaluator(object):
                 #ax[1+z,i].set_title(str(zname))
                 ax[1+z,i].set_xticks([])
                 ax[1+z,i].set_yticks([])
-        
+
         fontsize = 30
         rotation = 0
         labelpad = 60
@@ -233,7 +233,7 @@ class Evaluator(object):
         plt.xlim((0-0.5, time_steps-0.5))
         low = min(min(averageNLLseq[0, 1:, 0]),min(averageNLLseq[1, 1:, 0]))
         high = max(max(averageNLLseq[0, 1:, 0]),max(averageNLLseq[1, 1:, 0]))
-        
+
         plt.ylim([low-0.5*(high-low), high+0.5*(high-low)])
         plt.xticks(range(0, time_steps), range(0, time_steps),fontsize=20)
         plt.yticks(fontsize=20)
@@ -272,7 +272,7 @@ class Evaluator(object):
 
     def get_interpolations(self):
         ## Only works for RFN when trained on one digit.
-        
+
         interpolation_set = MovingMNIST(False, 'Mnist',
                                  seq_len=self.n_frames,
                                  image_size=self.image_size,
@@ -387,7 +387,7 @@ class Evaluator(object):
                       image = true_image[0].to(device)
                   else:
                       image = true_image.to(device)
-                  
+
                   image = self.solver.preprocess(image)
                   # It doesnt make sense to get loss for longer seqs than trained on, atleast not if need to be compared to the trained loss.
                   imageloss = image[:,:self.n_trained,:,:,:]
@@ -405,31 +405,31 @@ class Evaluator(object):
                                                                                kl=kl,
                                                                                dims=image.shape[2:],
                                                                                t=image.shape[1]-1)
-                  
-                    
+
+
                   BPD.append(bits_per_dim_loss)
                   DKL.append(kl_loss)
                   RECON.append(recon_loss)
-              
+
               BPD = torch.FloatTensor(BPD)
               DKL = torch.FloatTensor(DKL)
               RECON = torch.FloatTensor(RECON)
               # Find the mean of the bits per dim of one whole data set
               BPD_means.append(BPD)
-              DKL_means.append(DKL) 
+              DKL_means.append(DKL)
               RECON_means.append(RECON)
           # Shape  [loss_resamples*len(test_set)]
           BPD_means = torch.stack(BPD_means)
           DKL_means = torch.stack(DKL_means)
           RECON_means = torch.stack(RECON_means)
           print(BPD_means.shape)
-          
+
           BPD_means_mean = BPD_means.mean()
           BPD_means_std = BPD_means.std()
           #CI = BPD_means_std/(loss_resamples**(1/2))
           # Min so far on BAir is 2.66
           print('Mean Loss: '+str(BPD_means_mean.numpy()) + ' Std: '+str(BPD_means_std))
-	
+
     def get_eval_values(self, model_name):
       start_predictions = self.start_predictions
 
@@ -462,7 +462,7 @@ class Evaluator(object):
                       image = true_image[0].to(device)
                   else:
                       image = true_image.to(device)
-                  
+
                   image = self.solver.preprocess(image)
                   image_notchanged = image
 
@@ -634,7 +634,7 @@ class Evaluator(object):
             SSIM  = eval_dict['SSIM_values']  # This is max values
             PSNR  = eval_dict['PSNR_values']    # This is max values
             LPIPS  = eval_dict['LPIPS_values']  # This is max values
-            SSIM_std_mean = eval_dict['SSIM_std_mean'] # This is this is mean of resample. So the mean of [resample, batch, time].mean(0) to [batch,time] 
+            SSIM_std_mean = eval_dict['SSIM_std_mean'] # This is this is mean of resample. So the mean of [resample, batch, time].mean(0) to [batch,time]
             PSNR_std_mean = eval_dict['PSNR_std_mean']
             LPIPS_std_mean = eval_dict['LPIPS_std_mean']
             print("Temperature is set to " + str(eval_dict['temperature']) + " for experiment " +lname)
@@ -673,7 +673,7 @@ class Evaluator(object):
             ax2[2].fill_between(np.arange(0, len(y)),
               np.quantile(LPIPS.numpy(), alpha/2, axis = 0),
               np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=alpha_CI)
-            
+
             y = SSIM_std_mean.mean(0).numpy()
             conf_std = 1.96 * np.std(SSIM_std_mean.numpy(),0)/np.sqrt(np.shape(SSIM_std_mean.numpy())[0])
             ax3[0].errorbar(xaxis, y, yerr=conf_std,label = lname)
@@ -686,27 +686,27 @@ class Evaluator(object):
             y = LPIPS_std_mean.mean(0).numpy()
             conf_std = 1.96 * np.std(LPIPS_std_mean.numpy(),0)/np.sqrt(np.shape(LPIPS_std_mean.numpy())[0])
             ax3[2].errorbar(xaxis, y, yerr=conf_std, label = lname)
-        fontsizeaxislabel = 25 
+        fontsizeaxislabel = 25
         fontsizelegend = 17
         fontsizetitle = 25
-        fontsizeticks = 23 
+        fontsizeticks = 23
         labelpad = 5
-        
+
         ax[0].set_ylabel(r'score', fontsize = fontsizeaxislabel, labelpad = labelpad)
         ax[0].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
         ax[0].set_title(r'Max. SSIM with 95$\%$ CI',fontsize = fontsizetitle)
         ax[0].axvline(x=n_train, color='k', linestyle='--')
         #ax[0].legend(fontsize = fontsizelegend)
 
-        
+
         axnow = ax[0]
         ax[0].grid()
         for tick in axnow.xaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
+            tick.label.set_fontsize(fontsizeticks)
         for tick in axnow.yaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
-            
-        
+            tick.label.set_fontsize(fontsizeticks)
+
+
 
         ax[1].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
         ax[1].set_title(r'Max. PSNR with 95$\%$ CI', fontsize = fontsizetitle)
@@ -716,25 +716,25 @@ class Evaluator(object):
         axnow = ax[1]
         ax[1].grid()
         for tick in axnow.xaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
+            tick.label.set_fontsize(fontsizeticks)
         for tick in axnow.yaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
-        
+            tick.label.set_fontsize(fontsizeticks)
+
 
         ax[2].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
         ax[2].set_title(r'Min. LPIPS with 95$\%$ CI', fontsize = fontsizetitle)
         ax[2].axvline(x=n_train, color='k', linestyle='--')
         #ax[2].legend(fontsize = fontsizelegend)
-        ax[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left", 
+        ax[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left",
                 bbox_transform=fig.transFigure, ncol=6, fontsize = fontsizelegend)
-        
+
         axnow = ax[2]
         ax[2].grid()
         for tick in axnow.xaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
+            tick.label.set_fontsize(fontsizeticks)
         for tick in axnow.yaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
-        
+            tick.label.set_fontsize(fontsizeticks)
+
 
         ax2[0].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
         ax2[0].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
@@ -745,10 +745,10 @@ class Evaluator(object):
         ax = ax2[0]
         ax2[0].grid()
         for tick in ax.xaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
+            tick.label.set_fontsize(fontsizeticks)
         for tick in ax.yaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
-        
+            tick.label.set_fontsize(fontsizeticks)
+
 
         ax2[1].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
         ax2[1].set_title(r'Max. PSNR with 95$\%$ quantiles',fontsize = fontsizetitle)
@@ -758,25 +758,25 @@ class Evaluator(object):
         ax = ax2[1]
         ax2[1].grid()
         for tick in ax.xaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
+            tick.label.set_fontsize(fontsizeticks)
         for tick in ax.yaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
-        
+            tick.label.set_fontsize(fontsizeticks)
+
 
         ax2[2].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
         ax2[2].set_title(r'Min. LPIPS with 95$\%$ quantiles',fontsize = fontsizetitle)
         ax2[2].axvline(x=n_train, color='k', linestyle='--')
-        ax2[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left", 
+        ax2[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left",
                 bbox_transform=fig2.transFigure, ncol=6, fontsize = fontsizelegend)
         #ax2[2].legend(fontsize = fontsizelegend)
 
         ax = ax2[2]
         ax2[2].grid()
         for tick in ax.xaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
+            tick.label.set_fontsize(fontsizeticks)
         for tick in ax.yaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
-        
+            tick.label.set_fontsize(fontsizeticks)
+
 
         ax3[0].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
         ax3[0].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
@@ -787,10 +787,10 @@ class Evaluator(object):
         ax = ax3[0]
         ax3[0].grid()
         for tick in ax.xaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
+            tick.label.set_fontsize(fontsizeticks)
         for tick in ax.yaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
-        
+            tick.label.set_fontsize(fontsizeticks)
+
 
         ax3[1].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
         ax3[1].set_title(r'Avg. PSNR',fontsize = fontsizetitle)
@@ -800,27 +800,221 @@ class Evaluator(object):
         ax = ax3[1]
         ax3[1].grid()
         for tick in ax.xaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
+            tick.label.set_fontsize(fontsizeticks)
         for tick in ax.yaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
-        
+            tick.label.set_fontsize(fontsizeticks)
+
 
         ax3[2].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
         ax3[2].set_title(r'Avg. LPIPS',fontsize = fontsizetitle)
         ax3[2].axvline(x=n_train, color='k', linestyle='--')
-        ax3[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left", 
+        ax3[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left",
                 bbox_transform=fig3.transFigure, ncol=6, fontsize = fontsizelegend)
         ax = ax3[2]
         ax3[2].grid()
         for tick in ax.xaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
+            tick.label.set_fontsize(fontsizeticks)
         for tick in ax.yaxis.get_major_ticks():
-            tick.label.set_fontsize(fontsizeticks) 
-        
-        
+            tick.label.set_fontsize(fontsizeticks)
+
+
         fig.savefig(path + experiment_names[0] + '/eval_folder/eval_plots_max_temp.pdf', bbox_inches='tight')
         fig2.savefig(path + experiment_names[0] +  '/eval_folder/eval_plots_max_median_temp.pdf', bbox_inches='tight')
         fig3.savefig(path + experiment_names[0] +  '/eval_folder/eval_plots_mean_mean_temp.pdf', bbox_inches='tight')
+
+
+    def plot_eval_values(self, path, label_names, experiment_names):
+        markersize = 5
+        n_train = self.n_trained
+
+        fig, ax = plt.subplots(1, 3 ,figsize = (19,5))# figsize = (19,7)
+        fig2, ax2 = plt.subplots(1, 3,figsize = (19,5))
+        fig3, ax3 = plt.subplots(1, 3,figsize = (19,5))
+        fig.subplots_adjust(hspace=1, wspace=0.17)
+        fig2.subplots_adjust(hspace=1, wspace=0.17)
+        fig3.subplots_adjust(hspace=1, wspace=0.17)
+        markers = ["o", "v", "x", "*", "^", "s", "H", "P", "X"]
+        for i in range(0,len(experiment_names)):
+            lname = label_names[i]
+            mark = markers[i]
+            alpha = 0.05 # For quantiles
+            alpha_CI = 0.2 # For the transparentcy of the plotted CI
+            eval_dict = torch.load(path + experiment_names[i] + '/eval_folder/evaluations.pt')
+            SSIM  = eval_dict['SSIM_values']  # This is max values
+            PSNR  = eval_dict['PSNR_values']    # This is max values
+            LPIPS  = eval_dict['LPIPS_values']  # This is max values
+            SSIM_std_mean = eval_dict['SSIM_std_mean'] # This is this is mean of resample. So the mean of [resample, batch, time].mean(0) to [batch,time]
+            PSNR_std_mean = eval_dict['PSNR_std_mean']
+            LPIPS_std_mean = eval_dict['LPIPS_std_mean']
+            print("Temperature is set to " + str(eval_dict['temperature']) + " for experiment " +lname)
+            y = SSIM.mean(0).numpy()
+            xaxis = np.arange(0+self.n_conditions, len(y)+self.n_conditions)
+            conf_std = 1.96 * np.std(SSIM.numpy(),0)/np.sqrt(np.shape(SSIM.numpy())[0])
+            ax[0].plot(xaxis, y, label = lname, marker=mark, markersize=markersize)
+            ax[0].fill_between(xaxis, y-conf_std, y+conf_std, alpha=alpha_CI)
+            y = PSNR.mean(0).numpy()
+            twostd = 1.96 * np.std(PSNR.numpy(),0)/np.sqrt(np.shape(PSNR.numpy())[0])
+            ax[1].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
+            ax[1].fill_between(xaxis, y-twostd, y+twostd, alpha=alpha_CI)
+            y = LPIPS.mean(0).numpy()
+            twostd = 1.96 * np.std(LPIPS.numpy(),0)/np.sqrt(np.shape(LPIPS.numpy())[0])
+            ax[2].plot(xaxis,y,label = lname, marker=mark, markersize=markersize)
+            ax[2].fill_between(xaxis, y-twostd, y+twostd, alpha=alpha_CI)
+            y = np.median(SSIM.numpy(),0)
+            ax2[0].plot(xaxis, y, label = lname, marker=mark,markersize=markersize)
+            ax2[0].fill_between(xaxis,
+              np.quantile(SSIM.numpy(), alpha/2, axis = 0),
+              np.quantile(SSIM.numpy(), 1-alpha/2, axis = 0), alpha=alpha_CI)
+            y = np.median(PSNR.numpy(),0)
+            ax2[1].plot(xaxis, y, label = lname, marker=mark, markersize=markersize)
+            ax2[1].fill_between(xaxis,
+              np.quantile(PSNR.numpy(), alpha/2, axis = 0),
+              np.quantile(PSNR.numpy(), 1-alpha/2, axis = 0), alpha=alpha_CI)
+            y = np.median(LPIPS.numpy(),0)
+            ax2[2].plot(np.arange(0, len(y)), y, label = lname, marker=mark,
+               markersize=markersize)
+            ax2[2].fill_between(np.arange(0, len(y)),
+              np.quantile(LPIPS.numpy(), alpha/2, axis = 0),
+              np.quantile(LPIPS.numpy(), 1-alpha/2, axis = 0), alpha=alpha_CI)
+
+            y = SSIM_std_mean.mean(0).numpy()
+            conf_std = 1.96 * np.std(SSIM_std_mean.numpy(),0)/np.sqrt(np.shape(SSIM_std_mean.numpy())[0])
+            ax3[0].errorbar(xaxis, y, yerr=conf_std,label = lname)
+            y = PSNR_std_mean.mean(0).numpy()
+            conf_std = 1.96 * np.std(PSNR_std_mean.numpy(),0)/np.sqrt(np.shape(PSNR_std_mean.numpy())[0])
+            ax3[1].errorbar(xaxis, y, yerr=conf_std, label = lname)
+            #y = LPIPS.mean(0).numpy()
+            y = LPIPS_std_mean.mean(0).numpy()
+            conf_std = 1.96 * np.std(LPIPS_std_mean.numpy(),0)/np.sqrt(np.shape(LPIPS_std_mean.numpy())[0])
+            ax3[2].errorbar(xaxis, y, yerr=conf_std, label = lname)
+        fontsizeaxislabel = 25
+        fontsizelegend = 17
+        fontsizetitle = 25
+        fontsizeticks = 23
+        labelpad = 5
+
+        ax[0].set_ylabel(r'score', fontsize = fontsizeaxislabel, labelpad = labelpad)
+        ax[0].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
+        ax[0].set_title(r'Max. SSIM with 95$\%$ CI',fontsize = fontsizetitle)
+        ax[0].axvline(x=n_train, color='k', linestyle='--')
+        #ax[0].legend(fontsize = fontsizelegend)
+
+        axnow = ax[0]
+        ax[0].grid()
+        for tick in axnow.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+        for tick in axnow.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+
+
+        ax[1].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
+        ax[1].set_title(r'Max. PSNR with 95$\%$ CI', fontsize = fontsizetitle)
+        ax[1].axvline(x=n_train, color='k', linestyle='--')
+        #ax[1].legend(fontsize = fontsizelegend)
+        axnow = ax[1]
+        ax[1].grid()
+        for tick in axnow.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+        for tick in axnow.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+
+        ax[2].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
+        ax[2].set_title(r'Min. LPIPS with 95$\%$ CI', fontsize = fontsizetitle)
+        ax[2].axvline(x=n_train, color='k', linestyle='--')
+        #ax[2].legend(fontsize = fontsizelegend)
+        ax[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left",
+                bbox_transform=fig.transFigure, ncol=6, fontsize = fontsizelegend)
+
+        axnow = ax[2]
+        ax[2].grid()
+        for tick in axnow.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+        for tick in axnow.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+
+
+        ax2[0].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
+        ax2[0].set_xlabel(r'$t$', fontsize = fontsizeaxislabel)
+        ax2[0].set_title('Max. SSIM with 95$\%$ quantiles',fontsize = fontsizetitle)
+        ax2[0].set_title(r'Max. SSIM with 95$\%$ quantiles',fontsize = fontsizetitle)
+        ax2[0].axvline(x=n_train, color='k', linestyle='--')
+        #ax2[0].legend(fontsize = fontsizelegend)
+
+        ax = ax2[0]
+        ax2[0].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+
+
+        ax2[1].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax2[1].set_title('Max. PSNR with 95$\%$ quantiles',fontsize = fontsizetitle)
+        ax2[1].set_title(r'Max. PSNR with 95$\%$ quantiles',fontsize = fontsizetitle)
+        ax2[1].axvline(x=n_train, color='k', linestyle='--')
+        #ax2[1].legend(fontsize = fontsizelegend)
+
+        ax = ax2[1]
+        ax2[1].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+
+
+        ax2[2].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax2[2].set_title('Min. LPIPS with 95$\%$ quantiles',fontsize = fontsizetitle)
+        ax2[2].set_title(r'Min. LPIPS with 95$\%$ quantiles',fontsize = fontsizetitle)
+        ax2[2].axvline(x=n_train, color='k', linestyle='--')
+        ax2[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left",
+                bbox_transform=fig2.transFigure, ncol=6, fontsize = fontsizelegend)
+        #ax2[2].legend(fontsize = fontsizelegend)
+        ax = ax2[2]
+        ax2[2].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+
+        ax3[0].set_ylabel(r'score',fontsize = fontsizeaxislabel,labelpad = labelpad)
+        ax3[0].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax3[0].set_title(r'Avg. SSIM',fontsize = fontsizetitle)
+        ax3[0].axvline(x=n_train, color='k', linestyle='--')
+        #ax3[0].legend(fontsize = fontsizelegend)
+        ax = ax3[0]
+        ax3[0].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+
+        ax3[1].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax3[1].set_title(r'Avg. PSNR',fontsize = fontsizetitle)
+        ax3[1].axvline(x=n_train, color='k', linestyle='--')
+        #ax3[1].legend(fontsize = fontsizelegend)
+        ax = ax3[1]
+        ax3[1].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+
+        ax3[2].set_xlabel(r'$t$',fontsize = fontsizeaxislabel)
+        ax3[2].set_title(r'Avg. LPIPS',fontsize = fontsizetitle)
+        ax3[2].axvline(x=n_train, color='k', linestyle='--')
+        ax3[2].legend(bbox_to_anchor=(0.1,-0.23), loc="lower left",
+                bbox_transform=fig3.transFigure, ncol=6, fontsize = fontsizelegend)
+        ax = ax3[2]
+        ax3[2].grid()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label.set_fontsize(fontsizeticks)
+
+
+        fig.savefig(path + experiment_names[i] + '/eval_folder/eval_plots_max.pdf', bbox_inches='tight')
+        fig2.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_max_median.pdf', bbox_inches='tight')
+        fig3.savefig(path + experiment_names[i] +  '/eval_folder/eval_plots_mean_mean.pdf', bbox_inches='tight')
 
 
     def get_fvd_values(self, model_name, n_predicts):
@@ -833,15 +1027,15 @@ class Evaluator(object):
           for _ in range(0,2):
             preds = []
             gts = []
-          
+
             for batch_i, true_image in enumerate(tqdm(test_loader, desc="Running", position=0, leave=True)):
-  
+
                 if self.choose_data=='bair':
                     image = true_image[0].to(device)
                 else:
                     image = true_image.to(device)
                 image = self.solver.preprocess(image)
-                
+
                 cur_bs = image.shape[0]
                 if cur_bs < self.batch_size:
                   pad=torch.zeros(self.batch_size-cur_bs, *image.shape[1:]).to(device)
@@ -850,18 +1044,18 @@ class Evaluator(object):
                   predictions = predictions[:,:cur_bs,...]
                 else:
                   _, predictions = self.model.predict(image, n_predicts, start_predictions)
-                  
+
                 image  = self.solver.preprocess(image, reverse=True)
                 predictions  = self.solver.preprocess(predictions, reverse=True)
-  
+
                 # should be [t, b, c, h, w]
                 ground_truth = image[:, (start_predictions):(n_predicts+start_predictions),:,:,:].cpu()
                 predictions = predictions.permute(1,0,2,3,4).cpu()
 
                 gts.append(ground_truth)
                 preds.append(predictions)
-              
-          
+
+
             ground_truths_fvd=torch.cat((gts),0).permute(1,0,2,3,4)
             predictions_fvd=torch.cat((preds),0).permute(1,0,2,3,4)
 
@@ -869,22 +1063,22 @@ class Evaluator(object):
             FVD = fvd(ground_truths_fvd, predictions_fvd)
             FVD_values.append(FVD)
 
-      
+
       if len(FVD_values)>1:
         FVD_mean=np.mean(FVD_values)
         FVD_std=np.std(FVD_values)
       else:
         FVD_mean = FVD_values[0]
         FVD_std = 0
-      
+
       print(FVD_mean)
       print(FVD_std)
-      
+
       return FVD_mean, FVD_std
     def minmax_scale(self,x):
       x = (x - x.min()) / (x.max() - x.min())
       return x
-    
+
     def param_plots(self, path, n_conditions):
 
         print("Init parameter analysis")
@@ -900,9 +1094,9 @@ class Evaluator(object):
         te_split_len = 400
         param_test_set = torch.utils.data.random_split(param_test_set,
                                 [te_split_len, len(param_test_set)-te_split_len])[0]
-        
-        
-        
+
+
+
         test_loader = DataLoader(param_test_set, batch_size=self.batch_size,
                                  num_workers=self.num_workers, shuffle=True, drop_last=True)
         mu_p_params=[]
@@ -916,55 +1110,55 @@ class Evaluator(object):
         ##########################################################
         digit_one = list(np.where(param_test_set.dataset.hit_boundary==1)[0])
         digit_two = list(np.where(param_test_set.dataset.hit_boundary==2)[0])
-        
+
         with torch.no_grad():
           self.model.eval()
           for batch_i, true_image in enumerate(tqdm(test_loader, desc="Running", position=0, leave=True)):
-              
+
               #fig, ax = plt.subplots(2,true_image.shape[1], figsize=(true_image.shape[1],2))
               #for i in range(0,true_image.shape[1]):
               #  ax[0,i].imshow(true_image[0,i,...].permute(1,2,0))
               #  ax[1,i].imshow(true_image[2,i,...].permute(1,2,0))
               #fig.savefig("/work1/s146996/work1/test_if_works"+str(batch_i)+".pdf", bbox_inches='tight')
-            
+
               if self.choose_data=='bair':
                 image = true_image[0].to(device)
               else:
                 image = true_image.to(device)
               image = self.solver.preprocess(image)
-              
+
               mu_p, std_p, mu_q, std_q, mu_flow, std_flow, prediction = self.model.param_analysis(x=image,
                                                                                       n_conditions=n_conditions,
                                                                                       n_predictions=seq_len-n_conditions)
-              
+
               t,b,c,h,w = mu_p.shape
               tf,bf,cf,hf,wf = mu_flow.shape
-        
-              
+
+
               mu_p_params.append(mu_p.sum([2,3,4]))
               std_p_params.append(std_p.sum([2,3,4]))
               mu_q_params.append(mu_q.sum([2,3,4]))
               std_q_params.append(std_q.sum([2,3,4]))
               mu_flow_params.append(mu_flow.sum([2,3,4]))
               std_flow_params.append(std_flow.sum([2,3,4]))
-        
+
         mu_p_params=torch.stack(mu_p_params).mean([0,2]).cpu().numpy()
         std_p_params=torch.stack(std_p_params).mean([0,2]).cpu().numpy()
         mu_q_params=torch.stack(mu_q_params).mean([0,2]).cpu().numpy()
         std_q_params=torch.stack(std_q_params).mean([0,2]).cpu().numpy()
         mu_flow_params=torch.stack(mu_flow_params).mean([0,2]).cpu().numpy()
         std_flow_params=torch.stack(std_flow_params).mean([0,2]).cpu().numpy()
-        
+
         mu_p_params=self.minmax_scale(mu_p_params)
         std_p_params=self.minmax_scale(std_p_params)
         mu_q_params=self.minmax_scale(mu_q_params)
         std_q_params=self.minmax_scale(std_q_params)
         mu_flow_params=self.minmax_scale(mu_flow_params)
         std_flow_params=self.minmax_scale(std_flow_params)
-        
+
         b,t,c,h,w = true_image.shape
-        
-        
+
+
         test = self.solver.preprocess(image[:,1:11,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
         test_pred = self.solver.preprocess(prediction[:,1:11,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
         test1 = self.solver.preprocess(image[:,11:21,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
@@ -977,7 +1171,7 @@ class Evaluator(object):
         fig, ax = plt.subplots(2, 1 ,figsize = (1*10, 2*4))
         #fig2, ax2 = plt.subplots(figsize = (10,10), gridspec_kw={"hspace":0.0001, "wspace":0.0001})
         fig2, ax2 = plt.subplots(3,1,figsize = (1*5,3*5),gridspec_kw={"hspace":0.01, "wspace":0.001, "top":0.2})
-        
+
         names = [r"$\mu_{prior}$",r"$\sigma_{prior}$",
          r"$\mu_{posterior}$", r"$\sigma_{posterior}$",
          r"$\mu_{base dist}$", r"$\sigma_{base dist}$" ]
@@ -990,23 +1184,23 @@ class Evaluator(object):
         ax[0].plot(xaxis,mu_flow_params, label=names[4])
         ax[0].set_xlim([seq_ax[0], seq_ax[1]])
 
-        
+
         ax[1].plot(xaxis,std_p_params, label=names[1])
         ax[1].plot(xaxis,std_q_params, label=names[3])
         ax[1].plot(xaxis,std_flow_params, label=names[5])
         ax[1].set_xlim([seq_ax[0], seq_ax[1]])
-        
+
         ax2[0].imshow(test.cpu().numpy())
         ax2[1].imshow(test1.cpu().numpy())
         ax2[2].imshow(test2.cpu().numpy())
         ax2[0].axis("off")
         ax2[1].axis("off")
         ax2[2].axis("off")
-        
-        
+
+
         ax[0].set_ylabel(r'Average', fontsize=15)
         ax[1].set_ylabel(r'Average', fontsize=15)
-        
+
         ax[0].set_xlabel(r'$t$', fontsize=15)
         ax[1].set_xlabel(r'$t$', fontsize=15)
         for i in range(0,2):
@@ -1029,9 +1223,9 @@ class Evaluator(object):
         if self.choose_data=='bair':
              image = true_image[0].to(device)
         else:
-             image = true_image.to(device)    
+             image = true_image.to(device)
         image = self.solver.preprocess(image, reverse=False)
-        
+
         #Long predictions
         conditions, predictions = self.model.predict(image, 80, 5)
         conditions  = self.solver.preprocess(conditions, reverse=True)
@@ -1042,14 +1236,14 @@ class Evaluator(object):
         fig, ax = plt.subplots(5, t_length, gridspec_kw = {'wspace':0.06, 'hspace':0}, figsize=(t_length, 5))
         plt.subplots_adjust(wspace=0.06, hspace=0)
         f_size = 20
-        
+
         for k in range(0, 5):
-          for i in range(0, t_length): 
+          for i in range(0, t_length):
             ax[k,i].imshow(self.convert_to_numpy(t_seq[t_list[i], k, :, :, :]))
             if i <2:
-              ax[k,i].patch.set_edgecolor('red')  
+              ax[k,i].patch.set_edgecolor('red')
             else:
-              ax[k,i].patch.set_edgecolor('green')  
+              ax[k,i].patch.set_edgecolor('green')
             #ax[k,i].axis("off")
             ax[k,i].set_yticks([])
             ax[k,i].set_xticks([])
@@ -1060,18 +1254,18 @@ class Evaluator(object):
         plt.close(fig)
       else:
         print("needs to be a RFN.pt model")
-        
+
     def plot_temp(self,  model_name):
       if model_name == 'rfn.pt':
         self.model.eval()
-        
+
         true_image = next(iter(self.test_loader))
         if self.choose_data=='bair':
              image = true_image[0].to(device)
         else:
-             image = true_image.to(device)    
+             image = true_image.to(device)
         image = self.solver.preprocess(image, reverse=False)
-        
+
         pred_list = []
         #9
         temperatures = [0.025, 0.3, 0.5, 0.6, 0.7, 1]
@@ -1085,11 +1279,11 @@ class Evaluator(object):
           pred_list.append(predictions[:,0,:,:,:])
         pred_list = torch.stack(pred_list, 1)
         f_size = 17
-        
+
         fig, ax = plt.subplots(n_temps, n_preds, gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(n_preds, n_temps))
         for k in range(0, n_temps):
-          for i in range(0, n_preds): 
-            ax[k,i].imshow(self.convert_to_numpy(pred_list[i, k, :, :, :])) 
+          for i in range(0, n_preds):
+            ax[k,i].imshow(self.convert_to_numpy(pred_list[i, k, :, :, :]))
             ax[k,i].set_yticks([])
             ax[k,i].set_xticks([])
             plt.subplots_adjust(wspace=0, hspace=0)
@@ -1100,36 +1294,36 @@ class Evaluator(object):
         plt.close(fig)
       else:
         print("needs to be a RFN.pt model")
-        
+
     def plot_temp_kl(self,  model_name):
       if model_name == 'rfn.pt':
         self.model.eval()
-        
+
         true_image = next(iter(self.test_loader))
         if self.choose_data=='bair':
              image = true_image[0].to(device)
         else:
-             image = true_image.to(device)    
+             image = true_image.to(device)
         image = self.solver.preprocess(image, reverse=False)
-        
+
         pred_list = []
         #9
         temperatures = [0.025, 0.3, 0.5, 0.6, 0.7, 1]
         n_temps = len(temperatures)
         n_preds = 8
         for i in range(0, n_temps):
-          
+
           conditions, predictions = self.model.predict(image, n_preds, 5)
           conditions  = self.solver.preprocess(conditions, reverse=True)
           predictions  = self.solver.preprocess(predictions, reverse=True)
           pred_list.append(predictions[:,0,:,:,:])
         pred_list = torch.stack(pred_list, 1)
         f_size = 17
-        
+
         fig, ax = plt.subplots(n_temps, n_preds, gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(n_preds, n_temps))
         for k in range(0, n_temps):
-          for i in range(0, n_preds): 
-            ax[k,i].imshow(self.convert_to_numpy(pred_list[i, k, :, :, :])) 
+          for i in range(0, n_preds):
+            ax[k,i].imshow(self.convert_to_numpy(pred_list[i, k, :, :, :]))
             ax[k,i].set_yticks([])
             ax[k,i].set_xticks([])
             plt.subplots_adjust(wspace=0, hspace=0)
@@ -1140,24 +1334,24 @@ class Evaluator(object):
         plt.close(fig)
       else:
         print("needs to be a RFN.pt model")
-   
+
     def plot_diversity(self,  model_name):
       if model_name == 'rfn.pt':
         #suggestion to improvement, add ground truth as well.
         self.model.eval()
-        
+
         true_image = next(iter(self.test_loader))
         if self.choose_data=='bair':
              image = true_image[0].to(device)
         else:
-             image = true_image.to(device)    
+             image = true_image.to(device)
         image = self.solver.preprocess(image, reverse=False)
-        
+
         pred_list = []
         #9
         n_resamples = 3
         n_preds = 4
-        
+
         b,t,c,h,w = image.shape
         for i in range(0, n_resamples):
           conditions, predictions = self.model.predict(image, 25, 5)
@@ -1165,7 +1359,7 @@ class Evaluator(object):
           predictions  = self.solver.preprocess(predictions, reverse=True)
           pred_list.append(predictions[:,0:2,:,:,:])
         pred_list = torch.stack(pred_list, 1).view(25,-1,c,h,w)
-        
+
         get_pred_list = [3,7,12,20]
         f_size=17
         fig, ax = plt.subplots(n_resamples, n_preds, gridspec_kw = {'wspace':0.0001, 'hspace':0}, figsize=(n_preds, n_resamples))
@@ -1174,10 +1368,10 @@ class Evaluator(object):
         plt.subplots_adjust(wspace=0.0001, hspace=0)
         for k in range(0, n_resamples):
           for i in range(0,n_preds):
-              ax[k,i].imshow(self.convert_to_numpy(pred_list[get_pred_list[i], (k+1)*2-1, :, :, :])) 
+              ax[k,i].imshow(self.convert_to_numpy(pred_list[get_pred_list[i], (k+1)*2-1, :, :, :]))
               ax[k,i].set_yticks([])
               ax[k,i].set_xticks([])
-              ax2[k,i].imshow(self.convert_to_numpy(pred_list[get_pred_list[i], (k)*2, :, :, :])) 
+              ax2[k,i].imshow(self.convert_to_numpy(pred_list[get_pred_list[i], (k)*2, :, :, :]))
               ax2[k,i].set_yticks([])
               ax2[k,i].set_xticks([])
               if k == 0:
@@ -1190,7 +1384,7 @@ class Evaluator(object):
         plt.close(fig2)
       else:
         print("needs to be a RFN.pt model")
-        
+
     def plot_random_samples(self,  model_name):
       if model_name == 'rfn.pt':
         self.model.eval()
@@ -1198,9 +1392,9 @@ class Evaluator(object):
         if self.choose_data=='bair':
              image = true_image[0].to(device)
         else:
-             image = true_image.to(device)    
+             image = true_image.to(device)
         image = self.solver.preprocess(image, reverse=False)
-        
+
         #Long predictions
         conditions, predictions = self.model.predict(image, 10, 3)
         conditions  = self.solver.preprocess(conditions, reverse=True)
@@ -1211,14 +1405,14 @@ class Evaluator(object):
         fig, ax = plt.subplots(5, t_length, gridspec_kw = {'wspace':0.06, 'hspace':0}, figsize=(t_length, 5))
         plt.subplots_adjust(wspace=0.06, hspace=0)
         f_size = 17
-        
+
         for k in range(0, 5):
-          for i in range(0, t_length): 
+          for i in range(0, t_length):
             ax[k,i].imshow(self.convert_to_numpy(t_seq[t_list[i], k, :, :, :]))
             if i <3:
-              ax[k,i].patch.set_edgecolor('red')  
+              ax[k,i].patch.set_edgecolor('red')
             else:
-              ax[k,i].patch.set_edgecolor('green')  
+              ax[k,i].patch.set_edgecolor('green')
             ax[k,i].set_yticks([])
             ax[k,i].set_xticks([])
             ax[k,i].patch.set_linewidth('3')
