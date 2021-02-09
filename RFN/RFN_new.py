@@ -506,7 +506,7 @@ class RFN(nn.Module):
         store_x_features = []
         std_flow = []
         mu_flow = []
-        
+        predictions = torch.zeros((x.shape[0], n_predictions+n_conditions, *x.shape[2:]))
         for i in range(0,t):
             x_feature_list = self.extractor(x[:, i, :, :, :])
             store_x_features.append(x_feature_list)
@@ -580,11 +580,11 @@ class RFN(nn.Module):
             prediction, params = self.flow.sample(None, flow_conditions, base_conditions, 1.0, eval_params = True)
             std_flow.append(params[1].detach())
             mu_flow.append(params[0].detach())
-            
+            predictions[:,i,...]=prediction.detach()
             zxprev = zxt
             zprev = zt
             
-        return mu_p, std_p, mu_q, std_q, torch.stack(mu_flow), torch.stack(std_flow)
+        return mu_p, std_p, mu_q, std_q, torch.stack(mu_flow), torch.stack(std_flow), predictions
     
     def probability_future(self, x, n_conditions):
         """

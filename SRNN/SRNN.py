@@ -3,7 +3,7 @@ import torch.nn as nn
 from Utils import get_layer_size, Flatten, UnFlatten, set_gpu, batch_reduce
 import torch.distributions as td
 from Utils import ConvLSTM, NormLayer
-
+import numpy as np
 device = set_gpu(True)
 
 #https://medium.com/@aminamollaysa/summary-of-the-recurrent-latent-variable-model-vrnn-4096b52e731
@@ -27,8 +27,10 @@ class SRNN(nn.Module):
       bx, cx, hx, wx = self.x_dim
       self.mse_criterion = nn.MSELoss(reduction='none')
       self.res_q = args.res_q
-      self.variance = args.variance
-
+      self.bits=args.n_bits
+      self.dequantize = args.dequantize
+      self.preprocess_range = args.preprocess_range
+      
       # Remember to downscale more when using 64x64. Overall the net should probably increase in size when using
       # 64x64 images
       self.phi_x_t_channels = 256
@@ -142,9 +144,15 @@ class SRNN(nn.Module):
         )
 
 
-      self.dec_mean = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1), 
-                                nn.Sigmoid()
+      if self.preprocess_range =='0.5':
+        self.dec_mean = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1), 
+                                nn.Tanh()
                                 )
+      else:
+        self.dec_mean = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1), 
+                               nn.Sigmoid()
+                               )
+        
       self.dec_std = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1),
                                nn.Softplus()
                                )
@@ -170,15 +178,25 @@ class SRNN(nn.Module):
                            kernel_size=[3, 3],
                            bias=True,
                            peephole=True)
-
+      self.variance = nn.Parameter(torch.ones([1]))
       self.D = args.num_shots + 1 # Plus one as that is more intuative
       self.overshot_w = args.overshot_w #Weight for overshoots.
+      
     def get_inits(self):
       loss = 0
       kl_loss = 0
       nll_loss = 0
       return self.h_0, self.c_0, self.z_0, self.z_0x, self.a_0, self.ca_0, loss, kl_loss, nll_loss
-
+   
+    def uniform_binning_correction(self, x):
+        n_bits = self.bits
+        b, c, h, w = x.size()
+        n_bins = 2 ** n_bits
+        chw = c * h * w
+        x_noise = x + torch.zeros_like(x).uniform_(0, 1.0 / n_bins)
+        objective = -np.log(n_bins) * chw * torch.ones(b, device=x.device)
+        return x_noise, objective
+      
     def loss(self, xt):
 
       b, t, c, h, w = xt.shape
@@ -259,12 +277,19 @@ class SRNN(nn.Module):
 
 
         if self.loss_type == "bernoulli":
-            nll_loss = nll_loss - td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :])
-        if self.loss_type == "gaussian":
-            #dec_std_t = self.dec_std(dec_t)
-            nll_loss = nll_loss - td.Normal(dec_mean_t, self.variance*torch.ones_like(dec_mean_t)).log_prob(xt[:, i, :, :, :])
+            nll_loss = nll_loss - batch_reduce(td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :]))
+        elif self.loss_type == "gaussian":
+          
+            if self.dequantize:
+              x, nll_unif = self.uniform_binning_correction(xt[:, i, :, :, :])
+            else:
+              x = xt[:, i, :, :, :]
+            
+            nll_loss = nll_loss - batch_reduce(td.Normal(dec_mean_t, nn.Softplus()(self.variance)*torch.ones_like(dec_mean_t)).log_prob(x))
+            nll_loss = nll_loss - nll_unif
+
         elif self.loss_type == "mse":
-            nll_loss = nll_loss + self.mse_criterion(dec_mean_t, xt[:, i, :, :, :])
+            nll_loss = nll_loss + batch_reduce(self.mse_criterion(dec_mean_t, xt[:, i, :, :, :]))
         else:
             print("undefined loss")
       ## Disclaimer is not entirely sure how this connect with res_q inference
@@ -298,7 +323,7 @@ class SRNN(nn.Module):
               kl_loss = kl_loss + 1/D * overshot_loss * self.beta
 
 
-      return batch_reduce(kl_loss).mean(), batch_reduce(nll_loss).mean()
+      return batch_reduce(kl_loss).mean(), nll_loss.mean()
 
 
     def predict(self, xt, n_predictions, n_conditions):
@@ -507,17 +532,25 @@ class SRNN(nn.Module):
           
           
           if self.loss_type == "bernoulli":
-              lpx_Gz_obs =  td.Bernoulli(logits=dec_mean_t).log_prob(xt[:, i, :, :, :])
-          if self.loss_type == "gaussian":
-              lpx_Gz_obs =  td.Normal(dec_mean_t, self.variance*torch.ones_like(dec_mean_t)).log_prob(xt[:, i, :, :, :])
+              lpx_Gz_obs = - batch_reduce(td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :]))
+          elif self.loss_type == "gaussian":
+               
+              if self.dequantize:
+                  x, nll_unif = self.uniform_binning_correction(xt[:, i, :, :, :])
+              else:
+                  x = xt[:, i, :, :, :]
+                
+              lpx_Gz_obs = - batch_reduce(td.Normal(dec_mean_t, nn.Softplus()(self.variance)*torch.ones_like(dec_mean_t)).log_prob(x))
+              lpx_Gz_obs = lpx_Gz_obs - nll_unif
+    
           elif self.loss_type == "mse":
-              lpx_Gz_obs = - self.mse_criterion(dec_mean_t, xt[:, i, :, :, :])
+              lpx_Gz_obs =  batch_reduce(self.mse_criterion(dec_mean_t, xt[:, i, :, :, :]))
           else:
               print("undefined loss")
           
           logpzs[k] = prior_dist.log_prob(z_t).sum([-1])
           logqzxs[k] = enc_dist.log_prob(z_tx).sum([-1])
-          lpx_Gz_obss[k] = lpx_Gz_obs.sum([-1,-2,-3])
+          lpx_Gz_obss[k] = lpx_Gz_obs
           zprevx = z_tx
           zprev = z_t
           

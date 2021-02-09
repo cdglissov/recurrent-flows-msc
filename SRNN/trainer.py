@@ -170,10 +170,9 @@ class Solver(object):
               x = torch.floor( x/2 ** (8 - n_bits))
             x = x / n_bins  - 0.5
           else:
-            x = torch.clamp(x, -0.5, 0.5)
             x = x + 0.5
             x = x * n_bins
-            x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
+            x = torch.clamp(torch.floor(x) * (256. / n_bins), 0, 255).byte()
         elif preprocess_range == "1.0":
           if reverse == False:
             x = x * scale
@@ -181,9 +180,8 @@ class Solver(object):
               x = torch.floor( x/2 ** (8 - n_bits))
             x = x / n_bins
           else:
-            x = torch.clamp(x, 0, 1)
             x = x * n_bins
-            x = torch.clamp(x * (255 / n_bins), 0, 255).byte()
+            x = torch.clamp(torch.floor(x) * (256. / n_bins), 0, 255).byte()
         elif preprocess_range == "minmax":
             if reverse == False:
                 x = (x - x.min()) / (x.max() - x.min())
@@ -203,6 +201,7 @@ class Solver(object):
 
         #https://stats.stackexchange.com/questions/423120/what-is-bits-per-dimension-bits-dim-exactly-in-pixel-cnn-papers/431012
         bits_per_dim_loss = -elbo/(np.log(2.)*torch.prod(torch.tensor(dims))*t)
+        print(bits_per_dim_loss)
         self.bits.append(float(bits_per_dim_loss))
         self.losses.append(float(loss.data)/t)
         self.kl_loss.append(float(kl_store)/t)
@@ -238,7 +237,7 @@ class Solver(object):
             loss.backward()
             self.optimizer.step()
             self.counter += 1
-
+            
           self.plotter()
           epoch_loss = np.mean(self.losses)
 

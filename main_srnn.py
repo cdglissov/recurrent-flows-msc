@@ -51,11 +51,11 @@ if __name__ == "__main__":
     
     #DATA
     parser.add_argument("--batch_size", help="Specify batch size", 
-                        default=100, type=int)
+                        default=60, type=int)
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
-                        choices=['mnist', 'bair', 'kth'], default='mnist', type=str)
+                        choices=['mnist', 'bair', 'kth'], default='bair', type=str)
     parser.add_argument("--image_size", help="Specify the image size of mnist", 
                         default=64, type=int)
     parser.add_argument("--digit_size", help="Specify the size of mnist digit", 
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", help="Specify learning_rate", 
                         default=0.0001, type=float)
     parser.add_argument("--preprocess_range", help="Specify the range of the data for preprocessing", 
-                        choices=['0.5','1.0', 'minmax'], default='minmax', type=str)
+                        choices=['0.5','1.0', 'minmax'], default='0.5', type=str)
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
                         default=255, type=int)
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
@@ -111,19 +111,19 @@ if __name__ == "__main__":
     
     # SRNN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[100, 1, 64, 64], type=int)
+                        default=[100, 3, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[100, 1, 64, 64], type=int)
+                        default=[100, 3, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
-                        default=150, type=int)
+                        default=60, type=int)
     parser.add_argument("--a_dim", help="Specify smoothing state (a) channels", 
-                        default=150, type=int)
+                        default=60, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
                         default=20, type=int) # Very bad if too high, very bad if too low
     parser.add_argument("--loss_type", help="Specify the type of loss used", 
-                        default="mse", choices = ["bernoulli", "mse", "gaussian"], type=str)
-    parser.add_argument("--variance", help="Specify the variance of out put probability ", 
-                        default=1, type=float)
+                        default="gaussian", choices = ["bernoulli", "mse", "gaussian"], type=str)
+    add_bool_arg(parser, "dequantize", default=True, 
+                 help="Specify if we want to use uniform distribution for the loss")
     parser.add_argument("--norm_type", help="Specify the type of loss used", 
                         default="batchnorm", choices = ["batchnorm", "instancenorm", "none"], type=str)
     add_bool_arg(parser, "res_q", default=False, 

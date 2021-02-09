@@ -1,6 +1,6 @@
 import sys
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows/')
+sys.path.insert(1, './deepflows_git_gut/')
 import torch
 import torch.utils.data
 from torch.utils.data import DataLoader
@@ -71,7 +71,7 @@ class Evaluator(object):
         # best forward scores
         self.lpipsNet = lpips.LPIPS(net='alex').to(device)
 
-    def create_loaders(self):
+    def create_loaders(self, drop_last=True):
         #if self.use_validation_set:
         #    train_boolean=True
         #    train_bair='train'
@@ -115,10 +115,10 @@ class Evaluator(object):
         if self.use_validation_set:
             testset_sub = torch.utils.data.Subset(testset, list(range(0, 1000, 1)))
             test_loader = DataLoader(testset_sub, batch_size=self.batch_size,
-                                     num_workers=self.num_workers, shuffle=False, drop_last=True)
+                                     num_workers=self.num_workers, shuffle=False, drop_last=drop_last)
         else:
             test_loader = DataLoader(testset, batch_size=self.batch_size,
-                                     num_workers=self.num_workers, shuffle=False, drop_last=True)
+                                     num_workers=self.num_workers, shuffle=False, drop_last=drop_last)
         return test_loader
 
     def convert_to_numpy(self, x):
@@ -272,7 +272,7 @@ class Evaluator(object):
 
     def get_interpolations(self):
         ## Only works for RFN when trained on one digit.
-        ## Two dataset with two different seeds
+        
         interpolation_set = MovingMNIST(False, 'Mnist',
                                  seq_len=self.n_frames,
                                  image_size=self.image_size,
@@ -825,43 +825,73 @@ class Evaluator(object):
 
     def get_fvd_values(self, model_name, n_predicts):
       start_predictions = self.start_predictions
-
+      #self.create_loaders(self, drop_last=True):
       FVD_values = []
-
+      test_loader=self.create_loaders(drop_last=False)
       with torch.no_grad():
           self.model.eval()
-          for batch_i, true_image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
+          for _ in range(0,2):
+            preds = []
+            gts = []
+          
+            for batch_i, true_image in enumerate(tqdm(test_loader, desc="Running", position=0, leave=True)):
+  
+                if self.choose_data=='bair':
+                    image = true_image[0].to(device)
+                else:
+                    image = true_image.to(device)
+                image = self.solver.preprocess(image)
+                
+                cur_bs = image.shape[0]
+                if cur_bs < self.batch_size:
+                  pad=torch.zeros(self.batch_size-cur_bs, *image.shape[1:]).to(device)
+                  full_image = torch.cat((image, pad),0)
+                  _, predictions = self.model.predict(full_image, n_predicts, start_predictions)
+                  predictions = predictions[:,:cur_bs,...]
+                else:
+                  _, predictions = self.model.predict(image, n_predicts, start_predictions)
+                  
+                image  = self.solver.preprocess(image, reverse=True)
+                predictions  = self.solver.preprocess(predictions, reverse=True)
+  
+                # should be [t, b, c, h, w]
+                ground_truth = image[:, (start_predictions):(n_predicts+start_predictions),:,:,:].cpu()
+                predictions = predictions.permute(1,0,2,3,4).cpu()
 
-              if self.choose_data=='bair':
-                  image = true_image[0].to(device)
-              else:
-                  image = true_image.to(device)
-              image = self.solver.preprocess(image)
+                gts.append(ground_truth)
+                preds.append(predictions)
+              
+          
+            ground_truths_fvd=torch.cat((gts),0).permute(1,0,2,3,4)
+            predictions_fvd=torch.cat((preds),0).permute(1,0,2,3,4)
 
 
-              x_true, predictions = self.model.predict(image, n_predicts, start_predictions)
+            FVD = fvd(ground_truths_fvd, predictions_fvd)
+            FVD_values.append(FVD)
 
-              image  = self.solver.preprocess(image, reverse=True)
-              predictions  = self.solver.preprocess(predictions, reverse=True)
-
-              # should be [t, b, c, h, w]
-              ground_truth = image[:, start_predictions:,:,:,:].permute(1,0,2,3,4).cpu()
-              predictions = predictions.cpu()
-
-              FVD = fvd(ground_truth, predictions)
-
-              #Store values
-              FVD_values.append(FVD/n_predicts)
-
-      return FVD_values
-
+      
+      if len(FVD_values)>1:
+        FVD_mean=np.mean(FVD_values)
+        FVD_std=np.std(FVD_values)
+      else:
+        FVD_mean = FVD_values[0]
+        FVD_std = 0
+      
+      print(FVD_mean)
+      print(FVD_std)
+      
+      return FVD_mean, FVD_std
+    def minmax_scale(self,x):
+      x = (x - x.min()) / (x.max() - x.min())
+      return x
+    
     def param_plots(self, path, n_conditions):
 
         print("Init parameter analysis")
         seq_len=30
         plt.rcParams['image.cmap']='gray'
         param_test_set = MovingMNIST_synchronized(False, 'Mnist', seq_len=seq_len,
-                                                  num_digits=self.num_digits,
+                                                  num_digits=2,
                                                   image_size=self.image_size, digit_size=self.digit_size,
                                                   deterministic=False, three_channels = False,
                                                   step_length=self.step_length, normalize = False,
@@ -870,7 +900,9 @@ class Evaluator(object):
         te_split_len = 400
         param_test_set = torch.utils.data.random_split(param_test_set,
                                 [te_split_len, len(param_test_set)-te_split_len])[0]
-
+        
+        
+        
         test_loader = DataLoader(param_test_set, batch_size=self.batch_size,
                                  num_workers=self.num_workers, shuffle=True, drop_last=True)
         mu_p_params=[]
@@ -884,81 +916,110 @@ class Evaluator(object):
         ##########################################################
         digit_one = list(np.where(param_test_set.dataset.hit_boundary==1)[0])
         digit_two = list(np.where(param_test_set.dataset.hit_boundary==2)[0])
-
+        
         with torch.no_grad():
           self.model.eval()
           for batch_i, true_image in enumerate(tqdm(test_loader, desc="Running", position=0, leave=True)):
+              
+              #fig, ax = plt.subplots(2,true_image.shape[1], figsize=(true_image.shape[1],2))
+              #for i in range(0,true_image.shape[1]):
+              #  ax[0,i].imshow(true_image[0,i,...].permute(1,2,0))
+              #  ax[1,i].imshow(true_image[2,i,...].permute(1,2,0))
+              #fig.savefig("/work1/s146996/work1/test_if_works"+str(batch_i)+".pdf", bbox_inches='tight')
+            
               if self.choose_data=='bair':
                 image = true_image[0].to(device)
               else:
                 image = true_image.to(device)
               image = self.solver.preprocess(image)
               
-              mu_p, std_p, mu_q, std_q, mu_flow, std_flow = self.model.param_analysis(x=image,
+              mu_p, std_p, mu_q, std_q, mu_flow, std_flow, prediction = self.model.param_analysis(x=image,
                                                                                       n_conditions=n_conditions,
                                                                                       n_predictions=seq_len-n_conditions)
+              
+              t,b,c,h,w = mu_p.shape
+              tf,bf,cf,hf,wf = mu_flow.shape
+        
+              
               mu_p_params.append(mu_p.sum([2,3,4]))
               std_p_params.append(std_p.sum([2,3,4]))
               mu_q_params.append(mu_q.sum([2,3,4]))
               std_q_params.append(std_q.sum([2,3,4]))
               mu_flow_params.append(mu_flow.sum([2,3,4]))
               std_flow_params.append(std_flow.sum([2,3,4]))
-
-
+        
         mu_p_params=torch.stack(mu_p_params).mean([0,2]).cpu().numpy()
         std_p_params=torch.stack(std_p_params).mean([0,2]).cpu().numpy()
         mu_q_params=torch.stack(mu_q_params).mean([0,2]).cpu().numpy()
         std_q_params=torch.stack(std_q_params).mean([0,2]).cpu().numpy()
         mu_flow_params=torch.stack(mu_flow_params).mean([0,2]).cpu().numpy()
         std_flow_params=torch.stack(std_flow_params).mean([0,2]).cpu().numpy()
-
-
-        fig, ax = plt.subplots(3, 2 ,figsize = (2*5, 3*5))
-
+        
+        mu_p_params=self.minmax_scale(mu_p_params)
+        std_p_params=self.minmax_scale(std_p_params)
+        mu_q_params=self.minmax_scale(mu_q_params)
+        std_q_params=self.minmax_scale(std_q_params)
+        mu_flow_params=self.minmax_scale(mu_flow_params)
+        std_flow_params=self.minmax_scale(std_flow_params)
+        
+        b,t,c,h,w = true_image.shape
+        
+        
+        test = self.solver.preprocess(image[:,1:11,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
+        test_pred = self.solver.preprocess(prediction[:,1:11,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
+        test1 = self.solver.preprocess(image[:,11:21,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
+        test_pred1 = self.solver.preprocess(prediction[:,11:21,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
+        test2 = self.solver.preprocess(image[:,21:29,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
+        test_pred2 = self.solver.preprocess(prediction[:,21:29,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
+        test=torch.cat((test, test_pred),0)
+        test1=torch.cat((test1, test_pred1),0)
+        test2=torch.cat((test2, test_pred2),0)
+        fig, ax = plt.subplots(2, 1 ,figsize = (1*10, 2*4))
+        #fig2, ax2 = plt.subplots(figsize = (10,10), gridspec_kw={"hspace":0.0001, "wspace":0.0001})
+        fig2, ax2 = plt.subplots(3,1,figsize = (1*5,3*5),gridspec_kw={"hspace":0.01, "wspace":0.001, "top":0.2})
+        
         names = [r"$\mu_{prior}$",r"$\sigma_{prior}$",
          r"$\mu_{posterior}$", r"$\sigma_{posterior}$",
-         r"$\mu_{flow}$", r"$\sigma_{flow}$" ]
+         r"$\mu_{base dist}$", r"$\sigma_{base dist}$" ]
 
         #alpha = 0.05
         xaxis = np.arange(1, seq_len, 1)
-        ax[0,0].plot(xaxis, mu_p_params, label=names[0])
-        ax[0,0].set_xlim([1, seq_len-1])
+        seq_ax = [1,seq_len-1]
+        ax[0].plot(xaxis,mu_p_params, label=names[0])
+        ax[0].plot(xaxis,mu_q_params, label=names[2])
+        ax[0].plot(xaxis,mu_flow_params, label=names[4])
+        ax[0].set_xlim([seq_ax[0], seq_ax[1]])
 
-        xaxis = np.arange(1, seq_len, 1)
-        ax[1,0].plot(xaxis, mu_q_params, label=names[2])
-        ax[1,0].set_xlim([1, seq_len-1])
+        
+        ax[1].plot(xaxis,std_p_params, label=names[1])
+        ax[1].plot(xaxis,std_q_params, label=names[3])
+        ax[1].plot(xaxis,std_flow_params, label=names[5])
+        ax[1].set_xlim([seq_ax[0], seq_ax[1]])
+        
+        ax2[0].imshow(test.cpu().numpy())
+        ax2[1].imshow(test1.cpu().numpy())
+        ax2[2].imshow(test2.cpu().numpy())
+        ax2[0].axis("off")
+        ax2[1].axis("off")
+        ax2[2].axis("off")
+        
+        
+        ax[0].set_ylabel(r'Average', fontsize=15)
+        ax[1].set_ylabel(r'Average', fontsize=15)
+        
+        ax[0].set_xlabel(r'$t$', fontsize=15)
+        ax[1].set_xlabel(r'$t$', fontsize=15)
+        for i in range(0,2):
+            for k1 in digit_one:
+                ax[i].axvline(x=(k1+1), color='r', linestyle='--', linewidth=1)
+            for k2 in digit_two:
+                ax[i].axvline(x=(k2+1), color='b', linestyle='--', linewidth=1)
+            ax[i].legend(fontsize=15)
+            #ax[i].grid()
+            plt.xticks(fontsize=10)
 
-        xaxis = np.arange(1, seq_len, 1)
-        ax[2,0].plot(xaxis, mu_flow_params, label=names[4])
-        ax[2,0].set_xlim([1, seq_len-1])
-
-        xaxis = np.arange(1, seq_len, 1)
-        ax[0,1].plot(xaxis, std_p_params, label=names[1])
-        ax[0,1].set_xlim([1, seq_len-1])
-
-        xaxis = np.arange(1, seq_len, 1)
-        ax[1,1].plot(xaxis, std_q_params, label=names[3])
-        ax[1,1].set_xlim([1, seq_len-1])
-
-        xaxis = np.arange(1, seq_len, 1)
-        ax[2,1].plot(xaxis, std_flow_params, label=names[5])
-        ax[2,1].set_xlim([1, seq_len-1])
-
-        ax[0,0].set_ylabel(r'Average')
-        ax[1,0].set_ylabel(r'Average')
-        ax[2,0].set_ylabel(r'Average')
-        ax[2,0].set_xlabel(r'$t$')
-        ax[2,1].set_xlabel(r'$t$')
-
-        for i in range(0,3):
-            for j in range(0,2):
-                for k in range(0,len(digit_one)):
-                    ax[i,j].axvline(x=(digit_one[k]), color='r', linestyle='--', linewidth=1)
-                    ax[i,j].axvline(x=(digit_two[k]), color='b', linestyle='--', linewidth=1)
-                ax[i,j].legend()
-                ax[i,j].grid()
-        fig.tight_layout()
-        fig.savefig(path + '/parameter_analysis.png', bbox_inches='tight')
+        fig2.savefig(path + '/parameter_analysis_mnist_plots2.png', bbox_inches='tight')
+        fig.savefig(path + '/parameter_analysis2.png', bbox_inches='tight')
         print("Parameter analysis has finished")
 
     def plot_long_t(self,  model_name):
@@ -1018,6 +1079,46 @@ class Evaluator(object):
         n_preds = 8
         for i in range(0, n_temps):
           self.model.temperature = temperatures[i]
+          conditions, predictions = self.model.predict(image, n_preds, 5)
+          conditions  = self.solver.preprocess(conditions, reverse=True)
+          predictions  = self.solver.preprocess(predictions, reverse=True)
+          pred_list.append(predictions[:,0,:,:,:])
+        pred_list = torch.stack(pred_list, 1)
+        f_size = 17
+        
+        fig, ax = plt.subplots(n_temps, n_preds, gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(n_preds, n_temps))
+        for k in range(0, n_temps):
+          for i in range(0, n_preds): 
+            ax[k,i].imshow(self.convert_to_numpy(pred_list[i, k, :, :, :])) 
+            ax[k,i].set_yticks([])
+            ax[k,i].set_xticks([])
+            plt.subplots_adjust(wspace=0, hspace=0)
+            if i == 0:
+              ax[k, i].set_ylabel(r"$T={}$".format(float(temperatures[k])), fontsize=f_size)
+        fig.tight_layout()
+        fig.savefig(self.path +'eval_folder/' + "plot_temp_samples" +  '.pdf', )
+        plt.close(fig)
+      else:
+        print("needs to be a RFN.pt model")
+        
+    def plot_temp_kl(self,  model_name):
+      if model_name == 'rfn.pt':
+        self.model.eval()
+        
+        true_image = next(iter(self.test_loader))
+        if self.choose_data=='bair':
+             image = true_image[0].to(device)
+        else:
+             image = true_image.to(device)    
+        image = self.solver.preprocess(image, reverse=False)
+        
+        pred_list = []
+        #9
+        temperatures = [0.025, 0.3, 0.5, 0.6, 0.7, 1]
+        n_temps = len(temperatures)
+        n_preds = 8
+        for i in range(0, n_temps):
+          
           conditions, predictions = self.model.predict(image, n_preds, 5)
           conditions  = self.solver.preprocess(conditions, reverse=True)
           predictions  = self.solver.preprocess(predictions, reverse=True)

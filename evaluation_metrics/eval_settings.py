@@ -3,7 +3,7 @@ import torch
 import sys
 import numpy as np
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows/')
+sys.path.insert(1, './deepflows_git_gut/')
 from evaluation_metrics.error_metrics import Evaluator
 
 
@@ -42,19 +42,20 @@ def main(settings):
                 evaluator.param_plots(path_save_measures, n_conditions=settings.n_conditions)
             
             # Plots for RFN
-            evaluator.plot_temp(model_name)
-            evaluator.plot_long_t(model_name)
-            evaluator.plot_diversity(model_name)
-            evaluator.plot_random_samples(model_name)
+            #evaluator.plot_temp(model_name)
+            #evaluator.plot_long_t(model_name)
+            #evaluator.plot_diversity(model_name)
+            #evaluator.plot_random_samples(model_name)
             
-            evaluator.model.temperature = settings.temperatures[i]
+            #evaluator.model.temperature = settings.temperatures[i]
             
             if settings.calc_fvd:
                 print("Computing FVD")
-                FVD_values = evaluator.get_fvd_values(model_name, settings.fvd_predicts)
+                FVD_mean, FVD_std = evaluator.get_fvd_values(model_name, settings.fvd_predicts)
                 print("Done - FVD")
             else:
-                FVD_values = []
+                FVD_mean = -1
+                FVD_std = -1
 
             if settings.calc_eval:
                 MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON, SSIM_std_values, PSNR_std_values, LPIPS_std_values = evaluator.get_eval_values(model_name)
@@ -69,7 +70,8 @@ def main(settings):
                             "SSIM_std_mean": SSIM_std_values,
                             "PSNR_std_mean": PSNR_std_values,
                             "LPIPS_std_mean": LPIPS_std_values,
-                            "FVD_values": FVD_values
+                            "FVD_mean": FVD_mean,
+                            "FVD_std": FVD_std,
                             }
 
                 torch.save(dict_values, path_save_measures + '/evaluations.pt')
@@ -85,7 +87,8 @@ def main(settings):
                     print("SSIM_std_mean:", SSIM_std_values, file=f)
                     print("PSNR_std_mean:", PSNR_std_values, file=f)
                     print("LPIPS_std_mean:", LPIPS_std_values, file=f)
-                    print("FVD_values:", np.mean(FVD_values), file=f)
+                    print("FVD_mean:", np.mean(FVD_mean), file=f)
+                    print("FVD_std:", np.mean(FVD_std), file=f)
 
         else:
             for temperature in settings.temperatures:
@@ -152,9 +155,9 @@ if __name__ == "__main__":
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments",
                         default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
-                        default=["rfn_L4"], type=str)
+                        default=["rfn_mnist_final"], type=str)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
-                        default=["L4"], type=str)
+                        default=["BAIR"], type=str)
     parser.add_argument("--model_path", nargs='+', help="Name of model.pt file",
                         default=['rfn.pt'], type=str)
 
@@ -163,7 +166,7 @@ if __name__ == "__main__":
                  help="If true then a validation set is used to tune parameters, WARNING: Change value if not using MNIST")
     parser.add_argument("--num_samples_to_plot", help="This will create a plot of N sequences",
                         default=3, type=int)
-    parser.add_argument("--n_frames", help="Specify the sequence length of the test data",
+    parser.add_argument("--n_frames", help="Specify the sequence length of the test data, WARNING: If using train, BAIR needs to be <30",
                         default=15, type=int)
     parser.add_argument("--start_predictions", help="Specify when model starts predicting",
                         default=5, type=int)
@@ -185,11 +188,11 @@ if __name__ == "__main__":
     #EVAL VALUES PLOTTER SETTINGS:
     add_bool_arg(parser, "calc_eval", default=False,
                  help="Set to false if we do not want to calculate eval values")
-    add_bool_arg(parser, "debug_plot", default=True,
+    add_bool_arg(parser, "debug_plot", default=False,
                  help="Plots num_samples_to_plot samples to make sure the loader and eval works")
     parser.add_argument("--n_conditions", help="Number of conditions used for plotting eval_values",
                         default=5, type=int)
-    add_bool_arg(parser, "eval_parameters", default=False,
+    add_bool_arg(parser, "eval_parameters", default=True,
                  help="If true then parameter analysis plot will be created, WARNING: Only MNIST")
 
     # FVD settings

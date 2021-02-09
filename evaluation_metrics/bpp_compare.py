@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Feb  4 23:10:07 2021
-
-@author: s144077
-"""
-
 import matplotlib.pyplot as plt
 plt.rcParams['image.cmap']='gray'
 import torch
@@ -35,26 +27,26 @@ with torch.no_grad():
     solver_1 = Solver(args_1)
     solver_1.build()
     solver_1.load(load_model_1)
-    
+
     model_1 = solver_1.model.to(device).eval()
-    
+
     load_model_2 = torch.load(path2)
     args_2 = load_model_2['args']
     solver_2 = Solver(args_2)
     solver_2.build()
     solver_2.load(load_model_2)
-    
+
     model_2 = solver_2.model.to(device).eval()
-    
+
     load_model_3 = torch.load(path3)
     args_3 = load_model_3['args']
     solver_3 = Solver(args_3)
     solver_3.build()
     solver_3.load(load_model_3)
-    
+
     model_3 = solver_3.model.to(device).eval()
 
-    
+
     ## Get loaded values
     image_1 = next(iter(solver_1.train_loader))
     image_2 = next(iter(solver_2.train_loader))
@@ -63,16 +55,16 @@ with torch.no_grad():
     batch_1 = image_1.shape[0]
     batch_2 = image_2.shape[0]
     batch_3 = image_3.shape[0]
-    
+
     images = [image_1,image_2,image_3]
     batches = np.array([batch_1,batch_2,batch_3])
     maxbatch = np.max(batches)
-    
+
     idxmaxbatch = np.where(batches == maxbatch)
 
     image = solver_1.preprocess(images[idxmaxbatch[0][0]])
     image = image.to(device)
-    ## Make sure we have the same batch, to all the models 
+    ## Make sure we have the same batch, to all the models
     image_1 = image[0:batch_1,:,:,:,:]
     image_2 = image[0:batch_2,:,:,:,:]
     image_3 = image[0:batch_3,:,:,:,:]
@@ -106,7 +98,7 @@ with torch.no_grad():
             #ax[1+z,i].set_title(str(zname))
             ax[1+z,i].set_xticks([])
             ax[1+z,i].set_yticks([])
-    
+
     fontsize = 30
     rotation = 0
     labelpad = 60
