@@ -201,7 +201,6 @@ class Solver(object):
 
         #https://stats.stackexchange.com/questions/423120/what-is-bits-per-dimension-bits-dim-exactly-in-pixel-cnn-papers/431012
         bits_per_dim_loss = -elbo/(np.log(2.)*torch.prod(torch.tensor(dims))*t)
-        print(bits_per_dim_loss)
         self.bits.append(float(bits_per_dim_loss))
         self.losses.append(float(loss.data)/t)
         self.kl_loss.append(float(kl_store)/t)
@@ -237,7 +236,7 @@ class Solver(object):
             loss.backward()
             self.optimizer.step()
             self.counter += 1
-            
+
           self.plotter()
           epoch_loss = np.mean(self.losses)
 
