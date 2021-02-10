@@ -3,7 +3,8 @@ import numpy as np
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.distributions import Distribution
-
+# Taken from: https://github.com/vlievin/biva-pytorch/tree/c39af44c012305f7b3aba7b4385d8bbdd8b4a72d
+# Slight modifications
 class DiscretizedMixtureLogitsDistribution(Distribution):
     def __init__(self, nr_mix, logits):
         self.logits = logits
