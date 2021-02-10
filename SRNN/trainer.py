@@ -175,11 +175,9 @@ class Solver(object):
             x = torch.clamp(torch.floor(x) * (256. / n_bins), 0, 255).byte()
         elif preprocess_range == "1.0":
           if reverse == False:
-            x = x * scale
-            if n_bits < 8:
-              x = torch.floor( x/2 ** (8 - n_bits))
-            x = x / n_bins
+            x = x*2-1
           else:
+            x = (x+1)/2
             x = x * n_bins
             x = torch.clamp(torch.floor(x) * (256. / n_bins), 0, 255).byte()
         elif preprocess_range == "minmax":
@@ -231,12 +229,12 @@ class Solver(object):
             else:
                 kl, nll = self.model.loss(image)
             loss = self.compute_loss(nll, kl, image.shape[2:], t=image.shape[1]-1)
-
+            
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
             self.counter += 1
-
+            #if batch_i % 3 == 0:
           self.plotter()
           epoch_loss = np.mean(self.losses)
 

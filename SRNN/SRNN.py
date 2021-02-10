@@ -3,6 +3,7 @@ import torch.nn as nn
 from Utils import get_layer_size, Flatten, UnFlatten, set_gpu, batch_reduce
 import torch.distributions as td
 from Utils import ConvLSTM, NormLayer
+from Utils import DiscretizedMixtureLogits, DiscretizedMixtureLogits_1d
 import numpy as np
 device = set_gpu(True)
 
@@ -30,6 +31,7 @@ class SRNN(nn.Module):
       self.bits=args.n_bits
       self.dequantize = args.dequantize
       self.preprocess_range = args.preprocess_range
+      self.n_logistics = args.n_logistics
       
       # Remember to downscale more when using 64x64. Overall the net should probably increase in size when using
       # 64x64 images
@@ -143,19 +145,8 @@ class SRNN(nn.Module):
             nn.ReLU(),
         )
 
-
-      if self.preprocess_range =='0.5':
-        self.dec_mean = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1), 
-                                nn.Tanh()
-                                )
-      else:
-        self.dec_mean = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1), 
-                               nn.Sigmoid()
-                               )
-        
-      self.dec_std = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1),
-                               nn.Softplus()
-                               )
+      #self.dec_std = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1),
+      #                         nn.Softplus())
       
       self.z_0 = nn.Parameter(torch.zeros(self.batch_size, z_dim))
       self.z_0x = nn.Parameter(torch.zeros(self.batch_size, z_dim))
@@ -178,9 +169,28 @@ class SRNN(nn.Module):
                            kernel_size=[3, 3],
                            bias=True,
                            peephole=True)
-      self.variance = nn.Parameter(torch.ones([1]))
+      if self.loss_type=="mol":
+        if cx > 1:
+          self.dec_mean = nn.Sequential(nn.Conv2d(32, self.n_logistics*10*cx,  kernel_size=3, stride=1, padding=1))
+          self.likelihood = DiscretizedMixtureLogits(self.n_logistics)
+        else:
+          self.dec_mean = nn.Sequential(nn.Conv2d(32, self.n_logistics*3*cx,  kernel_size=3, stride=1, padding=1))
+          self.likelihood = DiscretizedMixtureLogits_1d(self.n_logistics)
+      else:
+        self.variance = nn.Parameter(torch.ones([1]))
+        if self.preprocess_range =='0.5':
+          self.dec_mean = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1), 
+                                  nn.Tanh()
+                                  )
+        elif self.preprocess_range =='1.0':
+          self.dec_mean = nn.Sequential(nn.Conv2d(32, cx,  kernel_size=3, stride=1, padding=1), 
+                                 nn.Sigmoid()
+                                 )
+        
       self.D = args.num_shots + 1 # Plus one as that is more intuative
       self.overshot_w = args.overshot_w #Weight for overshoots.
+      
+      
       
     def get_inits(self):
       loss = 0
@@ -290,6 +300,8 @@ class SRNN(nn.Module):
 
         elif self.loss_type == "mse":
             nll_loss = nll_loss + batch_reduce(self.mse_criterion(dec_mean_t, xt[:, i, :, :, :]))
+        elif self.loss_type == "mol":
+            nll_loss = nll_loss - batch_reduce(self.likelihood(logits = dec_mean_t).log_prob(xt[:, i, :, :, :]))
         else:
             print("undefined loss")
       ## Disclaimer is not entirely sure how this connect with res_q inference
@@ -373,7 +385,8 @@ class SRNN(nn.Module):
 
         dec_t = self.dec(torch.cat([ht, self.phi_z(z_t)], 1))
         dec_mean_t = self.dec_mean(dec_t)
-
+        if self.loss_type == "mol":
+          dec_mean_t=self.likelihood(logits = dec_mean_t).sample()
         prediction = dec_mean_t
         zprev = z_t
         hprev = ht
@@ -430,6 +443,8 @@ class SRNN(nn.Module):
 
         dec_t = self.dec(torch.cat([ht, self.phi_z(z_tx)], 1))
         dec_mean_t = self.dec_mean(dec_t)
+        if self.loss_type == "mol":
+          dec_mean_t=self.likelihood(logits = dec_mean_t).sample()
         zprevx = z_tx
         recons[i,:,:,:,:] = dec_mean_t.detach()
 
@@ -454,6 +469,8 @@ class SRNN(nn.Module):
 
         dec_t = self.dec(torch.cat([ht, self.phi_z(z_t)], 1))
         dec_mean_t = self.dec_mean(dec_t)
+        if self.loss_type == "mol":
+          dec_mean_t=self.likelihood(logits = dec_mean_t).sample()
         condition = dec_mean_t
         zprev = z_t
         hprev = ht
@@ -529,7 +546,7 @@ class SRNN(nn.Module):
           dec_t = self.dec(torch.cat([ht, self.phi_z(z_tx)], 1))
           
           dec_mean_t = self.dec_mean(dec_t)
-          
+
           
           if self.loss_type == "bernoulli":
               lpx_Gz_obs = - batch_reduce(td.Bernoulli(probs=dec_mean_t).log_prob(xt[:, i, :, :, :]))
@@ -545,6 +562,8 @@ class SRNN(nn.Module):
     
           elif self.loss_type == "mse":
               lpx_Gz_obs =  batch_reduce(self.mse_criterion(dec_mean_t, xt[:, i, :, :, :]))
+          elif self.loss_type == "mol":
+              lpx_Gz_obs = -batch_reduce(self.likelihood(logits = dec_mean_t).log_prob(xt[:, i, :, :, :]))
           else:
               print("undefined loss")
           

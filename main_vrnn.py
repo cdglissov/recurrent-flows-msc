@@ -55,7 +55,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_frames", help="Specify number of frames", 
                         default=10, type=int)
     parser.add_argument("--choose_data", help="Specify dataset", 
-                        choices=['mnist', 'bair', 'kth'], default='bair', type=str)
+                        choices=['mnist', 'bair', 'kth'], default='mnist', type=str)
     parser.add_argument("--image_size", help="Specify the image size of mnist", 
                         default=64, type=int)
     parser.add_argument("--digit_size", help="Specify the size of mnist digit", 
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     parser.add_argument("--patience_lr", help="Specify patience for lr_scheduler", 
                         default=50, type=int)
     parser.add_argument("--factor_lr", help="Specify lr_scheduler factor (0..1)", 
-                        default=0.5, type=restricted_float)
+                        default=0.7, type=restricted_float)
     parser.add_argument("--min_lr", help="Specify minimum lr for scheduler", 
                         default=0.00001, type=float)
     parser.add_argument("--n_bits", help="Specify number of bits", 
@@ -87,11 +87,11 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", help="Specify learning_rate", 
                         default=0.0001, type=float)
     parser.add_argument("--preprocess_range", help="Specify the range of the data for preprocessing", 
-                        choices=['0.5','1.0', 'minmax'], default='0.5', type=str)
+                        choices=['0.5','1.0', 'minmax'], default='1.0', type=str)
     parser.add_argument("--preprocess_scale", help="Specify the scale for preprocessing", 
                         default=255, type=int)
     parser.add_argument("--beta_max", help="Specify the maximum value of beta", 
-                        default=0.00001, type=float)
+                        default=1, type=float)
     parser.add_argument("--beta_min", help="Specify the minimum value of beta", 
                         default=0.000001, type=float)
     parser.add_argument("--beta_steps", help="Specify the annealing steps", 
@@ -107,17 +107,19 @@ if __name__ == "__main__":
     
     # VRNN
     parser.add_argument('--x_dim', nargs='+', help="Specify data dimensions (b,c,h,w)", 
-                        default=[60, 3, 64, 64], type=int)
+                        default=[60, 1, 64, 64], type=int)
     parser.add_argument('--condition_dim', nargs='+', help="Specify condition dimensions (b,c,h,w)", 
-                        default=[60, 3, 64, 64], type=int)
+                        default=[60, 1, 64, 64], type=int)
     parser.add_argument("--h_dim", help="Specify hidden state (h) channels", 
                         default=256, type=int)
     parser.add_argument("--z_dim", help="Specify latent (z) channels", 
                         default=20, type=int) # Very bad if too high, very bad if too low
     parser.add_argument("--loss_type", help="Specify the type of loss used", 
-                        default="gaussian", choices = ["bernoulli", "mse", "gaussian"], type=str)
+                        default="mol", choices = ["bernoulli", "mse", "gaussian", "mol"], type=str)
     add_bool_arg(parser, "dequantize", default=True, 
                  help="Specify if we want to use uniform distribution for the loss")
+    parser.add_argument("--n_logistics", help="Choose number of mixtures for logistic.", 
+                      default=10, type=int)
     parser.add_argument("--norm_type", help="Specify the type of loss used", 
                         default="batchnorm", choices = ["batchnorm", "instancenorm", "none"], type=str)
 
