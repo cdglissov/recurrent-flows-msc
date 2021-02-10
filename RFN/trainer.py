@@ -196,12 +196,11 @@ class Solver(object):
         startbatch = 100000 #If videoflow then this number should be 450000 # The batch the linear decrease starts.
         num_steps = 150000 #Num is set after videoflow #The number of steps for linear decrease to zero.
         if batch > startbatch: # After 100000 batches linearly decrease learning rate
-            lr = self.learning_rate - batch*(self.learning_rate)/num_steps
+            lr = self.learning_rate - (batch-startbatch)*(self.learning_rate)/num_steps
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = lr
 
-
-        if batch == (startbatch + num_steps): # If this is true the learning rate is zero.
+        if batch == (startbatch + num_steps-5): # If this is true the learning rate is zero.
             self.stop = True
 
     def compute_loss(self, nll, kl_free_bit, kl, dims, t=10):
@@ -253,7 +252,7 @@ class Solver(object):
             self.counter += 1
             #if (batch_i % 20)==0:
           self.plotter()
-          
+
           epoch_loss = np.mean(self.losses)
 
           if self.epoch_i % 1 == 0:
