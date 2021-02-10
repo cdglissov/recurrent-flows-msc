@@ -18,7 +18,7 @@ Some examples can be found in the notebook folder.
 KTH<br>
 BAIR <br>
 SM-MNIST<br>
-Conditional Celeba data<br>
+Modified Celeba data for conditional experiments<br>
 Generated shapes data <br>
 Synthesized sinusoidal data <br>
 Two-moon data <br>
