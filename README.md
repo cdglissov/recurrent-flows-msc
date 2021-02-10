@@ -2,6 +2,7 @@
 
 This repository contains the following implementations:
 
+ConvLSTM <br>
 RealNVP <br>
 Glow <br>
 VRNN <br>
@@ -11,12 +12,13 @@ Conditional Glow <br>
 SVG <br>
 Recurrent Flow Networks based on SRNN with smoothing, residual mean, gradient checking and overshooting and a Glow decoder - (Video generation) <br>
 
-Examples can be found in the notebook folder.
+Some examples can be found in the notebook folder.
 
 # Data
 KTH<br>
 BAIR <br>
 SM-MNIST<br>
+Conditional Celeba data<br>
 Generated shapes data <br>
 Synthesized sinusoidal data <br>
 Two-moon data <br>
