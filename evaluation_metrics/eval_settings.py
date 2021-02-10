@@ -14,7 +14,7 @@ def main(settings):
         model_name = settings.model_path[i]
         load_model = torch.load(settings.folder_path+experiments[i]+"/model_folder/"+model_name)
         args = load_model['args']
-        
+
         if model_name == "svg.pt":
             from SVG.trainer import Solver
         elif model_name == "vrnn.pt":
@@ -25,7 +25,7 @@ def main(settings):
             from SRNN.trainer import Solver
         else:
             print("Unknown Model")
-        
+
         solver = Solver(args)
         solver.build()
         solver.load(load_model)
@@ -40,15 +40,15 @@ def main(settings):
         if not settings.test_temperature:
             if settings.eval_parameters:
                 evaluator.param_plots(path_save_measures, n_conditions=settings.n_conditions)
-            
+
             # Plots for RFN
-            #evaluator.plot_temp(model_name)
-            #evaluator.plot_long_t(model_name)
-            #evaluator.plot_diversity(model_name)
-            #evaluator.plot_random_samples(model_name)
-            
-            #evaluator.model.temperature = settings.temperatures[i]
-            
+            evaluator.plot_temp(model_name)
+            evaluator.plot_long_t(model_name)
+            evaluator.plot_diversity(model_name)
+            evaluator.plot_random_samples(model_name)
+            evaluator.plot_temp_kl(model_name)
+            evaluator.model.temperature = settings.temperatures[i]
+
             if settings.calc_fvd:
                 print("Computing FVD")
                 FVD_mean, FVD_std = evaluator.get_fvd_values(model_name, settings.fvd_predicts)
@@ -200,7 +200,7 @@ if __name__ == "__main__":
                  help="Enabling this allows us to compute FVD")
     parser.add_argument("--fvd_predicts", help="How far into the future to predict",
                         default=10, type=int)
-    
+
 
     args = parser.parse_args()
 

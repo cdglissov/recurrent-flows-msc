@@ -28,6 +28,7 @@ class RFN(nn.Module):
       self.downscaler_tanh = args.downscaler_tanh
       self.skip_connection_features = args.skip_connection_features
       self.upscaler_tanh = args.upscaler_tanh
+      self.kl_temperature = 1
       #new:
       self.a_dim = args.a_dim
       self.enable_smoothing=args.enable_smoothing
@@ -316,7 +317,7 @@ class RFN(nn.Module):
           else:
               prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
   
-          dist_prior = td.Normal(prior_mean, prior_std)
+          dist_prior = td.Normal(prior_mean, prior_std*self.kl_temperature)
           zt = dist_prior.rsample()
           
           dist_enc = td.Normal(enc_mean, enc_std)
@@ -337,9 +338,9 @@ class RFN(nn.Module):
             _, ht, ct = self.lstm(condition.unsqueeze(1), hprev, cprev)
 
             prior_mean, prior_std = self.prior(torch.cat((ht, zprev), dim=1))
-            dist_prior = td.Normal(prior_mean, prior_std)
+            dist_prior = td.Normal(prior_mean, prior_std*self.kl_temperature)
             zt = dist_prior.sample()
-
+            
             if self.skip_connection_features:
                 flow_conditions = self.upscaler(torch.cat((ht, zt), dim = 1), skip_list = condition_list)
             else:
@@ -353,8 +354,8 @@ class RFN(nn.Module):
             base_conditions = torch.cat((ht, zt), dim = 1)
             prediction = self.flow.sample(None, flow_conditions, base_conditions, temperature=self.temperature)
             predictions[i,:,:,:,:] = prediction.detach()
-            hprev, cprev = ht, ct
-            zprev = zt
+            hprev, cprev = ht.detach(), ct.detach()
+            zprev = zt.detach()
 
         return true_x, predictions
 
@@ -373,7 +374,7 @@ class RFN(nn.Module):
         for i in range(0,t):
             x_feature_list = self.extractor(x[:, i, :, :, :])
             store_x_features.append(x_feature_list)
-              
+
           #h
         for i in range(1, t):
           if self.skip_connection_flow == "without_skip" and not self.skip_connection_features:

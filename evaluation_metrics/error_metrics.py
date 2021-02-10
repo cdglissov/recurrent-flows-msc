@@ -1312,7 +1312,8 @@ class Evaluator(object):
         n_temps = len(temperatures)
         n_preds = 8
         for i in range(0, n_temps):
-
+          self.model.kl_temperature = temperatures[i]
+          self.model.temperature = 1
           conditions, predictions = self.model.predict(image, n_preds, 5)
           conditions  = self.solver.preprocess(conditions, reverse=True)
           predictions  = self.solver.preprocess(predictions, reverse=True)
@@ -1330,7 +1331,7 @@ class Evaluator(object):
             if i == 0:
               ax[k, i].set_ylabel(r"$T={}$".format(float(temperatures[k])), fontsize=f_size)
         fig.tight_layout()
-        fig.savefig(self.path +'eval_folder/' + "plot_temp_samples" +  '.pdf', )
+        fig.savefig(self.path +'eval_folder/' + "plot_kl_temp_samples" +  '.pdf', )
         plt.close(fig)
       else:
         print("needs to be a RFN.pt model")
