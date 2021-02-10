@@ -19,6 +19,6 @@ KTH<br>
 BAIR <br>
 SM-MNIST<br>
 Modified Celeba data for conditional experiments<br>
-Generated shapes data <br>
+Generated moving shapes data <br>
 Synthesized sinusoidal data <br>
-Two-moon data <br>
+Two-moon data with rotation <br>
