@@ -136,16 +136,16 @@ class Evaluator(object):
             if i == 0:
                 ax[2*(k),i].set_yticks([])
                 ax[2*(k),i].set_xticks([])
-                ax[2*(k),i].set_ylabel("Ground Truth")
+                ax[2*(k),i].set_ylabel(r"Ground Truth")
             else:
                 ax[2*(k),i].axis("off")
             ax[2*(k)+1,i].imshow(self.convert_to_numpy(predictions[k, i, :, :, :]))
             if eval_score != None:
-                ax[2*(k)+1,i].set_title(f"{float(eval_score[k,i]):.3f}")
+                ax[2*(k)+1,i].set_title(r"{:.2f}".format(float(eval_score[k,i])))
             if i == 0:
                 ax[2*(k)+1,i].set_yticks([])
                 ax[2*(k)+1,i].set_xticks([])
-                ax[2*(k)+1,i].set_ylabel("Prediction")
+                ax[2*(k)+1,i].set_ylabel(r"Prediction")
             else:
                 ax[2*(k)+1,i].axis("off")
       fig.savefig(self.path +'eval_folder/' + name +  '.pdf', bbox_inches="tight")
@@ -369,18 +369,12 @@ class Evaluator(object):
 
     def get_loss(self, model_name, loss_resamples):
         BPD = []
-        DKL=[]
-        RECON = []
 
         with torch.no_grad():
           self.model.eval()
           BPD_means = []
-          DKL_means = []
-          RECON_means = []
           for resample in range(0,loss_resamples):
               BPD = []
-              DKL=[]
-              RECON = []
               for batch_i, true_image in enumerate(tqdm(self.test_loader, desc="Running", position=0, leave=True)):
                   if self.choose_data=='bair':
                       image = true_image[0].to(device)
@@ -394,40 +388,33 @@ class Evaluator(object):
                   if model_name == "rfn.pt":
                       logdet = 0
                       _, kl, nll = self.model.loss(imageloss, logdet)
-                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll,
+                      bits_per_dim_loss, _, _ = self.compute_loss(nll=nll,
                                                                                kl=kl,
                                                                                dims=imageloss.shape[2:],
                                                                                t=imageloss.shape[1]-1)
                   else:
-                      kl, nll = self.model.loss(imageloss)
-                      bits_per_dim_loss, kl_loss, recon_loss = self.compute_loss(nll=nll,
-                                                                               kl=kl,
-                                                                               dims=image.shape[2:],
-                                                                               t=image.shape[1]-1)
-
+                      loss = self.model.elbo_importance_weighting(imageloss, K=20)
+                      t_loss = imageloss.shape[1]-1
+                      dims = imageloss.shape[2:]
+                      bits_per_dim_loss = loss/(np.log(2.)*torch.prod(torch.tensor(dims))*t_loss)
+                      
 
                   BPD.append(bits_per_dim_loss)
-                  DKL.append(kl_loss)
-                  RECON.append(recon_loss)
-
               BPD = torch.FloatTensor(BPD)
-              DKL = torch.FloatTensor(DKL)
-              RECON = torch.FloatTensor(RECON)
               # Find the mean of the bits per dim of one whole data set
               BPD_means.append(BPD)
-              DKL_means.append(DKL)
-              RECON_means.append(RECON)
           # Shape  [loss_resamples*len(test_set)]
           BPD_means = torch.stack(BPD_means)
-          DKL_means = torch.stack(DKL_means)
-          RECON_means = torch.stack(RECON_means)
-          print(BPD_means.shape)
-
-          BPD_means_mean = BPD_means.mean()
-          BPD_means_std = BPD_means.std()
+          if loss_resamples > 1:
+            BPD_means_mean = BPD_means.mean()
+            BPD_means_std = BPD_means.std()
+          else:
+            BPD_means_mean = BPD_means.mean()
+            BPD_means_std = -1
           #CI = BPD_means_std/(loss_resamples**(1/2))
           # Min so far on BAir is 2.66
           print('Mean Loss: '+str(BPD_means_mean.numpy()) + ' Std: '+str(BPD_means_std))
+          return BPD_means_mean, BPD_means_std
 
     def get_eval_values(self, model_name):
       start_predictions = self.start_predictions
@@ -602,7 +589,7 @@ class Evaluator(object):
 
       if self.debug_plot:
           ns = self.num_samples_to_plot
-          nf = 8 #time rollouts
+          nf = 6 #time rollouts
           self.plot_samples(predictions[:,0:nf,...].byte(), ground_truth[:,0:nf,...].byte(), name="random_samples_ssim")
           self.plot_samples(preds[:ns,0:nf,...].byte(), gt[:ns,0:nf,...].byte(),
                             name="best_samples", eval_score = SSIM_values[ordered,...][:ns,0:nf,...], set_top=1.1)
@@ -1074,7 +1061,7 @@ class Evaluator(object):
       print(FVD_std)
 
       return FVD_mean, FVD_std
-
+    
     def minmax_scale(self,x):
       x = (x - x.min()) / (x.max() - x.min())
       return x
@@ -1174,7 +1161,7 @@ class Evaluator(object):
         test=test_pred
         test1=test_pred1
         test2=test_pred2
-
+        
         fig, ax = plt.subplots(2, 1 ,figsize = (1*10, 2*4))
         #fig2, ax2 = plt.subplots(figsize = (10,10), gridspec_kw={"hspace":0.0001, "wspace":0.0001})
         fig2, ax2 = plt.subplots(3,1,figsize = (1*5,3*5),gridspec_kw={"hspace":0.01, "wspace":0.001, "top":0.2})
@@ -1204,7 +1191,7 @@ class Evaluator(object):
         ax2[0].axis("off")
         ax2[1].axis("off")
         ax2[2].axis("off")
-
+        
         ax3[0].imshow(test_true.cpu().numpy())
         ax3[1].imshow(test1_true.cpu().numpy())
         ax3[2].imshow(test2_true.cpu().numpy())
@@ -1273,7 +1260,7 @@ class Evaluator(object):
     def plot_temp(self,  model_name, orig_temps, kl_analysis, duplicate_samples=False, t_list=[0,1,2,9,19,39]):
       if model_name == 'rfn.pt':
         self.model.eval()
-
+ 
         true_image = next(iter(self.test_loader))
         if self.choose_data=='bair':
              image = true_image[0].to(device)
@@ -1283,7 +1270,7 @@ class Evaluator(object):
 
         pred_list = []
         #9
-
+        
         temperatures = [0.001, 0.3, 0.5, 0.7, 1, 2]
         n_temps = len(temperatures)
         n_preds = len(t_list)
@@ -1309,7 +1296,7 @@ class Evaluator(object):
           pred_list.append(preds)
         pred_list = torch.stack(pred_list, 1)
         f_size = 13
-
+        
         fig, ax = plt.subplots(n_temps, n_preds, gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(n_preds, n_temps))
         for k in range(0, n_temps):
           for i in range(0, n_preds):
@@ -1333,7 +1320,7 @@ class Evaluator(object):
         self.model.temperature = orig_temps[0]
         self.model.kl_temperature = orig_temps[1]
         plt.close(fig)
-
+        
       else:
         print("needs to be a RFN.pt model")
 
@@ -1402,18 +1389,18 @@ class Evaluator(object):
         conditions, predictions = self.model.predict(image, 10, 3)
         conditions  = self.solver.preprocess(conditions, reverse=True)
         predictions  = self.solver.preprocess(predictions, reverse=True)
-        t_list = [0,1,2,3,4,5,6,7,8,9]
+        t_list = [1,2,3,4,5,6,7]
         t_length = len(t_list)
         n_sequences = 5
         t_seq = torch.cat([conditions,predictions],0)
         fig, ax = plt.subplots(n_sequences, t_length, gridspec_kw = {'wspace':0.06, 'hspace':0}, figsize=(t_length, n_sequences))
         plt.subplots_adjust(wspace=0.06, hspace=0)
-        f_size = 16
+        f_size = 13
 
         for k in range(0, n_sequences):
           for i in range(0, t_length):
             ax[k,i].imshow(self.convert_to_numpy(t_seq[t_list[i], k, :, :, :]))
-            if i <3:
+            if i <2:
               ax[k,i].patch.set_edgecolor('red')
             else:
               ax[k,i].patch.set_edgecolor('green')

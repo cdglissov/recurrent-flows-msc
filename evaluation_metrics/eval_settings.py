@@ -38,6 +38,8 @@ def main(settings):
 
 
         if not settings.test_temperature:
+            evaluator.model.temperature = settings.temperatures[i]
+            evaluator.model.kl_temperature = 1
             if settings.eval_parameters:
                 evaluator.param_plots(path_save_measures, n_conditions=settings.n_conditions)
 
@@ -49,22 +51,25 @@ def main(settings):
             else:
                 FVD_mean = -1
                 FVD_std = -1
+                
 
-            evaluator.model.temperature = settings.temperatures[i]
-            evaluator.model.kl_temperature = 1
             evaluator.plot_long_t(model_name)
             evaluator.plot_diversity(model_name)
             evaluator.plot_random_samples(model_name)
             evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=False)
-            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=True,
+            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=True, 
                                 duplicate_samples=False)
-            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=False,
+            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=False, 
                                 duplicate_samples=True, t_list = [0]*8)
-            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=True,
+            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=True, 
                     duplicate_samples=True, t_list = [0]*8)
             evaluator.model.temperature = settings.temperatures[i]
             evaluator.model.kl_temperature = 1
-
+            if settings.eval_loss:
+              BPD_means_mean, BPD_means_std = evaluator.get_loss(model_name, loss_resamples=2)
+            else:
+              BPD_means_mean = -1
+              BPD_means_std = -1
             if settings.calc_eval:
                 MSE_values, PSNR_values, SSIM_values, LPIPS_values, BPD, DKL, RECON, SSIM_std_values, PSNR_std_values, LPIPS_std_values = evaluator.get_eval_values(model_name)
                 dict_values = {"SSIM_values": SSIM_values.cpu(),
@@ -80,6 +85,8 @@ def main(settings):
                             "LPIPS_std_mean": LPIPS_std_values,
                             "FVD_mean": FVD_mean,
                             "FVD_std": FVD_std,
+                            "bits_mean": BPD_means_mean,
+                            "bits_std": BPD_means_std
                             }
 
                 torch.save(dict_values, path_save_measures + '/evaluations.pt')
@@ -95,8 +102,10 @@ def main(settings):
                     print("SSIM_std_mean:", SSIM_std_values, file=f)
                     print("PSNR_std_mean:", PSNR_std_values, file=f)
                     print("LPIPS_std_mean:", LPIPS_std_values, file=f)
-                    print("FVD_mean:", np.mean(FVD_mean), file=f)
-                    print("FVD_std:", np.mean(FVD_std), file=f)
+                    print("FVD_mean:", FVD_mean, file=f)
+                    print("FVD_std:", FVD_std, file=f)
+                    print("bits_mean:", BPD_means_mean, file=f)
+                    print("bits_std:", BPD_means_std, file=f)
 
         else:
             for temperature in settings.temperatures:
@@ -163,9 +172,9 @@ if __name__ == "__main__":
     parser.add_argument("--folder_path", help="Path to folder that contains the experiments",
                         default='./work1/s146996/', type=str)
     parser.add_argument("--experiment_names", nargs='+', help="Name of the experiments to eval",
-                        default=["rfn_mnist_final"], type=str)
+                        default=["rfn_bair_final"], type=str)
     parser.add_argument("--label_names", nargs='+', help="Name of the labels for the eval plots",
-                        default=["SM-MNIST"], type=str)
+                        default=["RFN-BAIR"], type=str)
     parser.add_argument("--model_path", nargs='+', help="Name of model.pt file",
                         default=['rfn.pt'], type=str)
 
@@ -179,9 +188,9 @@ if __name__ == "__main__":
     parser.add_argument("--start_predictions", help="Specify when model starts predicting",
                         default=5, type=int)
     parser.add_argument('--temperatures', nargs='+', help="Specify temperature for the model",
-                        default=[0.6], type=float)
+                        default=[0.7], type=float)
     parser.add_argument("--resample", help="Loops over the test set more than once to get better measures. WARNING: can be slow",
-                        default=2, type=int)
+                        default=30, type=int)
     add_bool_arg(parser, "extra_plots", default=False,
                  help="Plots the elbo gap of the RFN model and other plots. WARNING: Only works for RFN")
 
@@ -194,7 +203,7 @@ if __name__ == "__main__":
                  help="Uses a small test set to speed up iterations for debugging. Only works for SM-MNIST")
 
     #EVAL VALUES PLOTTER SETTINGS:
-    add_bool_arg(parser, "calc_eval", default=False,
+    add_bool_arg(parser, "calc_eval", default=True,
                  help="Set to false if we do not want to calculate eval values")
     add_bool_arg(parser, "debug_plot", default=True,
                  help="Plots num_samples_to_plot samples to make sure the loader and eval works")
@@ -207,7 +216,11 @@ if __name__ == "__main__":
     add_bool_arg(parser, "calc_fvd", default=False,
                  help="Enabling this allows us to compute FVD")
     parser.add_argument("--fvd_predicts", help="How far into the future to predict",
-                        default=10, type=int)
+                        default=13, type=int)
+    
+    #ELBO
+    add_bool_arg(parser, "eval_loss", default=False,
+                 help="Enabling this allows us to evaluate the BPP of the models")
 
 
     args = parser.parse_args()
