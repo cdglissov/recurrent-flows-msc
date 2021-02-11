@@ -35,7 +35,7 @@ import tensorflow_hub as hub
 
 import os
 ## Maybe change path here
-os.environ['TFHUB_CACHE_DIR'] = '/work1/s144077/cache/tf_cache'
+os.environ['TFHUB_CACHE_DIR'] = '/work1/s146996/cache/tf_cache'
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 

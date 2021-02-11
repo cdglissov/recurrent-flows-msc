@@ -151,7 +151,6 @@ class Evaluator(object):
       fig.savefig(self.path +'eval_folder/' + name +  '.pdf', bbox_inches="tight")
       plt.close(fig)
 
-
     def eval_seq(self, gt, pred):
         # Takes a ground truth (gt) of size [bs, time, c, h, w]
         T = gt.shape[1]
@@ -603,7 +602,7 @@ class Evaluator(object):
 
       if self.debug_plot:
           ns = self.num_samples_to_plot
-          nf = 10 #time rollouts
+          nf = 8 #time rollouts
           self.plot_samples(predictions[:,0:nf,...].byte(), ground_truth[:,0:nf,...].byte(), name="random_samples_ssim")
           self.plot_samples(preds[:ns,0:nf,...].byte(), gt[:ns,0:nf,...].byte(),
                             name="best_samples", eval_score = SSIM_values[ordered,...][:ns,0:nf,...], set_top=1.1)
@@ -1075,6 +1074,7 @@ class Evaluator(object):
       print(FVD_std)
 
       return FVD_mean, FVD_std
+    
     def minmax_scale(self,x):
       x = (x - x.min()) / (x.max() - x.min())
       return x
@@ -1165,12 +1165,20 @@ class Evaluator(object):
         test_pred1 = self.solver.preprocess(prediction[:,11:21,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
         test2 = self.solver.preprocess(image[:,21:29,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
         test_pred2 = self.solver.preprocess(prediction[:,21:29,...].permute(0,1,2,4,3), reverse=True)[0].reshape(-1,w).transpose(0, 1).cpu()
-        test=torch.cat((test, test_pred),0)
-        test1=torch.cat((test1, test_pred1),0)
-        test2=torch.cat((test2, test_pred2),0)
+        #test=torch.cat((test, test_pred),0)
+        #test1=torch.cat((test1, test_pred1),0)
+        #test2=torch.cat((test2, test_pred2),0)
+        test_true=test
+        test1_true=test1
+        test2_true=test2
+        test=test_pred
+        test1=test_pred1
+        test2=test_pred2
+        
         fig, ax = plt.subplots(2, 1 ,figsize = (1*10, 2*4))
         #fig2, ax2 = plt.subplots(figsize = (10,10), gridspec_kw={"hspace":0.0001, "wspace":0.0001})
         fig2, ax2 = plt.subplots(3,1,figsize = (1*5,3*5),gridspec_kw={"hspace":0.01, "wspace":0.001, "top":0.2})
+        fig3, ax3 = plt.subplots(3,1,figsize = (1*5,3*5),gridspec_kw={"hspace":0.01, "wspace":0.001, "top":0.2})
 
         names = [r"$\mu_{prior}$",r"$\sigma_{prior}$",
          r"$\mu_{posterior}$", r"$\sigma_{posterior}$",
@@ -1196,7 +1204,13 @@ class Evaluator(object):
         ax2[0].axis("off")
         ax2[1].axis("off")
         ax2[2].axis("off")
-
+        
+        ax3[0].imshow(test_true.cpu().numpy())
+        ax3[1].imshow(test1_true.cpu().numpy())
+        ax3[2].imshow(test2_true.cpu().numpy())
+        ax3[0].axis("off")
+        ax3[1].axis("off")
+        ax3[2].axis("off")
 
         ax[0].set_ylabel(r'Average', fontsize=15)
         ax[1].set_ylabel(r'Average', fontsize=15)
@@ -1211,8 +1225,8 @@ class Evaluator(object):
             ax[i].legend(fontsize=15)
             #ax[i].grid()
             plt.xticks(fontsize=10)
-
-        fig2.savefig(path + '/parameter_analysis_mnist_plots2.png', bbox_inches='tight')
+        fig3.savefig(path + '/parameter_analysis_mnist_plots_true.png', bbox_inches='tight')
+        fig2.savefig(path + '/parameter_analysis_mnist_plots_pred.png', bbox_inches='tight')
         fig.savefig(path + '/parameter_analysis2.png', bbox_inches='tight')
         print("Parameter analysis has finished")
 
@@ -1230,14 +1244,15 @@ class Evaluator(object):
         conditions, predictions = self.model.predict(image, 80, 5)
         conditions  = self.solver.preprocess(conditions, reverse=True)
         predictions  = self.solver.preprocess(predictions, reverse=True)
-        t_list = [3,4,9,19,29,39,49,59,69]
+        t_list = [3,4,9,19,39,59,69]
         t_length = len(t_list)
+        n_sequences = 4
         t_seq = torch.cat([conditions,predictions],0)
-        fig, ax = plt.subplots(5, t_length, gridspec_kw = {'wspace':0.06, 'hspace':0}, figsize=(t_length, 5))
+        fig, ax = plt.subplots(n_sequences, t_length, gridspec_kw = {'wspace':0.06, 'hspace':0}, figsize=(t_length, n_sequences))
         plt.subplots_adjust(wspace=0.06, hspace=0)
-        f_size = 20
+        f_size = 16
 
-        for k in range(0, 5):
+        for k in range(0, n_sequences):
           for i in range(0, t_length):
             ax[k,i].imshow(self.convert_to_numpy(t_seq[t_list[i], k, :, :, :]))
             if i <2:
@@ -1255,10 +1270,10 @@ class Evaluator(object):
       else:
         print("needs to be a RFN.pt model")
 
-    def plot_temp(self,  model_name):
+    def plot_temp(self,  model_name, orig_temps, kl_analysis, duplicate_samples=False, t_list=[0,1,2,9,19,39]):
       if model_name == 'rfn.pt':
         self.model.eval()
-
+ 
         true_image = next(iter(self.test_loader))
         if self.choose_data=='bair':
              image = true_image[0].to(device)
@@ -1268,18 +1283,33 @@ class Evaluator(object):
 
         pred_list = []
         #9
-        temperatures = [0.025, 0.3, 0.5, 0.6, 0.7, 1]
+        
+        temperatures = [0.001, 0.3, 0.5, 0.7, 1, 2]
         n_temps = len(temperatures)
-        n_preds = 8
-        for i in range(0, n_temps):
-          self.model.temperature = temperatures[i]
-          conditions, predictions = self.model.predict(image, n_preds, 5)
-          conditions  = self.solver.preprocess(conditions, reverse=True)
-          predictions  = self.solver.preprocess(predictions, reverse=True)
-          pred_list.append(predictions[:,0,:,:,:])
-        pred_list = torch.stack(pred_list, 1)
-        f_size = 17
+        n_preds = len(t_list)
 
+        for i in range(0, n_temps):
+          if kl_analysis:
+            self.model.kl_temperature = temperatures[i]
+            self.model.temperature = 0.000000001
+          else:
+            self.model.temperature = temperatures[i]
+            self.model.kl_temperature = 0.000000001
+          if not duplicate_samples:
+            _, predictions = self.model.predict(image, 50, 5)
+            predictions  = self.solver.preprocess(predictions, reverse=True)
+          preds = []
+
+          for j in t_list:
+            if duplicate_samples:
+              _, predictions = self.model.predict(image, 5, 5)
+              predictions  = self.solver.preprocess(predictions, reverse=True)
+            preds.append(predictions[j,0,:,:,:])
+          preds = torch.stack(preds, 0)
+          pred_list.append(preds)
+        pred_list = torch.stack(pred_list, 1)
+        f_size = 13
+        
         fig, ax = plt.subplots(n_temps, n_preds, gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(n_preds, n_temps))
         for k in range(0, n_temps):
           for i in range(0, n_preds):
@@ -1289,52 +1319,24 @@ class Evaluator(object):
             plt.subplots_adjust(wspace=0, hspace=0)
             if i == 0:
               ax[k, i].set_ylabel(r"$T={}$".format(float(temperatures[k])), fontsize=f_size)
+            if k == 0:
+              ax[k, i].set_title(r"$t={}$".format(int(t_list[i]+1)), fontsize=f_size)
         fig.tight_layout()
-        fig.savefig(self.path +'eval_folder/' + "plot_temp_samples" +  '.pdf', )
-        plt.close(fig)
-      else:
-        print("needs to be a RFN.pt model")
-
-    def plot_temp_kl(self,  model_name):
-      if model_name == 'rfn.pt':
-        self.model.eval()
-
-        true_image = next(iter(self.test_loader))
-        if self.choose_data=='bair':
-             image = true_image[0].to(device)
+        if kl_analysis and not duplicate_samples:
+          fig.savefig(self.path +'eval_folder/' + "plot_temp_samples_kl" +  '.pdf', )
+        elif duplicate_samples and not kl_analysis:
+          fig.savefig(self.path +'eval_folder/' + "plot_temp_samples_dup" +  '.pdf', )
+        elif duplicate_samples and kl_analysis:
+          fig.savefig(self.path +'eval_folder/' + "plot_temp_dup_kl" +  '.pdf', )
         else:
-             image = true_image.to(device)
-        image = self.solver.preprocess(image, reverse=False)
-
-        pred_list = []
-        #9
-        temperatures = [0.025, 0.3, 0.5, 0.6, 0.7, 1]
-        n_temps = len(temperatures)
-        n_preds = 8
-        for i in range(0, n_temps):
-          self.model.kl_temperature = temperatures[i]
-          self.model.temperature = 1
-          conditions, predictions = self.model.predict(image, n_preds, 5)
-          conditions  = self.solver.preprocess(conditions, reverse=True)
-          predictions  = self.solver.preprocess(predictions, reverse=True)
-          pred_list.append(predictions[:,0,:,:,:])
-        pred_list = torch.stack(pred_list, 1)
-        f_size = 17
-
-        fig, ax = plt.subplots(n_temps, n_preds, gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(n_preds, n_temps))
-        for k in range(0, n_temps):
-          for i in range(0, n_preds):
-            ax[k,i].imshow(self.convert_to_numpy(pred_list[i, k, :, :, :]))
-            ax[k,i].set_yticks([])
-            ax[k,i].set_xticks([])
-            plt.subplots_adjust(wspace=0, hspace=0)
-            if i == 0:
-              ax[k, i].set_ylabel(r"$T={}$".format(float(temperatures[k])), fontsize=f_size)
-        fig.tight_layout()
-        fig.savefig(self.path +'eval_folder/' + "plot_kl_temp_samples" +  '.pdf', )
+          fig.savefig(self.path +'eval_folder/' + "plot_temp_samples" +  '.pdf', )
+        self.model.temperature = orig_temps[0]
+        self.model.kl_temperature = orig_temps[1]
         plt.close(fig)
+        
       else:
         print("needs to be a RFN.pt model")
+
 
     def plot_diversity(self,  model_name):
       if model_name == 'rfn.pt':
@@ -1362,7 +1364,7 @@ class Evaluator(object):
         pred_list = torch.stack(pred_list, 1).view(25,-1,c,h,w)
 
         get_pred_list = [3,7,12,20]
-        f_size=17
+        f_size=13
         fig, ax = plt.subplots(n_resamples, n_preds, gridspec_kw = {'wspace':0.0001, 'hspace':0}, figsize=(n_preds, n_resamples))
         plt.subplots_adjust(wspace=0.0001, hspace=0)
         fig2, ax2 = plt.subplots(n_resamples, n_preds, gridspec_kw = {'wspace':0.0001, 'hspace':0}, figsize=(n_preds, n_resamples))
@@ -1400,14 +1402,15 @@ class Evaluator(object):
         conditions, predictions = self.model.predict(image, 10, 3)
         conditions  = self.solver.preprocess(conditions, reverse=True)
         predictions  = self.solver.preprocess(predictions, reverse=True)
-        t_list = [0,1,2,3,4,5,6,7,8,9,10,11,12]
+        t_list = [0,1,2,3,4,5,6,7,8,9]
         t_length = len(t_list)
+        n_sequences = 5
         t_seq = torch.cat([conditions,predictions],0)
-        fig, ax = plt.subplots(5, t_length, gridspec_kw = {'wspace':0.06, 'hspace':0}, figsize=(t_length, 5))
+        fig, ax = plt.subplots(n_sequences, t_length, gridspec_kw = {'wspace':0.06, 'hspace':0}, figsize=(t_length, n_sequences))
         plt.subplots_adjust(wspace=0.06, hspace=0)
-        f_size = 17
+        f_size = 16
 
-        for k in range(0, 5):
+        for k in range(0, n_sequences):
           for i in range(0, t_length):
             ax[k,i].imshow(self.convert_to_numpy(t_seq[t_list[i], k, :, :, :]))
             if i <3:
