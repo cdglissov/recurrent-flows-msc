@@ -1,6 +1,6 @@
 import sys
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows_git_gut/')
+sys.path.insert(1, './deepflows/')
 import torch
 import torch.utils.data
 from torch.utils.data import DataLoader

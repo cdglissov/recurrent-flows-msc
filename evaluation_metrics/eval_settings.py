@@ -3,7 +3,7 @@ import torch
 import sys
 import numpy as np
 # Adding deepflows to system path
-sys.path.insert(1, './deepflows_git_gut/')
+sys.path.insert(1, './deepflows/')
 from evaluation_metrics.error_metrics import Evaluator
 
 
