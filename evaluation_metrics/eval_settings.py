@@ -49,18 +49,18 @@ def main(settings):
             else:
                 FVD_mean = -1
                 FVD_std = -1
-                
+
             evaluator.model.temperature = settings.temperatures[i]
             evaluator.model.kl_temperature = 1
             evaluator.plot_long_t(model_name)
             evaluator.plot_diversity(model_name)
             evaluator.plot_random_samples(model_name)
             evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=False)
-            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=True, 
+            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=True,
                                 duplicate_samples=False)
-            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=False, 
+            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=False,
                                 duplicate_samples=True, t_list = [0]*8)
-            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=True, 
+            evaluator.plot_temp(model_name, orig_temps=[settings.temperatures[i],1], kl_analysis=True,
                     duplicate_samples=True, t_list = [0]*8)
             evaluator.model.temperature = settings.temperatures[i]
             evaluator.model.kl_temperature = 1
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     #EVAL VALUES PLOTTER SETTINGS:
     add_bool_arg(parser, "calc_eval", default=False,
                  help="Set to false if we do not want to calculate eval values")
-    add_bool_arg(parser, "debug_plot", default=False,
+    add_bool_arg(parser, "debug_plot", default=True,
                  help="Plots num_samples_to_plot samples to make sure the loader and eval works")
     parser.add_argument("--n_conditions", help="Number of conditions used for plotting eval_values",
                         default=5, type=int)

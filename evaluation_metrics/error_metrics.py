@@ -1074,7 +1074,7 @@ class Evaluator(object):
       print(FVD_std)
 
       return FVD_mean, FVD_std
-    
+
     def minmax_scale(self,x):
       x = (x - x.min()) / (x.max() - x.min())
       return x
@@ -1174,7 +1174,7 @@ class Evaluator(object):
         test=test_pred
         test1=test_pred1
         test2=test_pred2
-        
+
         fig, ax = plt.subplots(2, 1 ,figsize = (1*10, 2*4))
         #fig2, ax2 = plt.subplots(figsize = (10,10), gridspec_kw={"hspace":0.0001, "wspace":0.0001})
         fig2, ax2 = plt.subplots(3,1,figsize = (1*5,3*5),gridspec_kw={"hspace":0.01, "wspace":0.001, "top":0.2})
@@ -1204,7 +1204,7 @@ class Evaluator(object):
         ax2[0].axis("off")
         ax2[1].axis("off")
         ax2[2].axis("off")
-        
+
         ax3[0].imshow(test_true.cpu().numpy())
         ax3[1].imshow(test1_true.cpu().numpy())
         ax3[2].imshow(test2_true.cpu().numpy())
@@ -1250,7 +1250,7 @@ class Evaluator(object):
         t_seq = torch.cat([conditions,predictions],0)
         fig, ax = plt.subplots(n_sequences, t_length, gridspec_kw = {'wspace':0.06, 'hspace':0}, figsize=(t_length, n_sequences))
         plt.subplots_adjust(wspace=0.06, hspace=0)
-        f_size = 16
+        f_size = 13
 
         for k in range(0, n_sequences):
           for i in range(0, t_length):
@@ -1273,7 +1273,7 @@ class Evaluator(object):
     def plot_temp(self,  model_name, orig_temps, kl_analysis, duplicate_samples=False, t_list=[0,1,2,9,19,39]):
       if model_name == 'rfn.pt':
         self.model.eval()
- 
+
         true_image = next(iter(self.test_loader))
         if self.choose_data=='bair':
              image = true_image[0].to(device)
@@ -1283,7 +1283,7 @@ class Evaluator(object):
 
         pred_list = []
         #9
-        
+
         temperatures = [0.001, 0.3, 0.5, 0.7, 1, 2]
         n_temps = len(temperatures)
         n_preds = len(t_list)
@@ -1309,7 +1309,7 @@ class Evaluator(object):
           pred_list.append(preds)
         pred_list = torch.stack(pred_list, 1)
         f_size = 13
-        
+
         fig, ax = plt.subplots(n_temps, n_preds, gridspec_kw = {'wspace':0, 'hspace':0}, figsize=(n_preds, n_temps))
         for k in range(0, n_temps):
           for i in range(0, n_preds):
@@ -1333,7 +1333,7 @@ class Evaluator(object):
         self.model.temperature = orig_temps[0]
         self.model.kl_temperature = orig_temps[1]
         plt.close(fig)
-        
+
       else:
         print("needs to be a RFN.pt model")
 
